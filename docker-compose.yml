@@ -1,0 +1,42 @@
+services:
+  getnet-multiagent-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: getnet_multiagent_service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - APP_PORT=${APP_PORT:-8000}
+      - APP_HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED:-true}
+      - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS:-3}
+      - DDGS_TIMEOUT=${DDGS_TIMEOUT:-8}
+      - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
+      - CONFIDENCE_THRESHOLD_ESCALATION=${CONFIDENCE_THRESHOLD_ESCALATION:-0.45}
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+    volumes:
+      - ./data:/app/data:ro
+      - chroma_data:/app/chroma_db
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  chroma_data:
+    name: getnet_chroma_data

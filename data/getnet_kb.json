@@ -1,0 +1,44 @@
+[
+  {
+    "id": "kb_get_classica_vs_smart",
+    "title": "Diferença entre Get Clássica e Get Smart",
+    "category": "Maquininhas de Cartão",
+    "url": "https://www.getnet.net/maquininhas",
+    "content": "A Get Clássica e a Get Smart são maquininhas completas da Getnet com impressora de bobina integrada, mas possuem tecnologias e propostas distintas:\n- **Get Clássica**: É o modelo POS tradicional, com teclado físico numérico, tela colorida e impressão rápida de comprovante em papel. Conecta via chip 3G/4G gratuito e Wi-Fi. É ideal para balcões com alto volume de vendas que priorizam robustez, simplicidade e agilidade na digitação de senhas.\n- **Get Smart**: É a máquina inteligente de última geração da Getnet com sistema operacional Android. Possui tela grande sensível ao toque (touchscreen), câmera integrada para leitura rápida de QR Code e código de barras, impressora térmica de alta velocidade e permite instalar aplicativos de gestão do seu negócio diretamente na maquininha. Conecta via 4G e Wi-Fi de alta performance, indicada para comércios que buscam modernidade, relatórios na tela e automação comercial integrada."
+  },
+  {
+    "id": "kb_pix_getnet",
+    "title": "Pix na Maquininha Getnet e Necessidade de Conta Bancária",
+    "category": "Serviços Financeiros",
+    "url": "https://www.getnet.net/solucoes/pix",
+    "content": "Sobre o Pix na Getnet:\n- **Preciso de conta bancária para receber vendas via Pix?** Sim. Para receber os valores transacionados via Pix na maquininha Getnet, o lojista precisa ter uma conta bancária (corrente ou poupança PJ ou PF) cadastrada no seu perfil Getnet, em qualquer banco ou fintech brasileira habilitada pelo Banco Central. Também é possível utilizar uma conta Santander vinculada.\n- **Como funciona na maquininha:** O terminal gera um QR Code Dinâmico diretamente no visor. O cliente lê com o aplicativo do seu banco e o pagamento é confirmado na tela em poucos segundos (D+0 imediato), com taxas reduzidas e máxima segurança."
+  },
+  {
+    "id": "kb_antecipacao_recebiveis",
+    "title": "Como Funciona a Antecipação de Recebíveis Getnet",
+    "category": "Serviços Financeiros",
+    "url": "https://www.getnet.net/solucoes/antecipacao",
+    "content": "A Antecipação de Recebíveis da Getnet permite que o estabelecimento transforme suas vendas feitas a prazo no cartão de crédito em dinheiro na conta antes do prazo padrão de 30 dias por parcela:\n- **Modalidade Automática**: Todas as vendas efetuadas na modalidade crédito (à vista ou parceladas) são antecipadas e depositadas automaticamente na sua conta em D+1 ou D+2 dias úteis, garantindo fluxo de caixa contínuo.\n- **Modalidade Avulsa (Sob Demanda)**: O lojista escolhe quando e quanto deseja antecipar diretamente pelo App Getnet ou Portal do Cliente, antecipando apenas quando houver necessidade de capital de giro.\n- **Sem Risco de Inadimplência**: Uma vez aprovada e antecipada a venda, o risco de inadimplência do comprador é assumido pela emissora/adquirente. As taxas são transparentes e calculadas conforme o prazo antecipado."
+  },
+  {
+    "id": "kb_crediario",
+    "title": "Vendas no Crediário na Getnet e Parcelamento",
+    "category": "Formas de Pagamento",
+    "url": "https://www.getnet.net/solucoes/crediario",
+    "content": "O Crediário na máquina Getnet é uma modalidade de parcelamento emitida pelo banco do cliente com condições exclusivas:\n- **Em quantas parcelas é possível dividir:** Com o Crediário na Getnet, o lojista pode parcelar a venda em até **24x ou até 36x** (dependendo da instituição emissora do cartão do cliente, como Banco do Brasil, Bradesco, Santander e bandeiras participantes Elo, Mastercard e Visa).\n- **Vantagem para o lojista:** O lojista recebe o valor total da venda antecipadamente no prazo contratado (por exemplo em D+1 ou D+30), sem risco de crédito, enquanto os juros do parcelamento estendido são negociados diretamente entre o comprador e o banco emissor."
+  },
+  {
+    "id": "kb_link_pagamento_whatsapp",
+    "title": "Venda pelo WhatsApp com o Link de Pagamento Getnet",
+    "category": "Soluções Digitais",
+    "url": "https://www.getnet.net/solucoes/link-de-pagamento",
+    "content": "Sim! É 100% possível e muito simples vender pelo WhatsApp e redes sociais usando o **Link de Pagamento Getnet**:\n- **Como funciona:** O comerciante gera o link em segundos pelo App Getnet ou no Portal Web, definindo o valor e a descrição do produto ou serviço.\n- **Envio:** O link gerado pode ser copiado e compartilhado via WhatsApp, direct do Instagram, Telegram, SMS ou e-mail.\n- **Pagamento seguro:** O cliente clica no link e é direcionado para uma página de checkout segura da Getnet, onde pode pagar com Cartão de Crédito (com parcelamento em até 12x), Débito Virtual Caixa ou Pix.\n- **Antifraude integrado:** Todas as transações no Link contam com sistema de análise antifraude gratuito incluso, sem necessidade de maquininha física."
+  },
+  {
+    "id": "kb_suporte_conexao_maquininha",
+    "title": "Problemas de Conexão na Maquininha Getnet",
+    "category": "Suporte Técnico",
+    "url": "https://www.getnet.net/ajuda/conectividade",
+    "content": "Orientações para quando a maquininha Getnet não conecta à internet:\n- **Reinicialização:** Desligue e ligue o terminal pressionando o botão liga/desliga por 5 segundos.\n- **Conexão Wi-Fi:** Acesse o menu de configurações do aparelho, ative o Wi-Fi e selecione a rede sem fio (preferencialmente 2.4 GHz com boa intensidade de sinal).\n- **Conexão Móvel (Chip 3G/4G):** Verifique se o ícone do chip está ativo e se há indicação de barras de sinal. Se o sinal estiver fraco, desloque o aparelho para perto de uma janela ou área aberta.\n- **Atualização:** Vá em Menu > Ajustes > Atualizar Sistema para garantir que a versão mais recente do firmware está instalada."
+  }
+]
