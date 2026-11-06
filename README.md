@@ -6,7 +6,7 @@
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5%2B-purple.svg)](https://www.trychroma.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-tickets.db-blue.svg)](https://www.sqlite.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Supervisor%20ReAct-blueviolet.svg)]()
-[![Tests](https://img.shields.io/badge/tests-55%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-56%20passed-brightgreen.svg)]()
 [![Eval](https://img.shields.io/badge/eval%20judge-100%25%20routing-brightgreen.svg)]()
 [![Auth](https://img.shields.io/badge/auth-X--API--Key-blue.svg)]()
 [![Security](https://img.shields.io/badge/security-PII%20Luhn%20%2B%20non--root-success.svg)]()
@@ -248,7 +248,7 @@ curl -X POST "http://localhost:8000/chat" \
 
 ## 4. Testes Automatizados e CI/CD
 
-A suíte conta com **55 testes automatizados** cobrindo todos os cenários oficiais do desafio, testes unitários de componentes e rotinas de avaliação LLM-as-a-Judge:
+A suíte conta com **56 testes automatizados** cobrindo todos os cenários oficiais do desafio, testes unitários de componentes e rotinas de avaliação LLM-as-a-Judge:
 
 ```bash
 # Executar a suíte completa com pytest
@@ -260,13 +260,13 @@ Resultado da execução oficial:
 ============================= test session starts =============================
 platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.7.0
 plugins: anyio-4.15.1, langsmith-0.14.17, asyncio-1.4.1
-collected 55 items
+collected 56 items
 
 tests/test_eval_judge.py ....                                            [  7%]
 tests/test_scenarios.py ..........                                       [ 25%]
 tests/test_unit.py ........................................               [100%]
 
-============================= 55 passed in 25.43s =============================
+============================= 56 passed in 23.61s =============================
 ```
 
 ### Pipeline de Integração Contínua (CI)

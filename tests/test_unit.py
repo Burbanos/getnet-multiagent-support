@@ -387,12 +387,37 @@ def test_multiturn_conversational_memory_saver():
         session_id=session_id
     )
     assert "search_knowledge_base" in state2.tools_used
-    assert len(state2.tools_used) >= 1
+    assert "Smart" in state2.agent_response
     assert state2.session_id == session_id
 
 
+def test_multiturn_followup_concise_touch_android():
+    """Verify that a concise follow-up query ('qual tem touch/Android') reuses conversational memory."""
+    from src.core.graph import get_orchestrator
+    orchestrator = get_orchestrator()
+    session_id = "test-multiturn-concise-touch"
+
+    # Turn 1
+    state1 = orchestrator.run_sync(
+        user_id="cliente1988",
+        message="Qual a diferença entre a Get Clássica e a Get Smart?",
+        session_id=session_id
+    )
+    assert "Smart" in state1.agent_response
+
+    # Turn 2 - Highly concise follow-up referencing prior turn
+    state2 = orchestrator.run_sync(
+        user_id="cliente1988",
+        message="qual tem touch/Android",
+        session_id=session_id
+    )
+    assert "Get Smart" in state2.agent_response
+    assert "Android" in state2.agent_response
+    assert "Não foram encontradas" not in state2.agent_response
+
+
 def test_rag_abstention_out_of_domain():
-    """Verify that out-of-domain queries properly trigger vector abstention (<0.35 similarity without domain keywords)."""
+    """Verify that out-of-domain queries properly trigger mathematical vector abstention (<0.35 similarity)."""
     from src.agents.knowledge import get_retriever
     from src.tools.agent_tools import search_knowledge_base
     from src.core.graph import get_orchestrator

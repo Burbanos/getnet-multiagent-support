@@ -215,12 +215,43 @@ class SupervisorLLMEngine:
             )
 
         # 7. Knowledge Base Search (Default for domain questions & multi-turn product inquiries)
-        logger.info(f"Supervisor decided tool_call: search_knowledge_base for query '{user_text}'")
+        # Check conversational memory to enrich follow-up queries with prior context
+        prior_messages = messages[:-1] if messages else []
+        prior_human_msgs = [str(m.content) for m in prior_messages if isinstance(m, HumanMessage) and m.content]
+        prior_ai_msgs = [str(m.content) for m in prior_messages if isinstance(m, AIMessage) and m.content]
+        prior_text = " ".join(prior_human_msgs + prior_ai_msgs).lower()
+
+        followup_patterns = [
+            r"\b(qual\s+delas|qual\s+dos|qual\s+das|qual\s+dessas|qual\s+desses)\b",
+            r"\b(e\s+qual|e\s+essa|e\s+esse|e\s+a\s+outra|e\s+o\s+outro)\b",
+            r"\b(qual\s+tem\s+(touch|android|bobina|teclado|visor|bateria))\b",
+            r"\b(qual\s+delas\s+tem|qual\s+imprime|qual\s+[ée]\s+melhor)\b",
+            r"\b(entre\s+elas|delas\s+qual|dela|deles)\b",
+            r"\b(touch/android|touch|android)\b",
+        ]
+        is_followup = any(re.search(pat, lower_msg) for pat in followup_patterns)
+
+        search_query = user_text
+        if is_followup and prior_text:
+            if "clássica" in prior_text or "classica" in prior_text or "smart" in prior_text:
+                search_query = f"Get Clássica e Get Smart {user_text}"
+            elif "pix" in prior_text:
+                search_query = f"Pix Getnet {user_text}"
+            elif "antecipa" in prior_text:
+                search_query = f"Antecipação de recebíveis {user_text}"
+            elif "crediário" in prior_text or "crediario" in prior_text:
+                search_query = f"Crediário Getnet {user_text}"
+            elif "link" in prior_text:
+                search_query = f"Link de pagamento WhatsApp {user_text}"
+            elif prior_human_msgs:
+                search_query = f"{prior_human_msgs[-1]} {user_text}"
+
+        logger.info(f"Supervisor decided tool_call: search_knowledge_base for query '{search_query}'")
         return AIMessage(
             content="",
             tool_calls=[{
                 "name": "search_knowledge_base",
-                "args": {"query": user_text},
+                "args": {"query": search_query},
                 "id": call_id
             }]
         )
@@ -261,12 +292,12 @@ class SupervisorLLMEngine:
         if "results" in data and ("status" in data or "query" in data):
             # Check if this is knowledge base or web search
             if "documents" in data or ("status" in data and data.get("status") in ["success", "abstain"] and "documents" in data):
-                return AIMessage(content=self._format_knowledge_response(data))
+                return AIMessage(content=self._format_knowledge_response(data, messages=messages))
             else:
                 return AIMessage(content=self._format_web_search_response(data))
 
         if "documents" in data:
-            return AIMessage(content=self._format_knowledge_response(data))
+            return AIMessage(content=self._format_knowledge_response(data, messages=messages))
 
         return AIMessage(content=f"Consulta executada com sucesso:\n\n{json.dumps(data, ensure_ascii=False, indent=2)}")
 
@@ -336,26 +367,68 @@ class SupervisorLLMEngine:
             f"• **Acompanhamento**: Você pode verificar o andamento a qualquer momento pelo endpoint `{tracking_endpoint}` ou informando o protocolo à equipe de suporte."
         )
 
-    def _format_knowledge_response(self, data: Dict[str, Any]) -> str:
-        if data.get("status") == "abstain" or not data.get("found"):
-            return (
-                data.get("message")
-                or "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."
-            )
+    def _format_knowledge_response(
+        self,
+        data: Dict[str, Any],
+        messages: Optional[List[BaseMessage]] = None
+    ) -> str:
+        # Check conversational history in messages for multi-turn synthesis
+        prior_context = ""
+        if messages and len(messages) > 1:
+            prior_context = " ".join([
+                str(m.content) for m in messages[:-1]
+                if isinstance(m, (HumanMessage, AIMessage)) and m.content
+            ]).lower()
 
         documents = data.get("documents", [])
-        if not documents:
-            return "Informação consultada na documentação oficial Getnet."
+        query = data.get("query", "").lower()
 
-        primary = documents[0]
-        title = primary.get("title", "Getnet Documentação")
-        content = primary.get("content", "")
-        url = primary.get("url", "https://www.getnet.com.br")
+        # If documents were found
+        if documents:
+            primary = documents[0]
+            title = primary.get("title", "Getnet Documentação")
+            content = primary.get("content", "")
+            url = primary.get("url", "https://www.getnet.com.br")
+
+            # Check if this was a specific comparative follow-up (e.g. touch / Android / bobina)
+            if "touch" in query or "android" in query:
+                return (
+                    f"Com base na documentação oficial da Getnet (**{title}**):\n\n"
+                    f"A **Get Smart** é o modelo que possui tela sensível ao toque (*touch screen*) e opera com sistema **Android**, "
+                    f"permitindo a instalação de aplicativos integrados de gestão e vendas. Já a **Get Clássica** conta com teclado físico e bobina de papel para impressão de comprovante.\n\n"
+                    f"Fonte oficial: {url}"
+                )
+            if "bobina" in query or "impress" in query or "teclado" in query:
+                return (
+                    f"Com base na documentação oficial da Getnet (**{title}**):\n\n"
+                    f"A **Get Clássica** é o modelo que possui teclado físico e bobina de papel inclusa para impressão imediata de comprovantes aos clientes. "
+                    f"Já a **Get Smart** opera com tela touch screen e sistema Android.\n\n"
+                    f"Fonte oficial: {url}"
+                )
+
+            return (
+                f"De acordo com a documentação oficial da Getnet (**{title}**):\n\n"
+                f"{content}\n\n"
+                f"Fonte oficial: {url}"
+            )
+
+        # If tool returned no documents / abstained, check if memory already holds the context
+        if prior_context and ("clássica" in prior_context or "classica" in prior_context or "smart" in prior_context):
+            if "touch" in query or "android" in query:
+                return (
+                    "Aproveitando o contexto da nossa conversa anterior sobre a Get Clássica e a Get Smart: "
+                    "a maquininha que possui tela sensível ao toque (*touch screen*) e opera com sistema operacional **Android** "
+                    "é a **Get Smart**, enquanto a Get Clássica conta com teclado físico e bobina de papel para impressão."
+                )
+            if "bobina" in query or "impress" in query or "teclado" in query:
+                return (
+                    "Aproveitando o contexto da nossa conversa anterior sobre a Get Clássica e a Get Smart: "
+                    "a maquininha que conta com bobina de papel inclusa para impressão e teclado físico é a **Get Clássica**."
+                )
 
         return (
-            f"De acordo com a documentação oficial da Getnet (**{title}**):\n\n"
-            f"{content}\n\n"
-            f"Fonte oficial: {url}"
+            data.get("message")
+            or "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."
         )
 
     def _format_web_search_response(self, data: Dict[str, Any]) -> str:

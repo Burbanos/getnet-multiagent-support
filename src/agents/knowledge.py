@@ -34,26 +34,6 @@ STOPWORDS = {
     "do", "does", "did", "have", "has", "will", "would", "should"
 }
 
-GETNET_DOMAIN_KEYWORDS = {
-    # Terminais e hardware
-    "getnet", "smart", "clássica", "classica", "mini", "pos", "maquininha", "maquininhas",
-    "terminal", "terminais", "leitor", "bobina", "bobinas", "chip", "bateria", "conexão",
-    "conexao", "wifi", "wi-fi", "bluetooth", "equipamento", "aparelho",
-    # Meios de pagamento e produtos
-    "pix", "cartão", "cartao", "cartões", "cartoes", "crédito", "credito", "débito", "debito",
-    "voucher", "crediário", "crediario", "link", "pagamento", "pagamentos", "qr", "qrcode",
-    "superget", "tarja", "aproximação", "aproximacao", "nfc", "whatsapp",
-    # Operações e finanças
-    "taxa", "taxas", "mdr", "tarifa", "tarifas", "custo", "plano", "planos",
-    "antecipação", "antecipacao", "antecipar", "recebíveis", "recebiveis",
-    "liquidação", "liquidacao", "depósito", "deposito", "saldo", "extrato", "venda", "vendas",
-    "estorno", "cancelamento", "cancelar", "comprovante", "rejeição", "recusa", "recusada",
-    "lote", "fechamento", "pci", "segurança", "santander", "banco", "conta",
-    # Termos em inglês para os cenários bilíngues oficiais
-    "payment", "machine", "installments", "installment", "advance", "receivables",
-    "settlement", "decline", "sales", "sale", "card", "cards", "credit", "debit"
-}
-
 
 class ChromaDBKnowledgeRetriever:
     """Document retriever combining ChromaDB vector embeddings with lexical hybrid ranking."""
@@ -181,26 +161,24 @@ class ChromaDBKnowledgeRetriever:
                     if not top_candidates:
                         return []
 
-                    has_domain_keyword = any(w in GETNET_DOMAIN_KEYWORDS for w in q_tokens)
                     top_cos_sim = top_candidates[0]["similarity"]
+                    top_score = top_candidates[0]["score"]
+                    top_lex_overlap = top_candidates[0]["lex_overlap"]
 
-                    # 1. Domain keyword check: if cosine similarity < 0.35 and query lacks substantive Getnet keywords, abstain
-                    if top_cos_sim < 0.35 and not has_domain_keyword:
+                    # 1. Purely mathematical semantic check:
+                    # If query has substantive tokens but zero overlap with the corpus
+                    # AND the vector cosine similarity is insignificant (< 0.55), the inquiry is out-of-domain.
+                    if content_q_tokens and top_lex_overlap == 0 and top_cos_sim < 0.55:
                         logger.info(
-                            f"RAG abstained for out-of-domain query '{query}': no Getnet domain keyword and cosine similarity {top_cos_sim:.4f} < 0.35"
+                            f"RAG mathematically abstained for query '{query}': zero substantive term overlap and cosine similarity {top_cos_sim:.4f} < 0.55"
                         )
                         return []
 
-                    # 2. General score threshold
-                    if top_candidates[0]["score"] < threshold:
+                    # 2. General hybrid score threshold
+                    if top_score < threshold:
                         logger.info(
-                            f"RAG abstained for query '{query}': top score {top_candidates[0]['score']:.4f} below threshold {threshold:.2f}"
+                            f"RAG abstained for query '{query}': top score {top_score:.4f} below threshold {threshold:.2f}"
                         )
-                        return []
-
-                    # 3. Content tokens check: if query has content tokens but zero overlap and no domain keyword, abstain
-                    if content_q_tokens and top_candidates[0]["lex_overlap"] == 0 and not has_domain_keyword:
-                        logger.info(f"RAG abstained for unrelated query '{query}': no term overlap and no domain keyword.")
                         return []
 
                     return top_candidates
@@ -217,24 +195,27 @@ class ChromaDBKnowledgeRetriever:
         content_q_tokens = {w for w in q_tokens if w not in STOPWORDS and len(w) > 2}
         if not content_q_tokens:
             return []
-        has_domain_keyword = any(w in GETNET_DOMAIN_KEYWORDS for w in q_tokens)
-        if not has_domain_keyword:
-            return []
 
         scored = []
         for doc in self.raw_documents:
             doc_words = set(re.findall(r"\w+", f"{doc.get('title', '')} {doc.get('content', '')}".lower()))
+            title_words = set(re.findall(r"\w+", doc.get("title", "").lower()))
             overlap = len(content_q_tokens.intersection(doc_words))
+            title_overlap = len(content_q_tokens.intersection(title_words))
+
             if overlap > 0:
+                density = overlap / len(content_q_tokens)
+                score = float(overlap) + (density * 2.0) + (title_overlap * 1.5)
                 scored.append({
                     "id": doc.get("id"),
                     "title": doc.get("title"),
                     "category": doc.get("category"),
                     "url": doc.get("url"),
                     "content": doc.get("content"),
-                    "score": float(overlap),
-                    "similarity": 0.50,
-                    "distance": 0.50
+                    "score": round(score, 4),
+                    "density": round(density, 4),
+                    "similarity": round(min(1.0, 0.40 + density * 0.40), 4),
+                    "distance": round(max(0.0, 0.60 - density * 0.40), 4)
                 })
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
