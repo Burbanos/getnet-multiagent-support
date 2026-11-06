@@ -144,8 +144,19 @@ answers pending tool calls and forces a persisted escalation (AC2.4).
 tried only on non-configuration errors; the model that answered is reported as `llm_model`.
 Bank account masked in tool output; forced escalation never claims a ticket that was not created.
 Phase 2B checks `S1.default_model_*` and `R2.model_name` are superseded by this decision.
-2D = Knowledge and Support specialists as sub-agents exposed to the supervisor as tools,
-real token usage, tool outputs without invented defaults (AC2.8).
+2D = specialist sub-agents (checked by `scripts/verify_phase2d.py`): the supervisor binds only
+`ask_knowledge_agent(question)`, `ask_support_agent(request)` and `escalate_to_human(reason)`.
+`KnowledgeAgent` (tools: `search_knowledge_base`, `search_web`) and `SupportAgent` (tools:
+`get_settlement_status`, `diagnose_declined_transaction`, `diagnose_terminal`) are `SpecialistAgent`
+instances, each with its own prompt (`src/prompts/*.md`, owned by the reviewer), its own tool set
+(calls to tools outside it return an error), an isolated context (system prompt + the supervisor's
+self-contained task only), the same primary/fallback models and failover as the supervisor, and a
+`MAX_SPECIALIST_STEPS` limit (default 4) that returns status `step_limit`. A specialist returns to the
+supervisor a JSON with `agent`, `status`, `answer`, `tools_used`, `sources`. `tools_used` keeps
+listing leaf tools; `agents_used` lists agents in order. Supervisor prompt forbids vague time
+promises ("em breve", "shortly"). Phase 2A checks that assumed the supervisor calls leaf tools
+directly are superseded (listed in the verifier).
+2E = real token usage, tool outputs without invented defaults (AC2.8).
 Additional 2A criteria:
 - AC2.9 The guardrail replaces the incoming HumanMessage (same message id) instead of appending a masked copy; raw PII never reaches the model and is not stored in the checkpointer (test).
 - AC2.10 `langchain-google-genai` declared and locked; the CI test job installs `-r requirements.lock -r requirements-dev.txt` (requirements-dev stays on ranges because the Linux lock pins `uvloop`, which does not install on Windows); Dockerfile fails if the lock is missing; CI actions on `checkout@v5` / `setup-python@v6`.
