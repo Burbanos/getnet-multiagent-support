@@ -136,7 +136,15 @@ final text read with `AIMessage.text` (content may be a list of blocks); configu
 transient errors → 503 "unavailable"; 500 never echoes exception text; one `trace_id` per request,
 returned in the `X-Trace-Id` header on every `/chat` response; `MAX_SUPERVISOR_STEPS` guard that
 answers pending tool calls and forces a persisted escalation (AC2.4).
-2C = Knowledge and Support specialists as sub-agents exposed to the supervisor as tools,
+2C = provider layer and safety fixes (checked by `scripts/verify_phase2c.py`): `LLM_PROVIDER`
+(`google_genai` installed; `openai`/`anthropic` lazily imported, missing package →
+`LLMConfigurationError`), `LLM_MODEL` default `gemini-3.5-flash` and `LLM_FALLBACK_MODEL` default
+`gemini-3.5-flash-lite` (measured on 2026-11-06: `gemini-3.8-flash` returned 504 and `gemini-3.7-flash`
+429 on the free tier, while 3.5-flash answered in ~3 s and chose the correct tool). The fallback is
+tried only on non-configuration errors; the model that answered is reported as `llm_model`.
+Bank account masked in tool output; forced escalation never claims a ticket that was not created.
+Phase 2B checks `S1.default_model_*` and `R2.model_name` are superseded by this decision.
+2D = Knowledge and Support specialists as sub-agents exposed to the supervisor as tools,
 real token usage, tool outputs without invented defaults (AC2.8).
 Additional 2A criteria:
 - AC2.9 The guardrail replaces the incoming HumanMessage (same message id) instead of appending a masked copy; raw PII never reaches the model and is not stored in the checkpointer (test).
