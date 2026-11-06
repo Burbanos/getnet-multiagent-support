@@ -1,4 +1,5 @@
 """FastAPI HTTP service exposing the Multi-Agent Support System API."""
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from src.config import logger, settings
 from src.core.graph import get_orchestrator
+from src.core.llm import LLMNotConfiguredError, LLMUnavailableError
 
 
 class ChatRequest(BaseModel):
@@ -24,9 +26,9 @@ class ChatRequest(BaseModel):
             "example": {
                 "message": "Qual a diferença entre a Get Clássica e a Get Smart?",
                 "user_id": "cliente1988",
-                "session_id": "sess-user-001"
-            }
-        }
+                "session_id": "sess-user-001",
+            },
+        },
     }
 
 
@@ -34,7 +36,6 @@ class AgentMetadata(BaseModel):
     """Telemetry and trace metadata for graph execution."""
     agent_type: str = Field(default="SupervisorAgent", description="Final agent that synthesized the response")
     routed_by: str = Field(default="SupervisorAgent", description="Supervisor ReAct orchestration engine")
-    decision_engine: str = Field(default="rules_fallback", description="Engine used for decision/routing")
     session_id: str = Field(default="", description="Conversational session ID")
     trace_id: str = Field(default="", description="Unique UUID trace identifier for observability")
     tools_used: list[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
@@ -59,7 +60,7 @@ def verify_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> s
     if x_api_key is not None and x_api_key not in valid_keys:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API Key inválida. Forneça uma chave autorizada no cabeçalho 'X-API-Key'."
+            detail="API Key inválida. Forneça uma chave autorizada no cabeçalho 'X-API-Key'.",
         )
     return x_api_key
 
@@ -77,7 +78,7 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     environment: str
-    llm_provider: str
+    llm_configured: bool
     guardrails_enabled: bool
 
 
@@ -117,7 +118,7 @@ async def root():
         "health": "/health",
         "chat_endpoint": "/chat",
         "interactive_demo": "/demo",
-        "tickets_endpoint": "/tickets"
+        "tickets_endpoint": "/tickets",
     }
 
 
@@ -129,7 +130,7 @@ async def demo_ui():
         return FileResponse(str(demo_file))
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Arquivo de interface interativa (demo.html) não encontrado."
+        detail="Arquivo de interface interativa (demo.html) não encontrado.",
     )
 
 
@@ -139,7 +140,7 @@ async def health_check():
         status="healthy",
         version="2.0.0",
         environment=settings.APP_ENV,
-        llm_provider=settings.LLM_PROVIDER,
+        llm_configured=bool(settings.GEMINI_API_KEY),
         guardrails_enabled=settings.ENABLE_GUARDRAILS,
     )
 
@@ -150,52 +151,67 @@ async def list_agents():
         "architecture": "LangGraph Supervisor Workflow",
         "orchestrator": {
             "name": "SupervisorAgent",
-            "model_reference": "Rules fallback (fallback por regras)",
+            "model_reference": "Google Gemini Flash (Function Calling)",
             "checkpointer": "MemorySaver (thread-scoped multi-turn state)",
-            "safety": "GuardrailAgent (PII sanitization & prompt injection defense)"
+            "safety": "GuardrailAgent (PII sanitization & prompt injection defense)",
         },
         "agents": [
-            {"name": "SupervisorAgent", "role": "LangGraph Supervisor Orchestrator (fallback por regras)", "tools": ["decide_or_synthesize"]},
-            {"name": "GuardrailAgent", "role": "PII Masking & Safety Guardrail", "tools": ["sanitize_pii", "regex_safety_evaluator"]}
+            {
+                "name": "SupervisorAgent",
+                "role": "LangGraph Supervisor Orchestrator with Function Calling",
+                "tools": [
+                    "get_settlement_status",
+                    "diagnose_declined_transaction",
+                    "diagnose_terminal",
+                    "search_knowledge_base",
+                    "search_web",
+                    "escalate_to_human",
+                ],
+            },
+            {
+                "name": "GuardrailAgent",
+                "role": "PII Masking & Safety Guardrail",
+                "tools": ["sanitize_pii", "regex_safety_evaluator"],
+            },
         ],
         "tools": [
             {
                 "name": "get_settlement_status",
                 "specialist": "CustomerSupportSpecialist",
                 "description": "Consulta liquidação financeira e previsão de depósito D+1",
-                "schema": "get_settlement_status(user_id: str)"
+                "schema": "get_settlement_status()",
             },
             {
                 "name": "diagnose_declined_transaction",
                 "specialist": "CustomerSupportSpecialist",
                 "description": "Diagnostica recusas de cartão (código 51 saldo, código 05, etc.)",
-                "schema": "diagnose_declined_transaction(user_id: str, error_code: Optional[str])"
+                "schema": "diagnose_declined_transaction(error_code: Optional[str])",
             },
             {
                 "name": "diagnose_terminal",
                 "specialist": "HardwareSpecialist",
                 "description": "Diagnóstico de conectividade Wi-Fi e chip 3G/4G do terminal",
-                "schema": "diagnose_terminal(user_id: str, serial_number: Optional[str])"
+                "schema": "diagnose_terminal(serial_number: Optional[str])",
             },
             {
                 "name": "search_knowledge_base",
                 "specialist": "KnowledgeSpecialist",
                 "description": "RAG semântico ChromaDB (artigos Getnet)",
-                "schema": "search_knowledge_base(query: str)"
+                "schema": "search_knowledge_base(query: str)",
             },
             {
                 "name": "search_web",
                 "specialist": "WebSearchSpecialist",
                 "description": "Busca web em tempo real (DuckDuckGo) para clima e câmbio",
-                "schema": "search_web(query: str)"
+                "schema": "search_web(query: str)",
             },
             {
                 "name": "escalate_to_human",
                 "specialist": "HumanOversightSpecialist",
                 "description": "Geração e persistência de ticket em SQLite (tickets.db)",
-                "schema": "escalate_to_human(user_id: str, reason: str)"
-            }
-        ]
+                "schema": "escalate_to_human(reason: str)",
+            },
+        ],
     }
 
 
@@ -208,7 +224,7 @@ async def get_ticket_endpoint(ticket_id: str):
     if not ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado."
+            detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
         )
     return ticket
 
@@ -225,22 +241,22 @@ async def list_tickets_endpoint(limit: int = 50):
 @app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
 @app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
 def chat_endpoint(payload: ChatRequest):
+    trace_id = f"trc-{uuid.uuid4().hex[:12]}"
     try:
         orchestrator = get_orchestrator()
         state = orchestrator.run_sync(
             user_id=payload.user_id,
             message=payload.message,
-            session_id=payload.session_id
+            session_id=payload.session_id,
         )
-
+        trace_id = state.trace_id or trace_id
         active_session = state.session_id or payload.session_id or payload.user_id
 
         metadata = AgentMetadata(
             agent_type="SupervisorAgent",
             routed_by="SupervisorAgent",
-            decision_engine="rules_fallback",
             session_id=active_session,
-            trace_id=state.trace_id or "",
+            trace_id=trace_id,
             tools_used=state.tools_used,
             tool_calls=state.tool_calls,
             execution_time_ms=state.execution_time_ms,
@@ -251,14 +267,13 @@ def chat_endpoint(payload: ChatRequest):
             estimated_cost_usd=None,
             debug_details={
                 "session_id": active_session,
-                "trace_id": state.trace_id,
+                "trace_id": trace_id,
                 "is_safe": state.is_safe,
                 "safety_violations": state.safety_violations,
                 "escalate_to_human": state.escalate_to_human,
                 "ticket_id": state.escalation_ticket_id,
                 "tools_used": state.tools_used,
-                "decision_engine": "rules_fallback"
-            }
+            },
         )
 
         return ChatResponse(
@@ -268,9 +283,21 @@ def chat_endpoint(payload: ChatRequest):
             metadata=metadata,
         )
 
-    except Exception as exc:  # noqa: BLE001 - Top-level handler must catch all errors to return HTTP 500 JSON
-        logger.exception(f"Unhandled error processing message from user '{payload.user_id}': {exc}")
+    except LLMNotConfiguredError as exc:
+        logger.exception(f"LLM not configured [trace_id={trace_id}]: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM not configured: set GEMINI_API_KEY.",
+        ) from exc
+    except LLMUnavailableError as exc:
+        logger.exception(f"LLM provider unavailable [trace_id={trace_id}]: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM provider unavailable, please retry.",
+        ) from exc
+    except Exception as exc:
+        logger.exception(f"Unhandled error processing message from user '{payload.user_id}' [trace_id={trace_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro interno no processamento multi-agente: {exc!s}"
-        )
+            detail=f"Erro interno no processamento multi-agente: {exc!s}",
+        ) from exc

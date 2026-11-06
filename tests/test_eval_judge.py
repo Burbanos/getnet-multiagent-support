@@ -1,11 +1,14 @@
-"""Evaluation dataset verification and rules fallback routing tests."""
+"""Evaluation dataset verification and security header tests."""
 import json
 import logging
 from pathlib import Path
 
+from langchain_core.messages import AIMessage
 from starlette.testclient import TestClient
 
+import src.core.graph as graph_mod
 from src.core.graph import OrchestrationGraph
+from tests.fakes import ScriptedChatModel
 
 logger = logging.getLogger("multiagent.eval_dataset")
 
@@ -29,34 +32,6 @@ def test_eval_dataset_schema():
         assert len(item["ideal_answer"]) > 5
 
 
-def test_rules_fallback_routing_on_dataset(orchestrator: OrchestrationGraph):
-    """Verify expected tool routing on the evaluation dataset using the rules engine."""
-    with open(DATASET_PATH, "r", encoding="utf-8") as f:
-        dataset = json.load(f)
-
-    for item in dataset:
-        q_id = item["id"]
-        question = item["question"]
-        expected_tool = item["expected_tool"]
-
-        state = orchestrator.run_sync(
-            user_id="rules_evaluator",
-            message=question,
-            session_id=f"session-{q_id}"
-        )
-
-        if expected_tool == "none_guardrail":
-            assert not state.is_safe, f"[{q_id}] Expected guardrail block, but message was safe"
-        elif expected_tool == "escalate_to_human":
-            assert "escalate_to_human" in state.tools_used or state.escalate_to_human, (
-                f"[{q_id}] Expected escalation, got {state.tools_used}"
-            )
-        else:
-            assert expected_tool in state.tools_used, (
-                f"[{q_id}] Expected tool '{expected_tool}' in {state.tools_used}"
-            )
-
-
 def test_x_api_key_security_header(client: TestClient):
     """
     Test X-API-Key security header enforcement:
@@ -64,26 +39,34 @@ def test_x_api_key_security_header(client: TestClient):
     2. Omitted header returns HTTP 200 (frictionless local development).
     3. Unauthorized key returns HTTP 401 Unauthorized.
     """
-    # 1. Valid key
-    res_valid = client.post(
-        "/chat",
-        headers={"X-API-Key": "getnet-dev-key"},
-        json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"}
-    )
-    assert res_valid.status_code == 200
+    saved = graph_mod._orchestrator_instance
+    try:
+        graph_mod._orchestrator_instance = OrchestrationGraph(
+            chat_model=ScriptedChatModel(responses=[AIMessage(content="ok"), AIMessage(content="ok")])
+        )
 
-    # 2. Omitted header
-    res_omitted = client.post(
-        "/chat",
-        json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"}
-    )
-    assert res_omitted.status_code == 200
+        # 1. Valid key
+        res_valid = client.post(
+            "/chat",
+            headers={"X-API-Key": "getnet-dev-key"},
+            json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"},
+        )
+        assert res_valid.status_code == 200
 
-    # 3. Unauthorized key
-    res_invalid = client.post(
-        "/chat",
-        headers={"X-API-Key": "malicious-hacker-key-999"},
-        json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"}
-    )
-    assert res_invalid.status_code == 401
-    assert "inválida" in res_invalid.json()["detail"].lower()
+        # 2. Omitted header
+        res_omitted = client.post(
+            "/chat",
+            json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"},
+        )
+        assert res_omitted.status_code == 200
+
+        # 3. Unauthorized key
+        res_invalid = client.post(
+            "/chat",
+            headers={"X-API-Key": "malicious-hacker-key-999"},
+            json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"},
+        )
+        assert res_invalid.status_code == 401
+        assert "inválida" in res_invalid.json()["detail"].lower()
+    finally:
+        graph_mod._orchestrator_instance = saved

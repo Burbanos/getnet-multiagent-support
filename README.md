@@ -15,10 +15,10 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 
 ## Limitações atuais
 
-* **Roteamento**: O roteamento é um fallback por regras até a Fase 2;
+* **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
+* **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento, que será avaliada na Fase 6;
 * **Base de conhecimento**: A base de conhecimento é conteúdo provisório escrito à mão até a Fase 3;
-* **Autenticação**: A API key é opcional até a Fase 4;
-* **Chamadas a modelos externos**: Nenhum LLM é chamado nesta versão.
+* **Autenticação**: A API key é opcional até a Fase 4.
 
 ---
 
@@ -170,16 +170,18 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 
 ## 3. Como Executar e Modos de Operação
 
-### Modos de Operação
+### Modos de Operação e Configuração
 
-1. **Modo Padrão (Offline / Resiliente / Zero-Friction — Default)**:
-   * **Execução Autônoma Sem Custos**: Não requer chaves de API pagas nem quotas externas.
-   * **ReAct Determinístico**: O loop ReAct de seleção de ferramentas, recuperação no ChromaDB local e observação de ferramentas executa de ponta a ponta sem internet.
-   * **Busca Web Autêntica**: Consulta informações públicas externas em tempo real via DuckDuckGo (`ddgs`), admitindo indisponibilidade honesta se a rede pública oscilar.
+O sistema opera com o modelo Google Gemini Flash via `langchain-google-genai`:
 
-2. **Modo Generativo (LLM Provider)**:
-   * **Ativação por Variável de Ambiente**: Configure `GEMINI_API_KEY=sua_chave` e `LLM_PROVIDER=gemini` no arquivo `.env`.
-   * **Declaração de Ferramentas**: O modelo consome os esquemas de declaração de função e orquestra a chamada de ferramentas diretamente.
+* **Configuração de Variáveis de Ambiente**:
+  * `GEMINI_API_KEY`: Chave de API do Google Gemini (obrigatória para o funcionamento do `/chat`). Se não for fornecida, a API responde HTTP 503 com `detail: "LLM not configured: set GEMINI_API_KEY."`.
+  * `GEMINI_MODEL`: Modelo utilizado pelo Supervisor (padrão: `gemini-2.5-flash`).
+  * `APP_ENV`: Ambiente de execução (`development`, `staging`, `production`, `testing`).
+  * `ENABLE_GUARDRAILS`: Ativa ou desativa a sanitização de PII e bloqueio de prompt injection (padrão: `true`).
+  * `WEB_SEARCH_ENABLED`: Habilita busca externa em tempo real via DuckDuckGo (padrão: `true`).
+
+* **Execução dos Testes**: Os testes automatizados executam 100% offline sem custos nem chamadas externas, utilizando o `ScriptedChatModel` para validação determinística de encadeamento de ferramentas.
 
 ---
 
@@ -319,7 +321,7 @@ getnet-multiagent-support/
 │   │   └── knowledge.py           # RAG vetorial ChromaDB com limiar explícito de abstenção
 │   ├── core/
 │   │   ├── graph.py               # Grafo LangGraph Supervisor ReAct com MemorySaver
-│   │   ├── llm.py                 # Motor Supervisor ReAct e fallback por regras
+│   │   ├── llm.py                 # Provedor do modelo ChatGoogleGenerativeAI e tratamento de erros
 │   │   ├── pii.py                 # Sanitizador de PII (algoritmo de Luhn para cartões e CPF)
 │   │   ├── tickets_db.py          # Repositório SQLite para persistência e consulta de chamados
 │   │   ├── state.py               # Schemas tipados de estado LangGraph (SupervisorState, AgentState)

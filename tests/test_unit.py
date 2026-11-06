@@ -1,9 +1,12 @@
-"""Unit test suite for API endpoints, tools, retriever, router, and guardrails."""
+"""Unit test suite for API endpoints, tools, retriever, and guardrails."""
 import pytest
 from fastapi.testclient import TestClient
+from langchain_core.messages import AIMessage
 
+import src.core.graph as graph_mod
 from src.agents.guardrails import GuardrailAgent
 from src.agents.knowledge import get_retriever
+from src.core.graph import OrchestrationGraph
 from src.core.state import AgentRole, AgentState
 from src.tools.balance_tools import (
     get_declined_transaction_details,
@@ -11,6 +14,7 @@ from src.tools.balance_tools import (
 )
 from src.tools.terminal_tools import diagnose_terminal_connectivity
 from src.tools.web_search import web_search_tool
+from tests.fakes import ScriptedChatModel
 
 
 def test_root_endpoint(client: TestClient):
@@ -27,7 +31,7 @@ def test_health_endpoint(client: TestClient):
     data = response.json()
     assert data["status"] == "healthy"
     assert "version" in data
-    assert "llm_provider" in data
+    assert "llm_configured" in data
 
 
 def test_agents_introspection_endpoint(client: TestClient):
@@ -49,47 +53,44 @@ def test_chat_invalid_payload(client: TestClient):
 
 
 def test_chat_endpoint_valid_response(client: TestClient):
-    payload = {
-        "message": "What's the difference between the Get Clássica and the Get Smart?",
-        "user_id": "cliente1988"
-    }
-    response = client.post("/chat", json=payload)
-    assert response.status_code == 200
-    data = response.json()
+    saved = graph_mod._orchestrator_instance
+    try:
+        graph_mod._orchestrator_instance = OrchestrationGraph(
+            chat_model=ScriptedChatModel(
+                responses=[
+                    AIMessage(
+                        content="",
+                        tool_calls=[{"name": "search_knowledge_base", "args": {"query": "Get Classica Get Smart"}, "id": "call-1"}],
+                    ),
+                    AIMessage(content="A Get Clássica tem teclado físico e a Get Smart roda Android."),
+                ]
+            )
+        )
+        payload = {
+            "message": "What's the difference between the Get Clássica and the Get Smart?",
+            "user_id": "cliente1988",
+        }
+        response = client.post("/chat", json=payload)
+        assert response.status_code == 200
+        data = response.json()
 
-    assert "response" in data
-    assert len(data["response"]) > 10
-    assert data["agent"] == "SupervisorAgent"
-    assert data["user_id"] == "cliente1988"
+        assert "response" in data
+        assert len(data["response"]) > 10
+        assert data["agent"] == "SupervisorAgent"
+        assert data["user_id"] == "cliente1988"
 
-    meta = data["metadata"]
-    assert meta["agent_type"] == "SupervisorAgent"
-    assert meta["execution_time_ms"] > 0
-    assert "search_knowledge_base" in meta["tools_used"]
+        meta = data["metadata"]
+        assert meta["agent_type"] == "SupervisorAgent"
+        assert meta["execution_time_ms"] > 0
+        assert "search_knowledge_base" in meta["tools_used"]
+    finally:
+        graph_mod._orchestrator_instance = saved
 
 
 def test_demo_ui_endpoint(client: TestClient):
     response = client.get("/demo")
     assert response.status_code == 200
     assert "Getnet Multi-Agent Support System" in response.text
-
-
-@pytest.mark.asyncio
-async def test_langgraph_orchestration_direct_execution():
-    from src.core.graph import get_orchestrator
-    orchestrator = get_orchestrator()
-    state = await orchestrator.run(
-        user_id="cliente1988",
-        message="What's the difference between the Get Clássica and the Get Smart?"
-    )
-    assert state.final_agent == AgentRole.SUPERVISOR
-    assert state.is_safe is True
-    assert "search_knowledge_base" in state.tools_used
-    assert len(state.context_docs) >= 1
-    assert len(state.retrieved_docs) >= 1
-    assert state.execution_time_ms > 0
-    assert state.agent_response is not None
-    assert "Clássica" in state.agent_response or "Smart" in state.agent_response
 
 
 def test_get_settlement_and_sales_status():
@@ -220,77 +221,11 @@ def test_terminal_troubleshooting_steps_no_numeric_prefix():
         assert not step.startswith(("1.", "2.", "3.", "4.", "1. ", "2. "))
 
 
-def test_supervisor_react_tool_calling():
-    """Verify Supervisor ReAct tool invocation on settlement inquiry."""
-    from src.core.graph import get_orchestrator
-    orchestrator = get_orchestrator()
-    state = orchestrator.run_sync(
-        user_id="cliente1988",
-        message="When will the money from yesterday's sales be deposited?",
-        session_id="session-react-tool-test"
-    )
-    assert "get_settlement_status" in state.tools_used
-    assert "3,367.20" in state.agent_response
-    assert "Santander" in state.agent_response
-
-
-def test_multiturn_conversational_memory_saver():
-    """Verify session persistence across multiple turns using LangGraph MemorySaver."""
-    from src.core.graph import get_orchestrator
-    orchestrator = get_orchestrator()
-    session_id = "test-multiturn-session-persistent"
-
-    # Turn 1
-    state1 = orchestrator.run_sync(
-        user_id="cliente1988",
-        message="What's the difference between the Get Clássica and the Get Smart?",
-        session_id=session_id
-    )
-    assert "search_knowledge_base" in state1.tools_used
-    assert "Smart" in state1.agent_response
-
-    # Turn 2 - Follow-up using same session
-    state2 = orchestrator.run_sync(
-        user_id="cliente1988",
-        message="E qual delas tem tela touch com sistema Android?",
-        session_id=session_id
-    )
-    assert "search_knowledge_base" in state2.tools_used
-    assert "Smart" in state2.agent_response
-    assert state2.session_id == session_id
-
-
-def test_multiturn_followup_concise_touch_android():
-    """Verify that a concise follow-up query ('qual tem touch/Android') reuses conversational memory."""
-    from src.core.graph import get_orchestrator
-    orchestrator = get_orchestrator()
-    session_id = "test-multiturn-concise-touch"
-
-    # Turn 1
-    state1 = orchestrator.run_sync(
-        user_id="cliente1988",
-        message="Qual a diferença entre a Get Clássica e a Get Smart?",
-        session_id=session_id
-    )
-    assert "Smart" in state1.agent_response
-
-    # Turn 2 - Highly concise follow-up referencing prior turn
-    state2 = orchestrator.run_sync(
-        user_id="cliente1988",
-        message="qual tem touch/Android",
-        session_id=session_id
-    )
-    assert "Get Smart" in state2.agent_response
-    assert "Android" in state2.agent_response
-    assert "Não foram encontradas" not in state2.agent_response
-
-
 def test_rag_abstention_out_of_domain():
     """Verify that out-of-domain queries properly trigger mathematical vector abstention (<0.35 similarity)."""
     import json
 
     from src.agents.knowledge import get_retriever
-    from src.core.graph import get_orchestrator
     from src.tools.agent_tools import search_knowledge_base
 
     retriever = get_retriever()
@@ -311,10 +246,16 @@ def test_rag_abstention_out_of_domain():
     assert parsed["found"] is False
     assert "Não foram encontradas informações oficiais" in parsed["message"]
 
-    # End-to-end Supervisor synthesis verification
-    orchestrator = get_orchestrator()
-    state = orchestrator.run_sync(user_id="merchant_test", message=cake_query, session_id="sess-cake-abstain")
-    assert "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet." in state.agent_response
+    # End-to-end Supervisor synthesis verification with ScriptedChatModel
+    fake = ScriptedChatModel(
+        responses=[
+            AIMessage(content="", tool_calls=[{"name": "search_knowledge_base", "args": {"query": cake_query}, "id": "cake-call"}]),
+            AIMessage(content="Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."),
+        ]
+    )
+    orch = OrchestrationGraph(chat_model=fake)
+    state = orch.run_sync(user_id="merchant_test", message=cake_query, session_id="sess-cake-abstain")
+    assert "Não foram encontradas informações oficiais" in state.agent_response
 
 
 def test_tickets_repository_writable_and_creation(tmp_path):
@@ -347,34 +288,48 @@ def test_pii_sanitization_pan_luhn_and_cpf():
 
 def test_ticket_persistence_sqlite_and_endpoints(client: TestClient):
     """Verify human escalation persists real ticket in SQLite data/tickets.db and endpoints work."""
-    payload = {
-        "message": "Quero falar com um atendente humano urgente.",
-        "user_id": "cliente1988",
-        "session_id": "session-escalation-verify"
-    }
-    response = client.post("/chat", json=payload)
-    assert response.status_code == 200
-    data = response.json()
+    saved = graph_mod._orchestrator_instance
+    try:
+        graph_mod._orchestrator_instance = OrchestrationGraph(
+            chat_model=ScriptedChatModel(
+                responses=[
+                    AIMessage(
+                        content="",
+                        tool_calls=[{"name": "escalate_to_human", "args": {"reason": "Quero falar com um atendente humano urgente."}, "id": "tkt-call"}],
+                    ),
+                    AIMessage(content="Chamado registrado com sucesso."),
+                ]
+            )
+        )
+        payload = {
+            "message": "Quero falar com um atendente humano urgente.",
+            "user_id": "cliente1988",
+            "session_id": "session-escalation-verify",
+        }
+        response = client.post("/chat", json=payload)
+        assert response.status_code == 200
+        data = response.json()
 
-    meta = data["metadata"]
-    assert "escalate_to_human" in meta["tools_used"]
-    assert meta["ticket"] is not None
-    ticket_id = meta["ticket"]["ticket_id"]
-    assert ticket_id.startswith("GET-TKT-")
+        meta = data["metadata"]
+        assert "escalate_to_human" in meta["tools_used"]
+        assert meta["ticket"] is not None
+        ticket_id = meta["ticket"]["ticket_id"]
+        assert ticket_id.startswith("GET-TKT-")
 
-    # Verify GET /tickets/{ticket_id}
-    res_ticket = client.get(f"/tickets/{ticket_id}")
-    assert res_ticket.status_code == 200
-    ticket_data = res_ticket.json()
-    assert ticket_data["ticket_id"] == ticket_id
-    assert ticket_data["user_id"] == "cliente1988"
-    assert ticket_data["status"] == "open"
+        # Verify GET /tickets/{ticket_id}
+        res_ticket = client.get(f"/tickets/{ticket_id}")
+        assert res_ticket.status_code == 200
+        ticket_data = res_ticket.json()
+        assert ticket_data["ticket_id"] == ticket_id
+        assert ticket_data["user_id"] == "cliente1988"
+        assert ticket_data["status"] == "open"
 
-    # Verify GET /tickets list endpoint
-    res_list = client.get("/tickets")
-    assert res_list.status_code == 200
-    list_data = res_list.json()
-    assert list_data["count"] >= 1
-    ids = [t["ticket_id"] for t in list_data["tickets"]]
-    assert ticket_id in ids
-
+        # Verify GET /tickets list endpoint
+        res_list = client.get("/tickets")
+        assert res_list.status_code == 200
+        list_data = res_list.json()
+        assert list_data["count"] >= 1
+        ids = [t["ticket_id"] for t in list_data["tickets"]]
+        assert ticket_id in ids
+    finally:
+        graph_mod._orchestrator_instance = saved

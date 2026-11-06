@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from src.agents.knowledge import get_retriever
@@ -18,7 +19,7 @@ logger = logging.getLogger("multiagent.tools")
 
 
 @tool
-def get_settlement_status(user_id: str) -> str:
+def get_settlement_status(config: RunnableConfig) -> str:
     """
     Consulta a liquidação financeira de vendas de ontem e saldo a receber do lojista Getnet.
     Use sempre que o usuário perguntar sobre:
@@ -26,17 +27,15 @@ def get_settlement_status(user_id: str) -> str:
     - Previsão de horário do depósito bancário (D+1)
     - Extrato de liquidação financeira e conta de destino cadastrada
     - Saldo disponível para antecipação
-
-    Args:
-        user_id: Identificador único do estabelecimento/lojista (ex: 'cliente1988').
     """
+    user_id = config["configurable"]["user_id"]
     logger.info(f"[Tool: get_settlement_status] invoked for user_id={user_id}")
     result = get_settlement_and_sales_status(user_id=user_id)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @tool
-def diagnose_declined_transaction(user_id: str, error_code: str | None = None) -> str:
+def diagnose_declined_transaction(error_code: str | None = None, config: RunnableConfig = None) -> str:
     """
     Diagnostica motivos de transações recusadas na maquininha Getnet e orienta o lojista.
     Use sempre que o usuário relatar:
@@ -45,16 +44,16 @@ def diagnose_declined_transaction(user_id: str, error_code: str | None = None) -
     - Dúvidas sobre o motivo de recusa pelo banco emissor e o que fazer
 
     Args:
-        user_id: Identificador do estabelecimento (ex: 'cliente1988').
         error_code: Código numérico opcional da recusa (ex: '51').
     """
+    user_id = config["configurable"]["user_id"]
     logger.info(f"[Tool: diagnose_declined_transaction] invoked for user_id={user_id}, error_code={error_code}")
     result = get_declined_transaction_details(user_id=user_id, error_code=error_code)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @tool
-def diagnose_terminal(user_id: str, serial_number: str | None = None) -> str:
+def diagnose_terminal(serial_number: str | None = None, config: RunnableConfig = None) -> str:
     """
     Realiza diagnóstico técnico e de conectividade nas maquininhas Getnet (Get Smart, Get Clássica, etc.).
     Use sempre que o usuário relatar:
@@ -64,9 +63,9 @@ def diagnose_terminal(user_id: str, serial_number: str | None = None) -> str:
     - Necessidade de passo a passo para reiniciar o terminal
 
     Args:
-        user_id: Identificador do estabelecimento.
         serial_number: Número de série do terminal (opcional).
     """
+    user_id = config["configurable"]["user_id"]
     logger.info(f"[Tool: diagnose_terminal] invoked for user_id={user_id}, serial={serial_number}")
     result = diagnose_terminal_connectivity(user_id=user_id, terminal_serial=serial_number)
     return json.dumps(result, ensure_ascii=False, indent=2)
@@ -140,7 +139,7 @@ def search_web(query: str) -> str:
 
 
 @tool
-def escalate_to_human(user_id: str, reason: str) -> str:
+def escalate_to_human(reason: str, config: RunnableConfig) -> str:
     """
     Registra um chamado formal de transbordo e atendimento humano no banco de dados do sistema.
     Use quando:
@@ -149,9 +148,9 @@ def escalate_to_human(user_id: str, reason: str) -> str:
     - A solicitação do usuário não puder ser resolvida por nenhuma das ferramentas disponíveis
 
     Args:
-        user_id: Identificador do estabelecimento/lojista solicitante.
         reason: Motivo detalhado do encaminhamento ao time humano de atendimento.
     """
+    user_id = config["configurable"]["user_id"]
     logger.info(f"[Tool: escalate_to_human] user_id={user_id}, reason='{reason}'")
     repo = get_tickets_repository()
     ticket = repo.create_ticket(user_id=user_id, reason=reason)

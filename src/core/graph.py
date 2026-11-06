@@ -3,35 +3,53 @@ import json
 import logging
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.guardrails import GuardrailAgent
-from src.core.llm import get_rules_engine
+from src.core.llm import LLMNotConfiguredError, LLMUnavailableError, get_chat_model
 from src.core.state import AgentRole, AgentState, SupervisorState
-from src.tools.agent_tools import TOOLS_BY_NAME
+from src.tools.agent_tools import ALL_TOOLS, TOOLS_BY_NAME
 
 logger = logging.getLogger("multiagent.orchestrator")
+
+PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
+
+
+def load_supervisor_prompt() -> str:
+    """Load supervisor system prompt from markdown file."""
+    if PROMPT_PATH.exists():
+        return PROMPT_PATH.read_text(encoding="utf-8")
+    return "You are the support supervisor for Getnet merchants."
 
 
 class OrchestrationGraph:
     """
     Coordinates execution via LangGraph Supervisor ReAct architecture:
     Guardrails (PII & Injection) -> Supervisor -> [ToolNode -> Supervisor]* -> Response.
-    
+
     Checkpointer:
         Uses native MemorySaver indexed by 'thread_id' (session_id) to persist
         multi-turn conversational context across turns.
     """
 
-    def __init__(self):
+    def __init__(self, chat_model: BaseChatModel | None = None):
         self.guardrail_agent = GuardrailAgent()
-        self.supervisor_llm = get_rules_engine()
+        self.chat_model: BaseChatModel | None = chat_model
+        self._bound_model: Any = None
         self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
+
+    def _get_bound_model(self) -> Any:
+        if self._bound_model is None:
+            model = self.chat_model if self.chat_model is not None else get_chat_model()
+            self._bound_model = model.bind_tools(ALL_TOOLS)
+        return self._bound_model
 
     def _build_graph(self):
         builder = StateGraph(SupervisorState)
@@ -49,8 +67,8 @@ class OrchestrationGraph:
             self._guardrail_condition,
             {
                 "continue": "supervisor",
-                "stop": END
-            }
+                "stop": END,
+            },
         )
 
         builder.add_conditional_edges(
@@ -58,8 +76,8 @@ class OrchestrationGraph:
             self._supervisor_condition,
             {
                 "tools": "tools",
-                "end": END
-            }
+                "end": END,
+            },
         )
 
         # ReAct observation loop: from tools back to supervisor
@@ -70,10 +88,11 @@ class OrchestrationGraph:
     def _guardrail_node(self, state: SupervisorState) -> dict[str, Any]:
         """Sanitize PII and validate safety of incoming message."""
         raw_msg = ""
-        # Find the incoming human input
+        orig_id = None
         if state.get("messages"):
             last_msg = state["messages"][-1]
             if isinstance(last_msg, HumanMessage):
+                orig_id = getattr(last_msg, "id", None)
                 raw_msg = last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
 
         agent_state = AgentState(user_id=state.get("user_id", "cliente1988"), message=raw_msg)
@@ -86,16 +105,16 @@ class OrchestrationGraph:
                 "is_safe": False,
                 "safety_violations": evaluated.safety_violations,
                 "final_response": refusal_content,
-                "messages": [refusal_msg]
+                "messages": [refusal_msg],
             }
 
-        # Message is safe, mask PII in state if applicable
+        # Replace incoming HumanMessage with sanitized message having the same id
         sanitized_msg = evaluated.message
-        human_msg = HumanMessage(content=sanitized_msg)
+        human_msg = HumanMessage(content=sanitized_msg, id=orig_id)
         return {
             "is_safe": True,
             "safety_violations": [],
-            "messages": [human_msg]
+            "messages": [human_msg],
         }
 
     def _guardrail_condition(self, state: SupervisorState) -> str:
@@ -104,13 +123,21 @@ class OrchestrationGraph:
 
     def _supervisor_node(self, state: SupervisorState) -> dict[str, Any]:
         """
-        Supervisor reasoning step: invokes the model / ReAct engine with bound tools.
+        Supervisor reasoning step: invokes the model with supervisor prompt and bound tools.
         Emits an AIMessage with either tool_calls or final synthesized content.
         """
-        messages = list(state.get("messages", []))
-        user_id = state.get("user_id", "cliente1988")
-
-        ai_message = self.supervisor_llm.decide_or_synthesize(messages, user_id=user_id)
+        try:
+            bound_model = self._get_bound_model()
+            system_prompt = load_supervisor_prompt()
+            full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
+            ai_message = bound_model.invoke(full_messages)
+        except LLMNotConfiguredError:
+            raise
+        except LLMUnavailableError:
+            raise
+        except Exception as exc:
+            logger.exception("Supervisor model invocation failed")
+            raise LLMUnavailableError(str(exc)) from exc
 
         response_text = ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
         tool_calls = getattr(ai_message, "tool_calls", []) or []
@@ -121,7 +148,7 @@ class OrchestrationGraph:
         return {
             "messages": [ai_message],
             "final_response": response_text,
-            "tool_calls": existing_calls
+            "tool_calls": existing_calls,
         }
 
     def _supervisor_condition(self, state: SupervisorState) -> str:
@@ -160,7 +187,10 @@ class OrchestrationGraph:
             if tool_fn:
                 logger.info(f"Executing tool '{tool_name}' with args {tool_args}")
                 try:
-                    result_str = tool_fn.invoke(tool_args)
+                    result_str = tool_fn.invoke(
+                        tool_args,
+                        config={"configurable": {"user_id": state["user_id"]}},
+                    )
                 except Exception as e:  # noqa: BLE001 - Dynamic tool invocation must catch all errors
                     logger.error(f"Error executing tool {tool_name}: {e}")
                     result_str = json.dumps({"error": f"Falha na execução da ferramenta {tool_name}: {e}"})
@@ -198,7 +228,7 @@ class OrchestrationGraph:
                 t_msg = ToolMessage(
                     content=json.dumps({"error": f"Ferramenta '{tool_name}' não encontrada."}),
                     tool_call_id=call_id,
-                    name=tool_name
+                    name=tool_name,
                 )
                 tool_messages.append(t_msg)
 
@@ -208,14 +238,14 @@ class OrchestrationGraph:
             "tool_results": tool_results,
             "sources": sources,
             "retrieved_docs": retrieved_docs,
-            "ticket": ticket
+            "ticket": ticket,
         }
 
     def run_sync(
         self,
         user_id: str,
         message: str,
-        session_id: str | None = None
+        session_id: str | None = None,
     ) -> AgentState:
         """
         Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
@@ -223,9 +253,10 @@ class OrchestrationGraph:
         start_time = time.perf_counter()
         active_session_id = session_id or str(uuid.uuid4())
         trace_id = f"trc-{uuid.uuid4().hex[:12]}"
+        msg_id = str(uuid.uuid4())
 
         initial_state: SupervisorState = {
-            "messages": [HumanMessage(content=message)],
+            "messages": [HumanMessage(content=message, id=msg_id)],
             "user_id": user_id,
             "session_id": active_session_id,
             "trace_id": trace_id,
@@ -240,7 +271,7 @@ class OrchestrationGraph:
             "final_response": "",
             "execution_time_ms": 0.0,
             "tokens": None,
-            "estimated_cost_usd": None
+            "estimated_cost_usd": None,
         }
 
         # Checkpointer thread configuration
@@ -252,10 +283,14 @@ class OrchestrationGraph:
 
         try:
             result = self.graph.invoke(initial_state, config=config)
+        except (LLMNotConfiguredError, LLMUnavailableError):
+            raise
         except Exception:
             logger.exception("Error in LangGraph execution")
             result = initial_state
-            result["final_response"] = "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
+            result["final_response"] = (
+                "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
+            )
 
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
@@ -293,7 +328,7 @@ class OrchestrationGraph:
             intent="dynamic_react",
             execution_time_ms=elapsed_ms,
             tokens=token_usage,
-            estimated_cost_usd=cost_usd
+            estimated_cost_usd=cost_usd,
         )
 
         logger.info(
@@ -305,7 +340,7 @@ class OrchestrationGraph:
         self,
         user_id: str,
         message: str,
-        session_id: str | None = None
+        session_id: str | None = None,
     ) -> AgentState:
         """Async compatibility wrapper invoking the compiled LangGraph workflow."""
         return self.run_sync(user_id=user_id, message=message, session_id=session_id)

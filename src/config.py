@@ -3,7 +3,6 @@ import json
 import logging
 import sys
 from datetime import UTC, datetime
-from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,13 +22,8 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     LOG_LEVEL: str = "INFO"
 
-    LLM_PROVIDER: Literal["gemini", "openai", "mock"] = "mock"
-
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
-
-    OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4o-mini"
 
     WEB_SEARCH_ENABLED: bool = True
     WEB_SEARCH_MAX_RESULTS: int = 3

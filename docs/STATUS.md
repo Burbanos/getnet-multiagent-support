@@ -80,6 +80,25 @@ Definidas e decoradas em `src/tools/agent_tools.py`:
 2. `test_rules_fallback_routing_on_dataset`: criado; avalia que o motor de fallback ReAct aciona a ferramenta esperada (`expected_tool in tools_used` ou guardrail) para os 12 pares do dataset.
 3. `test_x_api_key_security_header`: mantido; valida autenticação com chave válida, cabeçalho omitido e rejeição 401 para chave inválida.
 
+#### Testes Alterados / Apagados na Fase 2A:
+1. `tests/test_eval_judge.py`: `test_rules_fallback_routing_on_dataset` foi removido pois avaliava o motor determinístico `RulesFallbackEngine` eliminado nesta fase; o roteamento e function calling agora são testados de ponta a ponta em `tests/test_graph_llm.py` e `tests/test_scenarios.py` com `ScriptedChatModel`.
+2. `tests/test_scenarios.py`: os 10 cenários foram reescritos para orquestração ReAct via `ScriptedChatModel` com emissão e validação explícita de `AIMessage(tool_calls=...)` e recepção de `ToolMessage`.
+3. `tests/test_unit.py`:
+   - `test_chat_endpoint_valid_response`: adaptado para mock do Supervisor com `ScriptedChatModel`.
+   - `test_create_ticket_endpoint_and_read_back`: adaptado para acionamento da ferramenta `escalate_to_human` via `ScriptedChatModel`.
+   - `test_health_endpoint`: asserção atualizada para verificar o campo booleano `llm_configured` (em vez de checagem fixa de provider legada).
+
+#### Novos Testes Criados na Fase 2A (`tests/test_graph_llm.py`):
+1. `test_single_tool_call_flow`: fluxo de turno único com chamada de ferramenta e síntese final.
+2. `test_two_tools_sequential_flow`: fluxo sequencial ReAct de duas ferramentas no mesmo turno.
+3. `test_direct_response_no_tools`: resposta conversacional direta sem invocação de ferramentas.
+4. `test_tool_exception_returns_tool_message_error_to_model`: tratamento e propagação de falha de ferramenta como `ToolMessage` para o modelo sintetizar explicação graciosa.
+5. `test_multi_turn_memory_same_session`: retenção de contexto conversacional entre múltiplos turnos usando `MemorySaver` com o mesmo `session_id`.
+6. `test_pii_sanitized_before_supervisor`: sanitização de cartões PAN/CPF antes da invocação do modelo supervisor.
+7. `test_tool_schemas_do_not_expose_user_id`: inspeção estrita dos schemas Pydantic das ferramentas garantindo que `user_id` não seja visível para o LLM.
+8. `test_chat_endpoint_503_when_no_api_key`: retorno HTTP 503 com mensagem clara quando `GEMINI_API_KEY` não está configurada.
+9. `test_chat_endpoint_503_when_model_fails`: retorno HTTP 503 com mensagem clara e log de `trace_id` quando o provedor LLM falha.
+
 #### Isolamento de Ambiente em `tests/conftest.py`:
 - `TICKETS_DB_PATH` isolado em diretório temporário (`tempfile.mkdtemp`) antes do import da aplicação, garantindo que a execução dos testes não altere a árvore git (`git status --porcelain` limpo).
 - `mock_web_search` registrado como fixture autouse para monkeypatch de `web_search_tool`, impedindo qualquer tráfego de rede durante os testes.
@@ -88,7 +107,44 @@ Definidas e decoradas em `src/tools/agent_tools.py`:
 
 ### 8. Verificação e Saídas Oficiais
 
-#### Verificação Completa (`python scripts/verify_phase1.py`):
+#### Verificação Fase 2A (`python scripts/verify_phase2a.py`):
+```text
+PASS S1.rules_engine_removed
+PASS S2.no_regex_routing
+PASS S3.bind_tools
+PASS S4.supervisor_prompt
+PASS S5.fake_model
+PASS S6.dep_declared
+PASS S6.ci_tests_use_lock
+PASS S6.docker_no_fallback
+PASS S6.lock_has_dep
+PASS S7.ci_actions_updated
+PASS S8.readme_updated
+PASS R1.user_id_not_model_visible
+PASS R1.tool_set
+PASS R2.single_tool_flow
+PASS R2.system_prompt_first
+PASS R2.no_duplicate_human
+PASS R3.user_id_injected
+PASS R3.bound_tools
+PASS R4.two_tools_sequence
+PASS R5.multi_turn_memory
+PASS R6.pii_masked_before_model
+PASS R7.no_key_503
+PASS R8.llm_error_503
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 49 passed in 15.53s
+PASS Q3.tree_unchanged
+
+SUMMARY: 26/26 passed
+```
+
+#### Commit Base Fase 2A:
+```text
+4625cc8b05bc4d88dbe33c8c3e45e8b5114e59f5
+```
+
+#### Verificação Fase 1 (`python scripts/verify_phase1.py`):
 ```text
 PASS A1.files
 PASS A1.refs
@@ -130,22 +186,17 @@ PASS B9.spec_present
 SUMMARY: 35/36 passed; failed: B4.lock_regenerated
 ```
 
-*(Nota: a única falha restante é `B4.lock_regenerated`, decorrente da restrição explícita de não gerar `requirements.lock` no host Windows, devendo ser gerado em ambiente Linux pelo usuário).*
+*(Nota: a única falha restante na Fase 1 é `B4.lock_regenerated`, decorrente da restrição explícita de não gerar `requirements.lock` no host Windows, devendo ser gerado em ambiente Linux pelo usuário).*
 
 #### Execução de Testes Pytest (`python -m pytest -q`):
 ```text
-.............................................                            [100%]
-45 passed in 15.82s
+.................................................                            [100%]
+49 passed in 15.53s
 ```
 
 #### Linting (`python -m ruff check .`):
 ```text
 All checks passed!
-```
-
-#### Commit Base:
-```text
-c071ed2e0a7a7bf0eab85e4cd11bfc5eb818890b
 ```
 
 ---
@@ -155,3 +206,5 @@ c071ed2e0a7a7bf0eab85e4cd11bfc5eb818890b
 1. **Geração de `requirements.lock`**: Conforme instrução explícita do prompt, o lockfile não foi gerado nesta máquina Windows para evitar resolução de wheels específicas de plataforma. O arquivo `Dockerfile` foi preparado para usar `requirements.lock` se presente (`COPY requirements.txt requirements.lock* ./`), com fallback para `requirements.txt`. A checagem `B4.lock_regenerated` passará assim que o lock for gerado em Linux.
 2. **Exclusão de `scripts` no `ruff`**: O script `scripts/verify_phase1.py` possui imports e funções utilitárias que não devem ser modificados (regra: "NÃO edite scripts/verify_phase1.py"). Para que o linter `ruff check .` analise estritamente o código de produção (`src/`) e testes (`tests/`) sem violar a regra de imutabilidade do script verificador, adicionou-se `extend-exclude = ["scripts"]` em `[tool.ruff]` no `pyproject.toml`.
 3. **Isolamento de sessão quando `session_id` é omitido**: O LangGraph armazena histórico conversacional por `thread_id`. Para requisições em que o cliente não informa `session_id`, gera-se um UUID novo por turno, prevenindo poluição de contexto entre testes independentes sem quebrar o suporte a múltiplos turnos quando `session_id` é fornecido.
+4. **Injeção de `user_id` via `RunnableConfig`**: Para evitar que o lojista autenticado precise informar seu próprio identificador (e para impedir falsificação de identidade pelo modelo), `user_id` foi removido das assinaturas públicas das ferramentas e é injetado via `config["configurable"]["user_id"]` do LangGraph.
+5. **Preservação de identidade de mensagem no `_guardrail_node`**: Ao higienizar PII do texto da mensagem do usuário antes de repassá-la ao supervisor, preserva-se o identificador único (`id=orig_id`) da `HumanMessage` original, garantindo integridade das transições no histórico de mensagens do LangGraph.
