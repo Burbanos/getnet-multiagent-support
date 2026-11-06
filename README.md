@@ -176,7 +176,10 @@ O sistema opera com o modelo Google Gemini Flash via `langchain-google-genai`:
 
 * **Configuração de Variáveis de Ambiente**:
   * `GEMINI_API_KEY`: Chave de API do Google Gemini (obrigatória para o funcionamento do `/chat`). Se não for fornecida, a API responde HTTP 503 com `detail: "LLM not configured: set GEMINI_API_KEY."`.
-  * `GEMINI_MODEL`: Modelo utilizado pelo Supervisor (padrão: `gemini-2.5-flash`).
+  * `GEMINI_MODEL`: Modelo utilizado pelo Supervisor (padrão: `gemini-3.8-flash`).
+  * `LLM_TIMEOUT_S`: Timeout em segundos para chamadas à API do modelo (padrão: `30.0`).
+  * `LLM_MAX_RETRIES`: Número máximo de tentativas automáticas em caso de erro transiente (padrão: `2`).
+  * `MAX_SUPERVISOR_STEPS`: Limite de iterações do Supervisor por turno antes de acionar escalonamento forçado (padrão: `6`).
   * `APP_ENV`: Ambiente de execução (`development`, `staging`, `production`, `testing`).
   * `ENABLE_GUARDRAILS`: Ativa ou desativa a sanitização de PII e bloqueio de prompt injection (padrão: `true`).
   * `WEB_SEARCH_ENABLED`: Habilita busca externa em tempo real via DuckDuckGo (padrão: `true`).

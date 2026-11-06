@@ -9,6 +9,10 @@ class LLMNotConfiguredError(Exception):
     """Raised when the LLM is invoked but GEMINI_API_KEY is not configured."""
 
 
+class LLMConfigurationError(Exception):
+    """Raised for non-retryable configuration errors (missing model, bad key, permission, invalid request)."""
+
+
 class LLMUnavailableError(Exception):
     """Raised when the external LLM service is unreachable, times out, or fails."""
 
@@ -25,4 +29,6 @@ def get_chat_model() -> BaseChatModel:
         model=settings.GEMINI_MODEL,
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0,
+        timeout=settings.LLM_TIMEOUT_S,
+        max_retries=settings.LLM_MAX_RETRIES,
     )

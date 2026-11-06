@@ -36,6 +36,7 @@ class SupervisorState(TypedDict):
     retrieved_docs: list[dict[str, Any]]
     ticket: dict[str, Any] | None
     final_response: str
+    supervisor_steps: int
     execution_time_ms: float
     tokens: dict[str, int] | None
     estimated_cost_usd: float | None

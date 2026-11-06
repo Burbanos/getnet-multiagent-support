@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +12,11 @@ from pydantic import BaseModel, Field
 
 from src.config import logger, settings
 from src.core.graph import get_orchestrator
-from src.core.llm import LLMNotConfiguredError, LLMUnavailableError
+from src.core.llm import (
+    LLMConfigurationError,
+    LLMNotConfiguredError,
+    LLMUnavailableError,
+)
 
 
 class ChatRequest(BaseModel):
@@ -240,16 +244,17 @@ async def list_tickets_endpoint(limit: int = 50):
 
 @app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
 @app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
-def chat_endpoint(payload: ChatRequest):
+def chat_endpoint(payload: ChatRequest, response: Response):
     trace_id = f"trc-{uuid.uuid4().hex[:12]}"
+    response.headers["X-Trace-Id"] = trace_id
     try:
         orchestrator = get_orchestrator()
         state = orchestrator.run_sync(
             user_id=payload.user_id,
             message=payload.message,
             session_id=payload.session_id,
+            trace_id=trace_id,
         )
-        trace_id = state.trace_id or trace_id
         active_session = state.session_id or payload.session_id or payload.user_id
 
         metadata = AgentMetadata(
@@ -283,21 +288,31 @@ def chat_endpoint(payload: ChatRequest):
             metadata=metadata,
         )
 
+    except LLMConfigurationError as exc:
+        logger.exception(f"LLM misconfigured [trace_id={trace_id}]: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM misconfigured: check GEMINI_MODEL and GEMINI_API_KEY.",
+            headers={"X-Trace-Id": trace_id},
+        ) from exc
     except LLMNotConfiguredError as exc:
         logger.exception(f"LLM not configured [trace_id={trace_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM not configured: set GEMINI_API_KEY.",
+            headers={"X-Trace-Id": trace_id},
         ) from exc
     except LLMUnavailableError as exc:
         logger.exception(f"LLM provider unavailable [trace_id={trace_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM provider unavailable, please retry.",
+            headers={"X-Trace-Id": trace_id},
         ) from exc
     except Exception as exc:
         logger.exception(f"Unhandled error processing message from user '{payload.user_id}' [trace_id={trace_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro interno no processamento multi-agente: {exc!s}",
+            detail=f"Internal error. Reference: {trace_id}",
+            headers={"X-Trace-Id": trace_id},
         ) from exc

@@ -6,13 +6,25 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from langchain_core.exceptions import (
+    ModelAuthenticationError,
+    ModelInvalidRequestError,
+    ModelNotFoundError,
+    ModelPermissionDeniedError,
+)
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.guardrails import GuardrailAgent
-from src.core.llm import LLMNotConfiguredError, LLMUnavailableError, get_chat_model
+from src.config import settings
+from src.core.llm import (
+    LLMConfigurationError,
+    LLMNotConfiguredError,
+    LLMUnavailableError,
+    get_chat_model,
+)
 from src.core.state import AgentRole, AgentState, SupervisorState
 from src.tools.agent_tools import ALL_TOOLS, TOOLS_BY_NAME
 
@@ -58,6 +70,7 @@ class OrchestrationGraph:
         builder.add_node("guardrail", self._guardrail_node)
         builder.add_node("supervisor", self._supervisor_node)
         builder.add_node("tools", self._tools_node)
+        builder.add_node("force_escalation", self._force_escalation_node)
 
         # 2. Add Edges
         builder.add_edge(START, "guardrail")
@@ -76,12 +89,14 @@ class OrchestrationGraph:
             self._supervisor_condition,
             {
                 "tools": "tools",
+                "force_escalation": "force_escalation",
                 "end": END,
             },
         )
 
         # ReAct observation loop: from tools back to supervisor
         builder.add_edge("tools", "supervisor")
+        builder.add_edge("force_escalation", END)
 
         return builder.compile(checkpointer=self.checkpointer)
 
@@ -131,34 +146,101 @@ class OrchestrationGraph:
             system_prompt = load_supervisor_prompt()
             full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
             ai_message = bound_model.invoke(full_messages)
-        except LLMNotConfiguredError:
+        except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError):
             raise
-        except LLMUnavailableError:
-            raise
+        except (
+            ModelNotFoundError,
+            ModelAuthenticationError,
+            ModelPermissionDeniedError,
+            ModelInvalidRequestError,
+        ) as exc:
+            logger.exception("Supervisor model configuration error")
+            raise LLMConfigurationError(str(exc)) from exc
         except Exception as exc:
             logger.exception("Supervisor model invocation failed")
             raise LLMUnavailableError(str(exc)) from exc
 
-        response_text = ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
+        response_text = str(ai_message.text) if hasattr(ai_message, "text") else (
+            ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
+        )
         tool_calls = getattr(ai_message, "tool_calls", []) or []
         existing_calls = list(state.get("tool_calls", []))
         if tool_calls:
             existing_calls.extend(tool_calls)
 
+        current_steps = state.get("supervisor_steps", 0) + 1
+
         return {
             "messages": [ai_message],
             "final_response": response_text,
             "tool_calls": existing_calls,
+            "supervisor_steps": current_steps,
         }
 
     def _supervisor_condition(self, state: SupervisorState) -> str:
-        """Check if supervisor requested tool execution or finished response."""
+        """Check if supervisor requested tool execution, reached step limit, or finished response."""
         messages = state.get("messages", [])
         if messages:
             last_msg = messages[-1]
             if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
+                current_steps = state.get("supervisor_steps", 0)
+                if current_steps >= settings.MAX_SUPERVISOR_STEPS:
+                    return "force_escalation"
                 return "tools"
         return "end"
+
+    def _force_escalation_node(self, state: SupervisorState) -> dict[str, Any]:
+        """
+        Forced escalation node triggered when MAX_SUPERVISOR_STEPS is reached.
+        Closes pending tool calls and creates a ticket in tickets.db.
+        """
+        messages = state.get("messages", [])
+        last_msg = messages[-1] if messages else None
+        pending_calls = getattr(last_msg, "tool_calls", []) or []
+
+        tool_messages: list[BaseMessage] = []
+        for tc in pending_calls:
+            call_id = tc.get("id", "")
+            tool_name = tc.get("name", "unknown")
+            t_msg = ToolMessage(
+                content=json.dumps({"error": "not executed: step limit reached"}),
+                tool_call_id=call_id,
+                name=tool_name,
+            )
+            tool_messages.append(t_msg)
+
+        user_id = state.get("user_id", "cliente1988")
+        escalate_tool = TOOLS_BY_NAME["escalate_to_human"]
+        escalate_res = escalate_tool.invoke(
+            {"reason": "automatic escalation: supervisor step limit reached"},
+            config={"configurable": {"user_id": user_id}},
+        )
+
+        ticket_obj: dict[str, Any] | None = None
+        try:
+            parsed = json.loads(escalate_res) if isinstance(escalate_res, str) else escalate_res
+            if isinstance(parsed, dict):
+                ticket_obj = parsed
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Failed to parse ticket result from force_escalation")
+
+        ticket_id = (ticket_obj or {}).get("ticket_id", "GET-TKT-PENDING")
+        final_text = (
+            f"Não consegui concluir sua solicitação automaticamente. "
+            f"Registrei o chamado {ticket_id} para análise de um especialista humano."
+        )
+        escalation_ai_msg = AIMessage(content=final_text)
+        tool_messages.append(escalation_ai_msg)
+
+        tools_used = list(state.get("tools_used", []))
+        tools_used.append("escalate_to_human")
+
+        return {
+            "messages": tool_messages,
+            "ticket": ticket_obj,
+            "final_response": final_text,
+            "tools_used": tools_used,
+        }
 
     def _tools_node(self, state: SupervisorState) -> dict[str, Any]:
         """
@@ -246,20 +328,21 @@ class OrchestrationGraph:
         user_id: str,
         message: str,
         session_id: str | None = None,
+        trace_id: str | None = None,
     ) -> AgentState:
         """
         Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
         """
         start_time = time.perf_counter()
         active_session_id = session_id or str(uuid.uuid4())
-        trace_id = f"trc-{uuid.uuid4().hex[:12]}"
+        active_trace_id = trace_id or f"trc-{uuid.uuid4().hex[:12]}"
         msg_id = str(uuid.uuid4())
 
         initial_state: SupervisorState = {
             "messages": [HumanMessage(content=message, id=msg_id)],
             "user_id": user_id,
             "session_id": active_session_id,
-            "trace_id": trace_id,
+            "trace_id": active_trace_id,
             "is_safe": True,
             "safety_violations": [],
             "tools_used": [],
@@ -269,6 +352,7 @@ class OrchestrationGraph:
             "retrieved_docs": [],
             "ticket": None,
             "final_response": "",
+            "supervisor_steps": 0,
             "execution_time_ms": 0.0,
             "tokens": None,
             "estimated_cost_usd": None,
@@ -283,7 +367,7 @@ class OrchestrationGraph:
 
         try:
             result = self.graph.invoke(initial_state, config=config)
-        except (LLMNotConfiguredError, LLMUnavailableError):
+        except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError):
             raise
         except Exception:
             logger.exception("Error in LangGraph execution")
@@ -311,7 +395,7 @@ class OrchestrationGraph:
             user_id=user_id,
             message=message,
             session_id=active_session_id,
-            trace_id=trace_id,
+            trace_id=active_trace_id,
             is_safe=result.get("is_safe", True),
             safety_violations=result.get("safety_violations", []),
             tools_used=result.get("tools_used", []),
@@ -341,9 +425,10 @@ class OrchestrationGraph:
         user_id: str,
         message: str,
         session_id: str | None = None,
+        trace_id: str | None = None,
     ) -> AgentState:
         """Async compatibility wrapper invoking the compiled LangGraph workflow."""
-        return self.run_sync(user_id=user_id, message=message, session_id=session_id)
+        return self.run_sync(user_id=user_id, message=message, session_id=session_id, trace_id=trace_id)
 
 
 _orchestrator_instance: OrchestrationGraph | None = None

@@ -99,6 +99,17 @@ Definidas e decoradas em `src/tools/agent_tools.py`:
 8. `test_chat_endpoint_503_when_no_api_key`: retorno HTTP 503 com mensagem clara quando `GEMINI_API_KEY` não está configurada.
 9. `test_chat_endpoint_503_when_model_fails`: retorno HTTP 503 com mensagem clara e log de `trace_id` quando o provedor LLM falha.
 
+#### Novos Testes Criados na Fase 2B (`tests/test_robustness.py`):
+1. `test_get_chat_model_receives_timeout_and_max_retries`: validação de que `LLM_TIMEOUT_S` (30.0) e `LLM_MAX_RETRIES` (2) são passados ao `ChatGoogleGenerativeAI`.
+2. `test_content_blocks_converted_to_plain_text`: conversão correta de conteúdos estruturados em lista de blocos de texto (`AIMessage.text`) para string final limpa.
+3. `test_model_not_found_error_returns_503_misconfigured`: conversão de `ModelNotFoundError` em `LLMConfigurationError` e retorno HTTP 503 com "misconfigured" e header `X-Trace-Id`.
+4. `test_direct_llm_configuration_error_propagated_by_run_sync`: propagação estrita de `LLMConfigurationError` através do método `run_sync`.
+5. `test_other_config_errors_return_503_misconfigured`: parametrização validando `ModelAuthenticationError`, `ModelPermissionDeniedError` e `ModelInvalidRequestError` retornando HTTP 503 "misconfigured".
+6. `test_model_rate_limit_error_returns_503_unavailable`: validação de `ModelRateLimitError` retornando HTTP 503 "unavailable" (sem "misconfigured").
+7. `test_generic_exception_returns_500_without_leak_and_with_trace_id`: captura de exceções genéricas sem vazar detalhes no payload HTTP e referenciando o `trace_id`.
+8. `test_trace_id_header_consistency`: garantia de que o header `X-Trace-Id` coincide com `metadata.trace_id` no payload HTTP 200.
+9. `test_supervisor_step_limit_forces_escalation_and_consistent_history`: limite forçado de passos (`MAX_SUPERVISOR_STEPS=3`) acionando `force_escalation`, gerando chamado persistido e garantindo que cada `tool_call` pendente possua um `ToolMessage` correspondente no histórico.
+
 #### Isolamento de Ambiente em `tests/conftest.py`:
 - `TICKETS_DB_PATH` isolado em diretório temporário (`tempfile.mkdtemp`) antes do import da aplicação, garantindo que a execução dos testes não altere a árvore git (`git status --porcelain` limpo).
 - `mock_web_search` registrado como fixture autouse para monkeypatch de `web_search_tool`, impedindo qualquer tráfego de rede durante os testes.
@@ -106,6 +117,39 @@ Definidas e decoradas em `src/tools/agent_tools.py`:
 ---
 
 ### 8. Verificação e Saídas Oficiais
+
+#### Verificação Fase 2B (`python scripts/verify_phase2b.py`):
+```text
+PASS S1.default_model_config
+PASS S1.default_model_env_example
+PASS S1.default_model_compose
+PASS S1.no_retired_model
+PASS R1.settings
+PASS R1.config_error_class
+PASS R2.timeout_and_retries
+PASS R2.model_name
+PASS R3.content_blocks_to_text
+PASS R4.config_error_503
+PASS R6.trace_header_on_503
+PASS R4.transient_error_503
+PASS R5.internal_error_no_leak
+PASS R5.internal_error_has_reference
+PASS R6.trace_header_matches_metadata
+PASS R7.step_limit_model_calls
+PASS R7.forced_escalation
+PASS R8.history_consistent
+PASS Q0.phase2a_still_passes :: SUMMARY: 26/26 passed
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 60 passed in 12.98s
+PASS Q3.tree_unchanged
+
+SUMMARY: 22/22 passed
+```
+
+#### Commit Base Fase 2B:
+```text
+7408e3d037d981810768c5d2c1d84b97b2c6439e
+```
 
 #### Verificação Fase 2A (`python scripts/verify_phase2a.py`):
 ```text
@@ -190,8 +234,8 @@ SUMMARY: 35/36 passed; failed: B4.lock_regenerated
 
 #### Execução de Testes Pytest (`python -m pytest -q`):
 ```text
-.................................................                            [100%]
-49 passed in 15.53s
+............................................................                 [100%]
+60 passed in 12.98s
 ```
 
 #### Linting (`python -m ruff check .`):
@@ -208,3 +252,6 @@ All checks passed!
 3. **Isolamento de sessão quando `session_id` é omitido**: O LangGraph armazena histórico conversacional por `thread_id`. Para requisições em que o cliente não informa `session_id`, gera-se um UUID novo por turno, prevenindo poluição de contexto entre testes independentes sem quebrar o suporte a múltiplos turnos quando `session_id` é fornecido.
 4. **Injeção de `user_id` via `RunnableConfig`**: Para evitar que o lojista autenticado precise informar seu próprio identificador (e para impedir falsificação de identidade pelo modelo), `user_id` foi removido das assinaturas públicas das ferramentas e é injetado via `config["configurable"]["user_id"]` do LangGraph.
 5. **Preservação de identidade de mensagem no `_guardrail_node`**: Ao higienizar PII do texto da mensagem do usuário antes de repassá-la ao supervisor, preserva-se o identificador único (`id=orig_id`) da `HumanMessage` original, garantindo integridade das transições no histórico de mensagens do LangGraph.
+6. **Classificação Granular de Erros de LLM**: Mapeamento de exceções específicas do LangChain (`ModelNotFoundError`, `ModelAuthenticationError`, `ModelPermissionDeniedError`, `ModelInvalidRequestError`) para `LLMConfigurationError` com HTTP 503 ("misconfigured"), reservando `LLMUnavailableError` para falhas transientes e erros de rede ("unavailable").
+7. **Limite Forçado de Passos no ReAct (`force_escalation`)**: Ao atingir `MAX_SUPERVISOR_STEPS` (configurável em tempo de execução via `settings`), o fluxo desvia para o nó determinístico `force_escalation`, que fecha formalmente todas as chamadas pendentes via `ToolMessage` e emite o chamado humano rastreável no `tickets.db`.
+8. **Rastreabilidade com `X-Trace-Id` sem Vazamento**: O `trace_id` é gerado na entrada de `/chat` e transmitido em todas as respostas HTTP (200, 500, 503) e no log estruturado JSON. Em erros 500, a mensagem ao cliente omite detalhes internos e exibe apenas a referência `Internal error. Reference: <trace_id>`.

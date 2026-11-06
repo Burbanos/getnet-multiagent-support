@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
+    LLM_TIMEOUT_S: float = 30.0
+    LLM_MAX_RETRIES: int = 2
+    MAX_SUPERVISOR_STEPS: int = 6
 
     WEB_SEARCH_ENABLED: bool = True
     WEB_SEARCH_MAX_RESULTS: int = 3
