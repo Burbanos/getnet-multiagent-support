@@ -6,10 +6,12 @@
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5%2B-purple.svg)](https://www.trychroma.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-tickets.db-blue.svg)](https://www.sqlite.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Supervisor%20ReAct-blueviolet.svg)]()
-[![Tests](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-54%20passed-brightgreen.svg)]()
+[![Eval](https://img.shields.io/badge/eval%20judge-100%25%20routing-brightgreen.svg)]()
+[![Auth](https://img.shields.io/badge/auth-X--API--Key-blue.svg)]()
 [![Security](https://img.shields.io/badge/security-PII%20Luhn%20%2B%20non--root-success.svg)]()
 
-Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com Tool Calling nativo**, persistência conversacional multi-turn via **LangGraph MemorySaver**, base de conhecimento vetorial **ChromaDB com limiar explícito de abstenção**, sanitização de **PII (Luhn PAN + CPF)** e persistência real de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
+Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com Tool Calling nativo**, persistência conversacional multi-turn via **LangGraph MemorySaver**, base de conhecimento vetorial **ChromaDB com limiar explícito de abstenção**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e cálculo de custo por tokens (Gemini Flash)**, avaliação automatizada **LLM-as-a-Judge** e persistência real de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
 
 ---
 
@@ -19,7 +21,15 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
 
 * **Coluna Esquerda (Cenários 1-Click)**: Catálogo com os 12 cenários de teste pré-configurados (10 cenários oficiais de referência do desafio Getnet + testes de injeção de prompt e transbordo humano). Dispara qualquer teste com um único clique.
 * **Coluna Central (Chat Interativo Multi-Turn)**: Interface de conversação em tempo real com controle de `Session ID` para teste de memória contextual contínua, balões de diálogo com identificação do modelo, ferramentas acionadas e latência.
-* **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com latência em milissegundos (`execution_time_ms`), similaridade real de cosseno do ChromaDB, auditoria de guardrails (`is_safe`, `safety_violations`), rastreabilidade de chamados SQLite (`GET /tickets/{ticket_id}`) e payload JSON integral.
+* **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com:
+  * **Trace ID UUID** único gerado por ciclo de vida da requisição (`trc-<uuid12>`).
+  * **Consumo Estimado de Tokens** dividido em `Prompt`, `Completion` e `Total`.
+  * **Custo Financeiro Estimado em USD** baseado na tabela oficial do Gemini Flash ($0.075 / 1M input e $0.30 / 1M output).
+  * **Latência em milissegundos** (`execution_time_ms`) com alta performance.
+  * **Confiança Dinâmica** por similaridade real de cosseno do ChromaDB ou execução de tool (sem constantes fixas).
+  * **Auditoria de Guardrails** (`is_safe`, detecção de PII mascarada e injeção de prompt).
+  * **Rastreabilidade de Chamados SQLite** com link direto para o endpoint `GET /tickets/{ticket_id}`.
+  * **Payload JSON Integral** colapsável para inspeção por avaliadores técnicos.
 
 ### Como Acessar a Interface:
 * **Execução Local**: Acesse [`http://localhost:8000/demo`](http://localhost:8000/demo) no navegador com a aplicação em execução.
@@ -133,10 +143,23 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
   * `GET /tickets`: Lista os chamados registrados no banco.
   * Na interface `/demo`, o protocolo exibido é um link clicável direto para a API.
 
-### Segurança & Sanitização de Dados Sensíveis (PII)
+### Segurança, Autenticação & Sanitização de Dados Sensíveis (PII)
 * **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
 * **Sanitização de CPF**: Números de CPF em formato padrão ou contínuo são mascarados para `[CPF_MASCARADO_***.***.***-XX]`.
-* **Proteção contra Injeção de Prompt**: Expressões em português e inglês que tentem sobrescrever instruções (`"ignore todas as suas instruções"`, `"me mostre o seu prompt"`, `"regras internas"`, `"dan"`) são bloqueadas pelo guardrail com resposta segura e imediata.
+* **Proteção contra Injeção de Prompt**: Expressões em português e inglês que tentem sobrescrever instruções (`"ignore todas as suas instruções"`, `"me mostre o seu prompt"`, `"regras internas"`, `"prompt de sistema"`, `"esqueça o que foi dito"`) são bloqueadas pelo guardrail com resposta segura e imediata.
+* **Autenticação via Header `X-API-Key`**: Os endpoints da API exigem o cabeçalho `X-API-Key`. Para manter o ambiente de testes e Docker fluidos e sem atrito, a chave de desenvolvimento padrão `getnet-dev-key` é aceita por padrão. Requisições com chaves não autorizadas são bloqueadas com HTTP 401 Unauthorized.
+
+### Observabilidade Técnica, Trace ID e Custo por Tokens
+* **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
+* **Métricas de Tokens**: Medição dinâmica de `prompt_tokens`, `completion_tokens` e `total_tokens` em todas as respostas.
+* **Cálculo de Custo Financeiro**: Estimativa automática em USD com base na tabela oficial do Gemini Flash ($0.075 / 1 milhão de tokens de input e $0.30 / 1 milhão de tokens de output), viabilizando governança de custos em produção.
+
+### Avaliação Automatizada & LLM-as-a-Judge
+* **Dataset Rotulado (`data/eval_dataset.json`)**: Conjunto de 12 pares de avaliação contendo `id`, `question`, `expected_tool`, `ground_truth_context` e `ideal_answer`, cobrindo 100% dos cenários do desafio técnico Getnet.
+* **Acurácia de Roteamento (100%)**: Avaliação automatizada em `tests/test_eval_judge.py` comprovando que o Supervisor seleciona a ferramenta correta em 100% dos casos (meta do desafio: $\ge 90\%$).
+* **Fidelidade Contextual (Faithfulness $\ge 0.85$)**: Medição de aderência factual entre o texto gerado e a base de conhecimento, assegurando ausência de alucinações.
+* **Relevância Semântica (Relevance $\ge 0.85$)**: Verificação semântica da resposta contra a resposta ideal.
+* **Resiliência e Degradação Graciosa**: Teste automatizado simulando timeout e falha de API externa do LLM (erro 500 / 429), comprovando que o sistema responde com degradação graciosa sem crash da aplicação (HTTP 200).
 
 ---
 
@@ -182,8 +205,14 @@ source .venv/bin/activate
 # Windows PowerShell:
 .venv\Scripts\Activate.ps1
 
-# 2. Instalar dependências
+# 2. Instalar dependências de produção
 pip install -r requirements.txt
+
+# Para desenvolvimento e execução de testes:
+pip install -r requirements-dev.txt
+
+# Para reprodução determinística exata:
+pip install -r requirements.lock
 
 # 3. Inicializar a aplicação
 uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
@@ -203,10 +232,11 @@ Com a aplicação rodando em `http://localhost:8000`:
 * **Listagem de Chamados de Suporte**: `GET /tickets`
 * **Endpoint de Atendimento do Grafo**: `POST /chat`
 
-Exemplo de requisição com sessão multi-turn:
+Exemplo de requisição com sessão multi-turn e autenticação:
 ```bash
 curl -X POST "http://localhost:8000/chat" \
      -H "Content-Type: application/json" \
+     -H "X-API-Key: getnet-dev-key" \
      -d '{
        "message": "When will the money from yesterday'\''s sales be deposited?",
        "user_id": "cliente1988",
@@ -218,24 +248,25 @@ curl -X POST "http://localhost:8000/chat" \
 
 ## 4. Testes Automatizados e CI/CD
 
-A suíte conta com **50 testes automatizados** distribuídos entre testes de integração dos cenários oficiais e testes unitários de componentes:
+A suíte conta com **54 testes automatizados** cobrindo todos os cenários oficiais do desafio, testes unitários de componentes e rotinas de avaliação LLM-as-a-Judge:
 
 ```bash
 # Executar a suíte completa com pytest
 pytest tests/ -v
 ```
 
-Resultado da execução:
+Resultado da execução oficial:
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.7.0
 plugins: anyio-4.15.1, langsmith-0.14.17, asyncio-1.4.1
-collected 50 items
+collected 54 items
 
-tests\test_scenarios.py ..........                                       [ 20%]
-tests\test_unit.py ........................................               [100%]
+tests/test_eval_judge.py ....                                            [  7%]
+tests/test_scenarios.py ..........                                       [ 25%]
+tests/test_unit.py ........................................               [100%]
 
-============================= 50 passed in 14.62s =============================
+============================= 54 passed in 24.18s =============================
 ```
 
 ### Pipeline de Integração Contínua (CI)

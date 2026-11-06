@@ -2,7 +2,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -35,6 +35,7 @@ class AgentMetadata(BaseModel):
     agent_type: str = Field(default="SupervisorAgent", description="Final agent that synthesized the response")
     routed_by: str = Field(default="SupervisorAgent", description="Supervisor ReAct orchestration engine")
     session_id: str = Field(default="", description="Conversational session ID")
+    trace_id: str = Field(default="", description="Unique UUID trace identifier for observability")
     tools_used: List[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
     tool_calls: List[Dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
     execution_time_ms: float = Field(..., description="Total execution latency in milliseconds")
@@ -42,7 +43,25 @@ class AgentMetadata(BaseModel):
     sources: List[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
     retrieved_docs: List[Dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
     ticket: Optional[Dict[str, Any]] = Field(default=None, description="Persisted support ticket if escalation occurred")
+    tokens: Dict[str, int] = Field(default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, description="Token usage estimation")
+    estimated_cost_usd: float = Field(default=0.0, description="Estimated Gemini Flash execution cost in USD")
     debug_details: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic payload")
+
+
+def verify_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> Optional[str]:
+    """
+    Validate optional X-API-Key header.
+    Defaults to accepting 'getnet-dev-key' or omitted header for frictionless local/docker execution.
+    Rejects unauthorized keys with HTTP 401.
+    """
+    configured_key = getattr(settings, "API_KEY", "getnet-dev-key")
+    valid_keys = {"getnet-dev-key", configured_key}
+    if x_api_key is not None and x_api_key not in valid_keys:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key inválida. Forneça uma chave autorizada no cabeçalho 'X-API-Key'."
+        )
+    return x_api_key
 
 
 class ChatResponse(BaseModel):
@@ -184,7 +203,7 @@ async def list_agents():
     }
 
 
-@app.get("/tickets/{ticket_id}", tags=["Tickets"])
+@app.get("/tickets/{ticket_id}", tags=["Tickets"], dependencies=[Depends(verify_api_key)])
 async def get_ticket_endpoint(ticket_id: str):
     """Retrieve details for a persisted support ticket by ticket ID."""
     from src.core.tickets_db import get_tickets_repository
@@ -198,7 +217,7 @@ async def get_ticket_endpoint(ticket_id: str):
     return ticket
 
 
-@app.get("/tickets", tags=["Tickets"])
+@app.get("/tickets", tags=["Tickets"], dependencies=[Depends(verify_api_key)])
 async def list_tickets_endpoint(limit: int = 50):
     """List recent persisted human escalation tickets from SQLite tickets.db."""
     from src.core.tickets_db import get_tickets_repository
@@ -207,8 +226,8 @@ async def list_tickets_endpoint(limit: int = 50):
     return {"count": len(tickets), "tickets": tickets}
 
 
-@app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
-@app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
+@app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
+@app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
 def chat_endpoint(payload: ChatRequest):
     try:
         orchestrator = get_orchestrator()
@@ -230,6 +249,7 @@ def chat_endpoint(payload: ChatRequest):
             agent_type="SupervisorAgent",
             routed_by="SupervisorAgent",
             session_id=active_session,
+            trace_id=state.trace_id or "",
             tools_used=state.tools_used,
             tool_calls=state.tool_calls,
             execution_time_ms=state.execution_time_ms,
@@ -237,13 +257,18 @@ def chat_endpoint(payload: ChatRequest):
             sources=state.sources,
             retrieved_docs=state.retrieved_docs,
             ticket=state.ticket,
+            tokens=state.tokens,
+            estimated_cost_usd=state.estimated_cost_usd,
             debug_details={
                 "session_id": active_session,
+                "trace_id": state.trace_id,
                 "is_safe": state.is_safe,
                 "safety_violations": state.safety_violations,
                 "escalate_to_human": state.escalate_to_human,
                 "ticket_id": state.escalation_ticket_id,
                 "tools_used": state.tools_used,
+                "tokens": state.tokens,
+                "estimated_cost_usd": state.estimated_cost_usd
             }
         )
 

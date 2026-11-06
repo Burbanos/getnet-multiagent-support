@@ -322,6 +322,22 @@
           </div>
         </div>
 
+        <!-- Observability, Tokens & Cost Tracking -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+          <div class="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            <span>Trace ID</span>
+            <span id="traceIdBadge" class="font-mono text-[9px] text-sky-300 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded">—</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-800/80">
+            <span class="text-slate-400">Tokens Estimados:</span>
+            <span id="tokensMetric" class="text-slate-200 font-mono text-[10px]">Prompt: 0 | Compl: 0 | Total: 0</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-slate-400">Custo (Gemini Flash):</span>
+            <span id="costMetric" class="text-emerald-400 font-mono font-bold text-[10px]">$0.0000000 USD</span>
+          </div>
+        </div>
+
         <!-- Tools Used List -->
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
           <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2 flex items-center justify-between">
@@ -604,6 +620,13 @@
         document.getElementById('confidenceMetric').title = 'Execução Determinística de Tool';
       }
 
+      // Trace ID, Tokens & Cost Metrics
+      document.getElementById('traceIdBadge').innerText = meta.trace_id || '—';
+      const tok = meta.tokens || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      document.getElementById('tokensMetric').innerText = `Prompt: ${tok.prompt_tokens} | Compl: ${tok.completion_tokens} | Total: ${tok.total_tokens}`;
+      const cost = meta.estimated_cost_usd !== undefined ? meta.estimated_cost_usd : 0.0;
+      document.getElementById('costMetric').innerText = `$${Number(cost).toFixed(7)} USD`;
+
       // Tools List
       const toolsBox = document.getElementById('toolsList');
       toolsBox.innerHTML = '';
@@ -672,14 +695,6 @@
         });
       } else {
         sourcesBox.innerHTML = '<span class="text-slate-500 italic">Nenhum documento de RAG citado</span>';
-      }
-      } else {
-        sources.forEach(s => {
-          const div = document.createElement('div');
-          div.className = 'flex items-center gap-1.5 text-slate-300 truncate';
-          div.innerHTML = `<i class="fa-solid fa-file-lines text-red-400 text-[10px]"></i> <span>${s}</span>`;
-          sourcesBox.appendChild(div);
-        });
       }
 
       // Raw JSON

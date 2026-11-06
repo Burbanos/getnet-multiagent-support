@@ -234,11 +234,13 @@ class OrchestrationGraph:
         """
         start_time = time.perf_counter()
         active_session_id = session_id or user_id or str(uuid.uuid4())
+        trace_id = f"trc-{uuid.uuid4().hex[:12]}"
 
         initial_state: SupervisorState = {
             "messages": [HumanMessage(content=message)],
             "user_id": user_id,
             "session_id": active_session_id,
+            "trace_id": trace_id,
             "is_safe": True,
             "safety_violations": [],
             "tools_used": [],
@@ -248,7 +250,9 @@ class OrchestrationGraph:
             "retrieved_docs": [],
             "ticket": None,
             "final_response": "",
-            "execution_time_ms": 0.0
+            "execution_time_ms": 0.0,
+            "tokens": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "estimated_cost_usd": 0.0
         }
 
         # Checkpointer thread configuration
@@ -275,11 +279,23 @@ class OrchestrationGraph:
                     final_text = m.content if isinstance(m.content, str) else str(m.content)
                     break
 
+        # Calculate token metrics & cost estimation (Gemini Flash: $0.075/1M input, $0.30/1M output)
+        prompt_tokens = max(1, len(message) // 4 + 120)
+        completion_tokens = max(1, len(final_text) // 4)
+        total_tokens = prompt_tokens + completion_tokens
+        cost_usd = round((prompt_tokens * 0.000000075) + (completion_tokens * 0.00000030), 7)
+        token_usage = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens
+        }
+
         # Map to backward-compatible AgentState
         agent_state = AgentState(
             user_id=user_id,
             message=message,
             session_id=active_session_id,
+            trace_id=trace_id,
             is_safe=result.get("is_safe", True),
             safety_violations=result.get("safety_violations", []),
             tools_used=result.get("tools_used", []),
@@ -300,7 +316,9 @@ class OrchestrationGraph:
                 reasoning="Supervisor ReAct execution with tool calling."
             ),
             intent="dynamic_react",
-            execution_time_ms=elapsed_ms
+            execution_time_ms=elapsed_ms,
+            tokens=token_usage,
+            estimated_cost_usd=cost_usd
         )
 
         logger.info(

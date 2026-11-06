@@ -38,6 +38,7 @@ class SupervisorState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     user_id: str
     session_id: str
+    trace_id: str
     is_safe: bool
     safety_violations: List[str]
     tools_used: List[str]
@@ -48,6 +49,8 @@ class SupervisorState(TypedDict):
     ticket: Optional[Dict[str, Any]]
     final_response: str
     execution_time_ms: float
+    tokens: Dict[str, int]
+    estimated_cost_usd: float
 
 
 class AgentState(BaseModel):
@@ -58,6 +61,7 @@ class AgentState(BaseModel):
     user_id: str = "cliente1988"
     message: str = ""
     session_id: Optional[str] = None
+    trace_id: Optional[str] = None
     messages: List[Any] = Field(default_factory=list)
 
     is_safe: bool = True
@@ -82,6 +86,8 @@ class AgentState(BaseModel):
 
     start_time: float = 0.0
     execution_time_ms: float = 0.0
+    tokens: Dict[str, int] = Field(default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+    estimated_cost_usd: float = 0.0
 
     model_config = {
         "arbitrary_types_allowed": True
@@ -100,6 +106,7 @@ class AgentMetadata(BaseModel):
     agent: str = "SupervisorAgent"
     session_id: str
     user_id: str
+    trace_id: str = ""
     tools_used: List[str] = Field(default_factory=list)
     tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
     sources: List[str] = Field(default_factory=list)
@@ -108,6 +115,8 @@ class AgentMetadata(BaseModel):
     is_safe: bool = True
     safety_violations: List[str] = Field(default_factory=list)
     execution_time_ms: float = 0.0
+    tokens: Dict[str, int] = Field(default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+    estimated_cost_usd: float = 0.0
 
 
 class ChatResponse(BaseModel):
