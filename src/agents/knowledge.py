@@ -15,10 +15,43 @@ logger = logging.getLogger("multiagent.knowledge")
 
 
 STOPWORDS = {
+    # Artigos e preposições (PT)
     "de", "da", "do", "das", "dos", "o", "a", "os", "as", "um", "uma", "uns", "umas",
     "em", "na", "no", "nas", "nos", "por", "para", "com", "como", "e", "ou", "que",
-    "se", "qual", "quais", "the", "a", "an", "in", "on", "at", "for", "with", "to",
-    "of", "and", "is", "are", "what", "how", "between"
+    "se", "ao", "aos", "à", "às", "pelo", "pela", "pelos", "pelas", "num", "numa",
+    # Pronomes e interrogativos (PT)
+    "qual", "quais", "quem", "onde", "quando", "quanto", "quantos", "quanta", "quantas",
+    "meu", "minha", "meus", "minhas", "seu", "sua", "seus", "suas", "nosso", "nossa",
+    "este", "esta", "estes", "estas", "esse", "essa", "esses", "essas", "aquele", "aquela",
+    "isso", "isto", "aquilo", "ele", "ela", "eles", "elas", "você", "voces", "vocês",
+    # Verbos auxiliares e genéricos frequentes (PT)
+    "é", "são", "era", "eram", "foi", "ser", "estar", "está", "estao", "estão",
+    "ter", "tem", "temos", "têm", "tinha", "fazer", "faz", "faco", "faço", "fizer",
+    "posso", "pode", "podem", "consigo", "consegue", "conseguem", "sobre", "entre", "sem",
+    # Stopwords (EN)
+    "the", "a", "an", "in", "on", "at", "for", "with", "to", "of", "and", "is", "are",
+    "what", "how", "between", "from", "by", "this", "that", "it", "my", "your", "can",
+    "do", "does", "did", "have", "has", "will", "would", "should"
+}
+
+GETNET_DOMAIN_KEYWORDS = {
+    # Terminais e hardware
+    "getnet", "smart", "clássica", "classica", "mini", "pos", "maquininha", "maquininhas",
+    "terminal", "terminais", "leitor", "bobina", "bobinas", "chip", "bateria", "conexão",
+    "conexao", "wifi", "wi-fi", "bluetooth", "equipamento", "aparelho",
+    # Meios de pagamento e produtos
+    "pix", "cartão", "cartao", "cartões", "cartoes", "crédito", "credito", "débito", "debito",
+    "voucher", "crediário", "crediario", "link", "pagamento", "pagamentos", "qr", "qrcode",
+    "superget", "tarja", "aproximação", "aproximacao", "nfc", "whatsapp",
+    # Operações e finanças
+    "taxa", "taxas", "mdr", "tarifa", "tarifas", "custo", "plano", "planos",
+    "antecipação", "antecipacao", "antecipar", "recebíveis", "recebiveis",
+    "liquidação", "liquidacao", "depósito", "deposito", "saldo", "extrato", "venda", "vendas",
+    "estorno", "cancelamento", "cancelar", "comprovante", "rejeição", "recusa", "recusada",
+    "lote", "fechamento", "pci", "segurança", "santander", "banco", "conta",
+    # Termos em inglês para os cenários bilíngues oficiais
+    "payment", "machine", "installments", "installment", "advance", "receivables",
+    "settlement", "decline", "sales", "sale", "card", "cards", "credit", "debit"
 }
 
 
@@ -145,17 +178,29 @@ class ChromaDBKnowledgeRetriever:
                     scored.sort(key=lambda x: x["score"], reverse=True)
                     top_candidates = scored[:top_k]
 
-                    # Filter by relevance threshold and domain coherence
-                    if not top_candidates or top_candidates[0]["score"] < threshold:
+                    if not top_candidates:
+                        return []
+
+                    has_domain_keyword = any(w in GETNET_DOMAIN_KEYWORDS for w in q_tokens)
+                    top_cos_sim = top_candidates[0]["similarity"]
+
+                    # 1. Domain keyword check: if cosine similarity < 0.35 and query lacks substantive Getnet keywords, abstain
+                    if top_cos_sim < 0.35 and not has_domain_keyword:
                         logger.info(
-                            f"RAG abstained for query '{query}': top score {top_candidates[0]['score'] if top_candidates else 0.0:.4f} "
-                            f"below threshold {threshold:.2f}"
+                            f"RAG abstained for out-of-domain query '{query}': no Getnet domain keyword and cosine similarity {top_cos_sim:.4f} < 0.35"
                         )
                         return []
 
-                    # If query had content tokens but none overlapped and semantic similarity is weak (< 0.50), abstain
-                    if content_q_tokens and top_candidates[0]["lex_overlap"] == 0 and top_candidates[0]["similarity"] < 0.50:
-                        logger.info(f"RAG abstained for unrelated query '{query}': no term overlap and low similarity {top_candidates[0]['similarity']}")
+                    # 2. General score threshold
+                    if top_candidates[0]["score"] < threshold:
+                        logger.info(
+                            f"RAG abstained for query '{query}': top score {top_candidates[0]['score']:.4f} below threshold {threshold:.2f}"
+                        )
+                        return []
+
+                    # 3. Content tokens check: if query has content tokens but zero overlap and no domain keyword, abstain
+                    if content_q_tokens and top_candidates[0]["lex_overlap"] == 0 and not has_domain_keyword:
+                        logger.info(f"RAG abstained for unrelated query '{query}': no term overlap and no domain keyword.")
                         return []
 
                     return top_candidates
@@ -168,19 +213,29 @@ class ChromaDBKnowledgeRetriever:
         return fallback_docs
 
     def _lexical_fallback(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
-        query_words = set(re.findall(r"\w+", query.lower()))
+        q_tokens = set(re.findall(r"\w+", query.lower()))
+        content_q_tokens = {w for w in q_tokens if w not in STOPWORDS and len(w) > 2}
+        if not content_q_tokens:
+            return []
+        has_domain_keyword = any(w in GETNET_DOMAIN_KEYWORDS for w in q_tokens)
+        if not has_domain_keyword:
+            return []
+
         scored = []
         for doc in self.raw_documents:
             doc_words = set(re.findall(r"\w+", f"{doc.get('title', '')} {doc.get('content', '')}".lower()))
-            overlap = len(query_words.intersection(doc_words))
-            scored.append({
-                "id": doc.get("id"),
-                "title": doc.get("title"),
-                "category": doc.get("category"),
-                "url": doc.get("url"),
-                "content": doc.get("content"),
-                "score": float(overlap)
-            })
+            overlap = len(content_q_tokens.intersection(doc_words))
+            if overlap > 0:
+                scored.append({
+                    "id": doc.get("id"),
+                    "title": doc.get("title"),
+                    "category": doc.get("category"),
+                    "url": doc.get("url"),
+                    "content": doc.get("content"),
+                    "score": float(overlap),
+                    "similarity": 0.50,
+                    "distance": 0.50
+                })
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 

@@ -392,23 +392,47 @@ def test_multiturn_conversational_memory_saver():
 
 
 def test_rag_abstention_out_of_domain():
-    """Verify that out-of-domain queries properly trigger vector abstention (<0.20 similarity)."""
+    """Verify that out-of-domain queries properly trigger vector abstention (<0.35 similarity without domain keywords)."""
     from src.agents.knowledge import get_retriever
     from src.tools.agent_tools import search_knowledge_base
+    from src.core.graph import get_orchestrator
     import json
 
     retriever = get_retriever()
-    # Query completely out of Getnet domain
+    # 1. Query: tractor motor
     out_of_domain = "Como consertar o motor diesel de uma colheitadeira John Deere?"
     docs = retriever.retrieve(out_of_domain, top_k=3, threshold=0.20)
     assert len(docs) == 0, f"Expected 0 documents due to threshold abstention, got {len(docs)}"
 
+    # 2. Query: chocolate cake (stopwords 'como' and 'de' must not match kb_pix_getnet)
+    cake_query = "Como fazer um bolo de chocolate fofinho?"
+    cake_docs = retriever.retrieve(cake_query, top_k=3, threshold=0.20)
+    assert len(cake_docs) == 0, f"Expected 0 documents for cake recipe, got {len(cake_docs)}"
+
     # Tool invocation verification
-    raw_tool_result = search_knowledge_base.invoke({"query": out_of_domain})
+    raw_tool_result = search_knowledge_base.invoke({"query": cake_query})
     parsed = json.loads(raw_tool_result)
     assert parsed["status"] == "abstain"
     assert parsed["found"] is False
     assert "Não foram encontradas informações oficiais" in parsed["message"]
+
+    # End-to-end Supervisor synthesis verification
+    orchestrator = get_orchestrator()
+    state = orchestrator.run_sync(user_id="merchant_test", message=cake_query, session_id="sess-cake-abstain")
+    assert "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet." in state.agent_response
+
+
+def test_tickets_repository_writable_and_creation(tmp_path):
+    """Verify TicketsRepository persists tickets cleanly and returns valid structure."""
+    from src.core.tickets_db import TicketsRepository
+    test_db = tmp_path / "test_tickets.db"
+    repo = TicketsRepository(db_path=str(test_db))
+    ticket = repo.create_ticket(user_id="user_write_test", reason="Teste de escrita com permissão garantida")
+    assert ticket["status"] == "success"
+    assert ticket["ticket_id"].startswith("GET-TKT-")
+    fetched = repo.get_ticket(ticket["ticket_id"])
+    assert fetched is not None
+    assert fetched["user_id"] == "user_write_test"
 
 
 def test_pii_sanitization_pan_luhn_and_cpf():

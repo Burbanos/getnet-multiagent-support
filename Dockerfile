@@ -35,8 +35,8 @@ COPY src ./src
 COPY data ./data
 COPY README.md .
 
-# Set ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Set ownership to non-root user and ensure write permissions on data directory
+RUN mkdir -p /app/data && chown -R appuser:appgroup /app && chmod -R 777 /app/data
 
 USER appuser
 

@@ -339,9 +339,8 @@ class SupervisorLLMEngine:
     def _format_knowledge_response(self, data: Dict[str, Any]) -> str:
         if data.get("status") == "abstain" or not data.get("found"):
             return (
-                "Não encontrei informações oficiais sobre esse assunto nos manuais e documentações cadastrados da Getnet. "
-                "Para dúvidas específicas ou regras customizadas de contrato, consulte o portal oficial www.getnet.com.br "
-                "ou solicite atendimento com um especialista humano."
+                data.get("message")
+                or "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."
             )
 
         documents = data.get("documents", [])
