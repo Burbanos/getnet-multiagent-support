@@ -37,6 +37,7 @@ class SupervisorState(TypedDict):
     ticket: dict[str, Any] | None
     final_response: str
     supervisor_steps: int
+    llm_model: str | None
     execution_time_ms: float
     tokens: dict[str, int] | None
     estimated_cost_usd: float | None
@@ -65,6 +66,7 @@ class AgentState(BaseModel):
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
     ticket: dict[str, Any] | None = None
+    llm_model: str | None = None
 
     agent_response: str | None = None
     final_agent: AgentRole | None = AgentRole.SUPERVISOR
@@ -100,6 +102,7 @@ class AgentMetadata(BaseModel):
     sources: list[str] = Field(default_factory=list)
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
     ticket: dict[str, Any] | None = None
+    llm_model: str | None = None
     is_safe: bool = True
     safety_violations: list[str] = Field(default_factory=list)
     execution_time_ms: float = 0.0

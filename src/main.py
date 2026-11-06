@@ -48,6 +48,7 @@ class AgentMetadata(BaseModel):
     sources: list[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
     ticket: dict[str, Any] | None = Field(default=None, description="Persisted support ticket if escalation occurred")
+    llm_model: str | None = Field(default=None, description="Model identifier that produced the final response")
     tokens: dict[str, int] | None = Field(default=None, description="Token usage estimation")
     estimated_cost_usd: float | None = Field(default=None, description="Estimated execution cost in USD")
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
@@ -262,6 +263,7 @@ def chat_endpoint(payload: ChatRequest, response: Response):
             routed_by="SupervisorAgent",
             session_id=active_session,
             trace_id=trace_id,
+            llm_model=getattr(state, "llm_model", None),
             tools_used=state.tools_used,
             tool_calls=state.tool_calls,
             execution_time_ms=state.execution_time_ms,
@@ -292,7 +294,7 @@ def chat_endpoint(payload: ChatRequest, response: Response):
         logger.exception(f"LLM misconfigured [trace_id={trace_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM misconfigured: check GEMINI_MODEL and GEMINI_API_KEY.",
+            detail="LLM misconfigured: check LLM_PROVIDER, LLM_MODEL and the provider API key.",
             headers={"X-Trace-Id": trace_id},
         ) from exc
     except LLMNotConfiguredError as exc:

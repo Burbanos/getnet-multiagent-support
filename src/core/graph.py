@@ -24,6 +24,7 @@ from src.core.llm import (
     LLMNotConfiguredError,
     LLMUnavailableError,
     get_chat_model,
+    get_fallback_model,
 )
 from src.core.state import AgentRole, AgentState, SupervisorState
 from src.tools.agent_tools import ALL_TOOLS, TOOLS_BY_NAME
@@ -40,6 +41,19 @@ def load_supervisor_prompt() -> str:
     return "You are the support supervisor for Getnet merchants."
 
 
+def _extract_model_name(model: Any) -> str:
+    """Extract model identifier from ChatModel or RunnableBinding."""
+    target = getattr(model, "bound", model)
+    return (
+        getattr(target, "model_name", None)
+        or getattr(target, "model", None)
+        or getattr(target, "_llm_type", None)
+        or getattr(model, "model_name", None)
+        or getattr(model, "model", None)
+        or getattr(model, "_llm_type", "unknown")
+    )
+
+
 class OrchestrationGraph:
     """
     Coordinates execution via LangGraph Supervisor ReAct architecture:
@@ -50,18 +64,34 @@ class OrchestrationGraph:
         multi-turn conversational context across turns.
     """
 
-    def __init__(self, chat_model: BaseChatModel | None = None):
+    def __init__(
+        self,
+        chat_model: BaseChatModel | None = None,
+        fallback_model: BaseChatModel | None = None,
+    ):
         self.guardrail_agent = GuardrailAgent()
         self.chat_model: BaseChatModel | None = chat_model
+        self.fallback_model: BaseChatModel | None = fallback_model
         self._bound_model: Any = None
+        self._bound_fallback: Any = None
         self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
 
-    def _get_bound_model(self) -> Any:
+    def _get_bound_models(self) -> tuple[Any, Any]:
         if self._bound_model is None:
-            model = self.chat_model if self.chat_model is not None else get_chat_model()
-            self._bound_model = model.bind_tools(ALL_TOOLS)
-        return self._bound_model
+            if self.chat_model is not None:
+                primary = self.chat_model
+                fallback = self.fallback_model
+            else:
+                primary = get_chat_model()
+                fallback = get_fallback_model()
+            self._bound_model = primary.bind_tools(ALL_TOOLS)
+            self._bound_fallback = fallback.bind_tools(ALL_TOOLS) if fallback is not None else None
+        return self._bound_model, self._bound_fallback
+
+    def _get_bound_model(self) -> Any:
+        bound_primary, _ = self._get_bound_models()
+        return bound_primary
 
     def _build_graph(self):
         builder = StateGraph(SupervisorState)
@@ -141,12 +171,16 @@ class OrchestrationGraph:
         Supervisor reasoning step: invokes the model with supervisor prompt and bound tools.
         Emits an AIMessage with either tool_calls or final synthesized content.
         """
+        bound_model, bound_fallback = self._get_bound_models()
+        system_prompt = load_supervisor_prompt()
+        full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
+        trace_id = state.get("trace_id", "")
+
+        active_model = bound_model
+
         try:
-            bound_model = self._get_bound_model()
-            system_prompt = load_supervisor_prompt()
-            full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
             ai_message = bound_model.invoke(full_messages)
-        except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError):
+        except (LLMNotConfiguredError, LLMConfigurationError):
             raise
         except (
             ModelNotFoundError,
@@ -154,11 +188,40 @@ class OrchestrationGraph:
             ModelPermissionDeniedError,
             ModelInvalidRequestError,
         ) as exc:
-            logger.exception("Supervisor model configuration error")
+            logger.exception(f"Supervisor primary model configuration error [trace_id={trace_id}]")
             raise LLMConfigurationError(str(exc)) from exc
         except Exception as exc:
-            logger.exception("Supervisor model invocation failed")
-            raise LLMUnavailableError(str(exc)) from exc
+            primary_name = _extract_model_name(bound_model)
+            if bound_fallback is not None:
+                logger.warning(
+                    f"Primary model '{primary_name}' failed with {type(exc).__name__}: {exc}. "
+                    f"Failing over to fallback [trace_id={trace_id}]."
+                )
+                try:
+                    ai_message = bound_fallback.invoke(full_messages)
+                    active_model = bound_fallback
+                except (LLMNotConfiguredError, LLMConfigurationError):
+                    raise
+                except (
+                    ModelNotFoundError,
+                    ModelAuthenticationError,
+                    ModelPermissionDeniedError,
+                    ModelInvalidRequestError,
+                ) as fb_cfg_err:
+                    logger.exception(f"Fallback model configuration error [trace_id={trace_id}]")
+                    raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
+                except Exception as fb_exc:
+                    fb_name = _extract_model_name(bound_fallback)
+                    logger.exception(
+                        f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
+                        f"[trace_id={trace_id}]"
+                    )
+                    raise LLMUnavailableError(str(fb_exc)) from fb_exc
+            else:
+                logger.exception(f"Supervisor primary model invocation failed [trace_id={trace_id}]")
+                raise LLMUnavailableError(str(exc)) from exc
+
+        model_used = _extract_model_name(active_model)
 
         response_text = str(ai_message.text) if hasattr(ai_message, "text") else (
             ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
@@ -175,6 +238,7 @@ class OrchestrationGraph:
             "final_response": response_text,
             "tool_calls": existing_calls,
             "supervisor_steps": current_steps,
+            "llm_model": model_used,
         }
 
     def _supervisor_condition(self, state: SupervisorState) -> str:
@@ -210,25 +274,35 @@ class OrchestrationGraph:
             tool_messages.append(t_msg)
 
         user_id = state.get("user_id", "cliente1988")
+        trace_id = state.get("trace_id", "")
         escalate_tool = TOOLS_BY_NAME["escalate_to_human"]
-        escalate_res = escalate_tool.invoke(
-            {"reason": "automatic escalation: supervisor step limit reached"},
-            config={"configurable": {"user_id": user_id}},
-        )
 
         ticket_obj: dict[str, Any] | None = None
         try:
+            escalate_res = escalate_tool.invoke(
+                {"reason": "automatic escalation: supervisor step limit reached"},
+                config={"configurable": {"user_id": user_id}},
+            )
             parsed = json.loads(escalate_res) if isinstance(escalate_res, str) else escalate_res
-            if isinstance(parsed, dict):
+            if isinstance(parsed, dict) and parsed.get("ticket_id"):
                 ticket_obj = parsed
-        except (json.JSONDecodeError, TypeError):
-            logger.warning("Failed to parse ticket result from force_escalation")
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Failed to create escalation ticket in force_escalation [trace_id={trace_id}]: {exc}")
 
-        ticket_id = (ticket_obj or {}).get("ticket_id", "GET-TKT-PENDING")
-        final_text = (
-            f"Não consegui concluir sua solicitação automaticamente. "
-            f"Registrei o chamado {ticket_id} para análise de um especialista humano."
-        )
+        if ticket_obj and ticket_obj.get("ticket_id"):
+            ticket_id = ticket_obj["ticket_id"]
+            final_text = (
+                f"Não consegui concluir sua solicitação automaticamente. "
+                f"Registrei o chamado {ticket_id} para análise de um especialista humano."
+            )
+        else:
+            ticket_obj = None
+            final_text = (
+                "Não consegui concluir sua solicitação automaticamente e não foi possível abrir um chamado agora. "
+                "Tente novamente mais tarde."
+            )
+            logger.error(f"Force escalation could not generate a valid ticket [trace_id={trace_id}]")
+
         escalation_ai_msg = AIMessage(content=final_text)
         tool_messages.append(escalation_ai_msg)
 
@@ -353,6 +427,7 @@ class OrchestrationGraph:
             "ticket": None,
             "final_response": "",
             "supervisor_steps": 0,
+            "llm_model": None,
             "execution_time_ms": 0.0,
             "tokens": None,
             "estimated_cost_usd": None,
@@ -405,6 +480,7 @@ class OrchestrationGraph:
             retrieved_docs=result.get("retrieved_docs", []),
             context_docs=result.get("retrieved_docs", []),
             ticket=result.get("ticket"),
+            llm_model=result.get("llm_model"),
             agent_response=final_text,
             final_agent=AgentRole.SUPERVISOR,
             escalate_to_human=bool(result.get("ticket")),

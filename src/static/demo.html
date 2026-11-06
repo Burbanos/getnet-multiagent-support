@@ -648,11 +648,11 @@
 
       const escalationBadge = document.getElementById('escalationBadge');
       const ticketContainer = document.getElementById('ticketContainer');
-      if (debug.escalate_to_human || meta.ticket) {
+      const tId = (meta.ticket && meta.ticket.ticket_id) || debug.ticket_id || '';
+      if ((debug.escalate_to_human || meta.ticket) && tId) {
         escalationBadge.innerText = 'Sim (Gravado em tickets.db)';
         escalationBadge.className = 'bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded text-[10px] font-semibold';
         ticketContainer.classList.remove('hidden');
-        const tId = (meta.ticket && meta.ticket.ticket_id) || debug.ticket_id || 'GET-TKT-PENDING';
         document.getElementById('ticketIdVal').innerHTML = `<a href="/tickets/${tId}" target="_blank" class="underline text-amber-300 hover:text-amber-100 flex items-center gap-1"><i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i> ${tId} (Abrir Ticket)</a>`;
       } else {
         escalationBadge.innerText = 'Não (Resolvido pelo Supervisor)';

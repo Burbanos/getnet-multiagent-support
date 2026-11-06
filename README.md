@@ -172,17 +172,21 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 
 ### Modos de Operação e Configuração
 
-O sistema opera com o modelo Google Gemini Flash via `langchain-google-genai`:
+O sistema opera com arquitetura agnóstica de provedores via `langchain-google-genai` (com suporte extensível a OpenAI e Anthropic):
 
 * **Configuração de Variáveis de Ambiente**:
-  * `GEMINI_API_KEY`: Chave de API do Google Gemini (obrigatória para o funcionamento do `/chat`). Se não for fornecida, a API responde HTTP 503 com `detail: "LLM not configured: set GEMINI_API_KEY."`.
-  * `GEMINI_MODEL`: Modelo utilizado pelo Supervisor (padrão: `gemini-3.8-flash`).
+  * `GEMINI_API_KEY`: Chave de API do Google Gemini (obrigatória quando `LLM_PROVIDER=google_genai`). Se não for fornecida, a API responde HTTP 503 com `detail: "LLM not configured: set GEMINI_API_KEY."`.
+  * `LLM_PROVIDER`: Provedor do modelo de linguagem (padrão: `google_genai`; aceita também `openai` e `anthropic` caso as bibliotecas cliente estejam instaladas).
+  * `LLM_MODEL`: Modelo principal utilizado pelo Supervisor (padrão: `gemini-3.5-flash`).
+  * `LLM_FALLBACK_MODEL`: Modelo reserva automático acionado em caso de erro temporário ou rate limit (padrão: `gemini-3.5-flash-lite`; string vazia desativa o reserva).
   * `LLM_TIMEOUT_S`: Timeout em segundos para chamadas à API do modelo (padrão: `30.0`).
   * `LLM_MAX_RETRIES`: Número máximo de tentativas automáticas em caso de erro transiente (padrão: `2`).
   * `MAX_SUPERVISOR_STEPS`: Limite de iterações do Supervisor por turno antes de acionar escalonamento forçado (padrão: `6`).
   * `APP_ENV`: Ambiente de execução (`development`, `staging`, `production`, `testing`).
   * `ENABLE_GUARDRAILS`: Ativa ou desativa a sanitização de PII e bloqueio de prompt injection (padrão: `true`).
   * `WEB_SEARCH_ENABLED`: Habilita busca externa em tempo real via DuckDuckGo (padrão: `true`).
+
+> **Seleção de Modelos e Benchmarking**: Em medição realizada em 2026-11-06 com credenciais reais, `gemini-3.8-flash` apresentou instabilidade de timeout (HTTP 504) e `gemini-3.7-flash` esgotou cota (HTTP 429) no tier gratuito. Por sua vez, `gemini-3.5-flash` demonstrou excelente consistência respondendo em ~3 segundos com seleção precisa de ferramentas, sendo definido como padrão primário, acompanhado de `gemini-3.5-flash-lite` como reserva resiliente.
 
 * **Execução dos Testes**: Os testes automatizados executam 100% offline sem custos nem chamadas externas, utilizando o `ScriptedChatModel` para validação determinística de encadeamento de ferramentas.
 

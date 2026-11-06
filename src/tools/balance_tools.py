@@ -2,6 +2,7 @@
 from typing import Any
 
 from src.core.mock_db import get_mock_db
+from src.core.pii import mask_bank_account
 
 
 def get_settlement_and_sales_status(user_id: str) -> dict[str, Any]:
@@ -27,7 +28,7 @@ def get_settlement_and_sales_status(user_id: str) -> dict[str, Any]:
             "settlement_date": yesterday.get("settlement_date"),
             "estimated_deposit_time": yesterday.get("estimated_deposit_time"),
             "status": yesterday.get("status"),
-            "destination_account": yesterday.get("destination_account")
+            "destination_account": mask_bank_account(yesterday.get("destination_account"))
         },
         "available_for_anticipation_brl": settlement.get("available_for_anticipation")
     }

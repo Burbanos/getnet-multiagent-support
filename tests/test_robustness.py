@@ -40,7 +40,7 @@ def test_get_chat_model_receives_timeout_and_max_retries():
         model = get_chat_model()
         assert getattr(model, "timeout", None) == float(settings.LLM_TIMEOUT_S)
         assert getattr(model, "max_retries", None) == int(settings.LLM_MAX_RETRIES)
-        assert "gemini-3.8-flash" in str(getattr(model, "model", ""))
+        assert "gemini-3.5-flash" in str(getattr(model, "model", ""))
     finally:
         settings.GEMINI_API_KEY = saved_key
 

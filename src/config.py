@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-3.8-flash"
+    LLM_PROVIDER: str = "google_genai"
+    LLM_MODEL: str = "gemini-3.5-flash"
+    LLM_FALLBACK_MODEL: str = "gemini-3.5-flash-lite"
     LLM_TIMEOUT_S: float = 30.0
     LLM_MAX_RETRIES: int = 2
     MAX_SUPERVISOR_STEPS: int = 6

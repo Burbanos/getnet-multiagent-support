@@ -46,6 +46,39 @@ CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
 FORMATTED_CPF_PATTERN = re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")
 UNFORMATTED_CPF_PATTERN = re.compile(r"\b\d{11}\b")
 
+AGENCY_PATTERN = re.compile(r"\b(Ag(?:[eê]ncia)?\.?)(\s*:\s*|\s+)(\d+)\b", re.IGNORECASE)
+ACCOUNT_PATTERN = re.compile(
+    r"\b(C(?:onta)?(?:\s*[Cc]orrente)?|CC|C/C)(\s*:\s*|\s+)(\d+)(-[0-9a-zA-Z]+)\b",
+    re.IGNORECASE,
+)
+
+
+def mask_bank_account(text: str) -> str:
+    """Mask bank agency and account numbers to protect merchant financial PII."""
+    if not isinstance(text, str) or not text:
+        return text
+
+    def _mask_agency(match: re.Match) -> str:
+        prefix = match.group(1)
+        sep = match.group(2)
+        digits = match.group(3)
+        return f"{prefix}{sep}{'*' * len(digits)}"
+
+    def _mask_account(match: re.Match) -> str:
+        prefix = match.group(1)
+        sep = match.group(2)
+        digits = match.group(3)
+        suffix = match.group(4)
+        if len(digits) > 2:
+            masked_digits = ("*" * (len(digits) - 2)) + digits[-2:]
+        else:
+            masked_digits = digits
+        return f"{prefix}{sep}{masked_digits}{suffix}"
+
+    res = AGENCY_PATTERN.sub(_mask_agency, text)
+    res = ACCOUNT_PATTERN.sub(_mask_account, res)
+    return res
+
 
 def sanitize_pii(text: str) -> tuple[str, bool]:
     """
