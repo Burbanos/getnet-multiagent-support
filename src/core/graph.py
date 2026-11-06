@@ -3,15 +3,15 @@ import json
 import logging
 import time
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
+from langgraph.graph import END, START, StateGraph
 
-from src.core.state import SupervisorState, AgentState, AgentRole
 from src.agents.guardrails import GuardrailAgent
 from src.core.llm import get_rules_engine
+from src.core.state import AgentRole, AgentState, SupervisorState
 from src.tools.agent_tools import TOOLS_BY_NAME
 
 logger = logging.getLogger("multiagent.orchestrator")
@@ -67,7 +67,7 @@ class OrchestrationGraph:
 
         return builder.compile(checkpointer=self.checkpointer)
 
-    def _guardrail_node(self, state: SupervisorState) -> Dict[str, Any]:
+    def _guardrail_node(self, state: SupervisorState) -> dict[str, Any]:
         """Sanitize PII and validate safety of incoming message."""
         raw_msg = ""
         # Find the incoming human input
@@ -102,7 +102,7 @@ class OrchestrationGraph:
         """Route to supervisor if safe, else stop immediately."""
         return "continue" if state.get("is_safe", True) else "stop"
 
-    def _supervisor_node(self, state: SupervisorState) -> Dict[str, Any]:
+    def _supervisor_node(self, state: SupervisorState) -> dict[str, Any]:
         """
         Supervisor reasoning step: invokes the model / ReAct engine with bound tools.
         Emits an AIMessage with either tool_calls or final synthesized content.
@@ -133,7 +133,7 @@ class OrchestrationGraph:
                 return "tools"
         return "end"
 
-    def _tools_node(self, state: SupervisorState) -> Dict[str, Any]:
+    def _tools_node(self, state: SupervisorState) -> dict[str, Any]:
         """
         Tool Execution Node: executes requested tools and produces ToolMessage observations.
         """
@@ -144,7 +144,7 @@ class OrchestrationGraph:
         last_msg = messages[-1]
         tool_calls = getattr(last_msg, "tool_calls", []) or []
 
-        tool_messages: List[ToolMessage] = []
+        tool_messages: list[ToolMessage] = []
         tools_used = list(state.get("tools_used", []))
         tool_results = list(state.get("tool_results", []))
         sources = list(state.get("sources", []))
@@ -161,7 +161,7 @@ class OrchestrationGraph:
                 logger.info(f"Executing tool '{tool_name}' with args {tool_args}")
                 try:
                     result_str = tool_fn.invoke(tool_args)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - Dynamic tool invocation must catch all errors
                     logger.error(f"Error executing tool {tool_name}: {e}")
                     result_str = json.dumps({"error": f"Falha na execução da ferramenta {tool_name}: {e}"})
 
@@ -191,8 +191,8 @@ class OrchestrationGraph:
                     elif tool_name == "escalate_to_human":
                         ticket = parsed
 
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, TypeError, KeyError) as e:
+                    logger.debug(f"Could not parse telemetry from tool '{tool_name}' result: {e}")
             else:
                 logger.warning(f"Tool '{tool_name}' not found in registry.")
                 t_msg = ToolMessage(
@@ -215,7 +215,7 @@ class OrchestrationGraph:
         self,
         user_id: str,
         message: str,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> AgentState:
         """
         Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
@@ -252,8 +252,8 @@ class OrchestrationGraph:
 
         try:
             result = self.graph.invoke(initial_state, config=config)
-        except Exception as e:
-            logger.error(f"Error in LangGraph execution: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error in LangGraph execution")
             result = initial_state
             result["final_response"] = "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
 
@@ -305,13 +305,13 @@ class OrchestrationGraph:
         self,
         user_id: str,
         message: str,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> AgentState:
         """Async compatibility wrapper invoking the compiled LangGraph workflow."""
         return self.run_sync(user_id=user_id, message=message, session_id=session_id)
 
 
-_orchestrator_instance: Optional[OrchestrationGraph] = None
+_orchestrator_instance: OrchestrationGraph | None = None
 
 
 def get_orchestrator() -> OrchestrationGraph:

@@ -1,9 +1,10 @@
 """Customer Support tools for querying merchant sales, settlements, and declines."""
-from typing import Dict, Any, Optional
+from typing import Any
+
 from src.core.mock_db import get_mock_db
 
 
-def get_settlement_and_sales_status(user_id: str) -> Dict[str, Any]:
+def get_settlement_and_sales_status(user_id: str) -> dict[str, Any]:
     """Retrieve settlement information for yesterday's sales and current balance."""
     db = get_mock_db()
     user = db.get_user(user_id)
@@ -32,7 +33,7 @@ def get_settlement_and_sales_status(user_id: str) -> Dict[str, Any]:
     }
 
 
-def get_declined_transaction_details(user_id: str, error_code: Optional[str] = None) -> Dict[str, Any]:
+def get_declined_transaction_details(user_id: str, error_code: str | None = None) -> dict[str, Any]:
     """Retrieve details of recent transaction declines and root-cause explanations."""
     db = get_mock_db()
     user = db.get_user(user_id)

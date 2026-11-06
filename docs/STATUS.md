@@ -9,11 +9,11 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ---
 
-### 2. Arquitetura Atual (Fase 1A)
+### 2. Arquitetura Atual (Fase 1: Transição 1A → 1B)
 - **Grafo compilado**: `OrchestrationGraph` em `src/core/graph.py` com nós `guardrail`, `supervisor` e `tools`.
-- **Agentes**: `GuardrailAgent` (`src/agents/guardrails.py`) e `RulesFallbackEngine` (`src/core/llm.py`). Código morto eliminado: `RouterAgent`, `KnowledgeAgent`, `CustomerSupportAgent` e `HumanEscalationAgent` foram removidos.
+- **Agentes**: `GuardrailAgent` (`src/agents/guardrails.py`) e `RulesFallbackEngine` (`src/core/llm.py`). Código morto eliminado: `RouterAgent`, `KnowledgeAgent`, `CustomerSupportAgent` e `HumanEscalationAgent`.
 - **Decisão de rota e tools**:
-  - `RulesFallbackEngine._decide_tool_call_or_reply`: avalia padrões e emite `AIMessage(tool_calls=[...])`, despachando a execução ao nó `tools` (`src/tools/agent_tools.py`) e sintetizando a resposta final via `ToolMessage`.
+  - `RulesFallbackEngine._decide_tool_call_or_reply`: avalia intenções e emite `AIMessage(tool_calls=[...])`, despachando a execução ao nó `tools` (`src/tools/agent_tools.py`) e sintetizando a resposta final via `ToolMessage`.
   - A resposta da API `/chat` sinaliza explicitamente `"decision_engine": "rules_fallback"`.
   - `tools_used` contém estritamente nomes reais de ferramentas invocadas (aliases removidos).
 
@@ -41,51 +41,54 @@ Definidas e decoradas em `src/tools/agent_tools.py`:
 
 ### 5. Escalonamento Humano
 - **Gravação**: Tabela `tickets` no banco SQLite local (`data/tickets.db`, com fallback para `/tmp/tickets.db`).
+- **Isolamento**: `data/*.db` adicionado ao `.gitignore` e `data/tickets.db` removido do git tracking (`git rm --cached`).
 - **Acompanhamento**: Endpoints HTTP `GET /tickets/{ticket_id}` e `GET /tickets` (`src/main.py`).
 
 ---
 
 ### 6. Memória, Autenticação, Guardrails e Observabilidade
 - **Memória e Sessão**: `MemorySaver` nativo do LangGraph (`langgraph.checkpoint.memory`), indexado por `thread_id` (`session_id`). Quando `session_id` não é fornecido, é gerado UUID único por requisição para isolar sessões independentes.
-- **Autenticação**: Header opcional `X-API-Key` validado em `verify_api_key` (`src/main.py`), aceitando `getnet-dev-key` por padrão.
+- **Autenticação**: Header opcional `X-API-Key` validado em `verify_api_key` (`src/main.py`), aceitando `getnet-dev-key` ou cabeçalho omitido por padrão, e rejeitando chaves inválidas com HTTP 401.
 - **Guardrails**: `GuardrailAgent` (`src/agents/guardrails.py`) e `src/core/pii.py` (Luhn e CPF).
-- **Observabilidade**: `trace_id` UUID mantido. Métricas fabricadas removidas: `tokens` e `estimated_cost_usd` são retornados como `null` (não medidos) e `confidence` foi removido da resposta e metadados. Na interface `/demo`, esses campos exibem `n/a`.
+- **Observabilidade**: `trace_id` UUID mantido. Métricas fabricadas removidas: `tokens` e `estimated_cost_usd` são retornados como `null` e `confidence` foi removido da resposta e metadados. Na interface `/demo`, esses campos exibem `n/a`.
 
 ---
 
-### 7. Testes Automatizados e Higienização (Fase 1A)
+### 7. Higienização e Refatoração de Testes (Fase 1A e Fase 1B)
 
-**Total atual**: 46 testes aprovados no pytest.
+**Total atual de testes**: 45 testes aprovados e 100% offline.
 
-#### Testes Apagados (10 testes):
-1. `test_router_dispatches_customer_support`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-2. `test_router_dispatches_knowledge_agent`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-3. `test_router_dispatches_escalation`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-4. `test_router_antecipacao_processo_semantic_route`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-5. `test_router_confidence_threshold_escalation`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-6. `test_router_unmatched_low_confidence`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-7. `test_router_terminal_connectivity_with_model_name`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-8. `test_router_decline_priority_over_terminal_defect`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
-9. `test_llm_web_search_synthesis_pure_dynamic_header`: dependia de `_synthesize_web_search_response` em `src/core/llm.py`, método removido conforme item 3.
-10. `test_llm_rag_synthesis_focused_on_top1_doc`: dependia de `_synthesize_rag_response` em `src/core/llm.py`, método removido conforme item 3.
+#### Testes Apagados na Fase 1A (10 testes):
+1. `test_router_dispatches_customer_support`: dependia de `RouterAgent` removido como código morto.
+2. `test_router_dispatches_knowledge_agent`: dependia de `RouterAgent` removido como código morto.
+3. `test_router_dispatches_escalation`: dependia de `RouterAgent` removido como código morto.
+4. `test_router_antecipacao_processo_semantic_route`: dependia de `RouterAgent` removido como código morto.
+5. `test_router_confidence_threshold_escalation`: dependia de `RouterAgent` removido como código morto.
+6. `test_router_unmatched_low_confidence`: dependia de `RouterAgent` removido como código morto.
+7. `test_router_terminal_connectivity_with_model_name`: dependia de `RouterAgent` removido como código morto.
+8. `test_router_decline_priority_over_terminal_defect`: dependia de `RouterAgent` removido como código morto.
+9. `test_llm_web_search_synthesis_pure_dynamic_header`: dependia de método removido em `src/core/llm.py`.
+10. `test_llm_rag_synthesis_focused_on_top1_doc`: dependia de método removido em `src/core/llm.py`.
 
-#### Testes Alterados (5 testes):
-1. `tests/test_unit.py::test_agents_introspection_endpoint`: removidos asserts checando presença de `RouterAgent`, `KnowledgeAgent`, `CustomerSupportAgent` e `HumanEscalationAgent` (classes removidas do endpoint `/agents`).
-2. `tests/test_unit.py::test_chat_endpoint_valid_response`: atualizados asserts para checar `SupervisorAgent` em `agent` e `agent_type` (removido `KnowledgeAgent`) e verificar o nome real da ferramenta `search_knowledge_base` (sem alias).
-3. `tests/test_unit.py::test_langgraph_orchestration_direct_execution`: removido assert checando `AgentRole.KNOWLEDGE` (alias legado removido do enum `AgentRole`) e ajustado assert para ferramenta real `search_knowledge_base`.
-4. `tests/test_unit.py::test_supervisor_react_tool_calling`: assert atualizado para validar `"3,367.20"` em vez do literal hardcoded `"(3.367,20)"` removido do formatador conforme item 4.
-5. `tests/test_scenarios.py::test_evaluation_scenarios`:
-   - `expected_agent` ajustado para `SupervisorAgent` (agentes legados removidos).
-   - `expected_tool` ajustado para os nomes reais de ferramentas (`search_knowledge_base`, `search_web`, `get_settlement_status`, `diagnose_terminal`, `diagnose_declined_transaction`).
-   - Cenário 3: removido `"3.367,20"` de `expected_keywords` devido à remoção do literal hardcoded no formatador.
-6. `tests/test_eval_judge.py::test_llm_as_a_judge_evaluation_suite`: ajustados asserts de `state.tokens` e `state.estimated_cost_usd` para verificar `is None` (remoção de fórmulas estimadas falsas conforme item 6).
-7. `tests/test_eval_judge.py::test_llm_api_resilience_and_graceful_degradation`: atualizado monkeypatch de `SupervisorLLMEngine` para `RulesFallbackEngine` (renomeação conforme item 3).
+#### Testes Apagados na Fase 1B (2 funções e 2 helpers em `tests/test_eval_judge.py`):
+1. `test_llm_as_a_judge_evaluation_suite`: removido pois alegava avaliar LLM-as-a-judge quando nenhum LLM é invocado na Fase 1.
+2. `test_llm_api_resilience_and_graceful_degradation`: removido pois simulava falha de chamada de API externa de LLM inexistente na Fase 1.
+3. `_evaluate_faithfulness` e `_evaluate_relevance`: helpers de cálculo sintético removidos com a suíte de judge fictício.
+
+#### Testes Criados / Mantidos na Fase 1B (`tests/test_eval_judge.py`):
+1. `test_eval_dataset_schema`: mantido; valida formato e completude dos 12 casos em `data/eval_dataset.json`.
+2. `test_rules_fallback_routing_on_dataset`: criado; avalia que o motor de fallback ReAct aciona a ferramenta esperada (`expected_tool in tools_used` ou guardrail) para os 12 pares do dataset.
+3. `test_x_api_key_security_header`: mantido; valida autenticação com chave válida, cabeçalho omitido e rejeição 401 para chave inválida.
+
+#### Isolamento de Ambiente em `tests/conftest.py`:
+- `TICKETS_DB_PATH` isolado em diretório temporário (`tempfile.mkdtemp`) antes do import da aplicação, garantindo que a execução dos testes não altere a árvore git (`git status --porcelain` limpo).
+- `mock_web_search` registrado como fixture autouse para monkeypatch de `web_search_tool`, impedindo qualquer tráfego de rede durante os testes.
 
 ---
 
-### 8. Fase 1A — Saídas Brutas de Verificação
+### 8. Verificação e Saídas Oficiais
 
-#### Verificação Parte A (`python scripts/verify_phase1.py --part a`):
+#### Verificação Completa (`python scripts/verify_phase1.py`):
 ```text
 PASS A1.files
 PASS A1.refs
@@ -104,23 +107,51 @@ PASS A5.agents_endpoint_truthful
 PASS A6.lexical_no_fake_similarity
 PASS A6.retrieval_mode_tagged
 PASS A7.demo_no_fake_metrics
+PASS B1.tickets_db_untracked
+PASS B1.gitignore
+PASS B2.fake_judge_removed
+PASS B2.schema_test_kept
+PASS B3.pytest_config
+PASS B3.ruff_config
+PASS B4.runtime_no_pytest
+PASS B4.langchain_core
+PASS B4.dev_reqs
+FAIL B4.lock_regenerated :: requirements.lock missing, stale (no langchain-core) or contains pytest
+PASS B4.docker_uses_lock
+PASS B5.ci_steps
+PASS B6.ruff_clean
+PASS B7.pytest_passes_offline :: 45 passed in 16.40s
+PASS B7.tree_unchanged_by_tests
+PASS B8.readme_claims_removed
+PASS B8.readme_limitations
+PASS B9.status_questions_section
+PASS B9.spec_present
 
-SUMMARY: 17/17 passed
+SUMMARY: 35/36 passed; failed: B4.lock_regenerated
 ```
 
-#### Testes Automatizados (`python -m pytest -q`):
+*(Nota: a única falha restante é `B4.lock_regenerated`, decorrente da restrição explícita de não gerar `requirements.lock` no host Windows, devendo ser gerado em ambiente Linux pelo usuário).*
+
+#### Execução de Testes Pytest (`python -m pytest -q`):
 ```text
-..............................................                           [100%]
-46 passed in 24.91s
+.............................................                            [100%]
+45 passed in 15.82s
 ```
 
-#### Git Commit Base:
+#### Linting (`python -m ruff check .`):
 ```text
-4ddb8209643408db8c7f9460146783ae830f4d03
+All checks passed!
+```
+
+#### Commit Base:
+```text
+c071ed2e0a7a7bf0eab85e4cd11bfc5eb818890b
 ```
 
 ---
 
-### 9. Perguntas / Divergências com o SPEC
-1. **Isolamento de sessão quando `session_id` é nulo**: O SPEC define que a memória do LangGraph utiliza `thread_id`. Quando clientes chamam `/chat` sem fornecer `session_id`, associar ao `user_id` causava vazamento de contexto entre cenários de teste independentes executados pelo mesmo usuário padrão (`cliente1988`). Foi adotada a geração de um UUID novo quando `session_id` não é fornecido, preservando o isolamento de testes e mantendo o multi-turn quando `session_id` é explicitamente informado.
-2. **Escopo estrito da Fase 1A vs. Requisitos da Parte B**: O SPEC cita requisitos de isolamento de rede (`NO_NETWORK_PLUGIN`), desativação de tracking de `data/tickets.db`, substituição de dependências de runtime (`requirements.txt`) e geração de `requirements.lock` no Codespaces. Conforme orientado pelo prompt, todos esses pontos pertencem à Parte 1B e não foram antecipados na Parte 1A.
+### 9. Perguntas / divergências com o SPEC
+
+1. **Geração de `requirements.lock`**: Conforme instrução explícita do prompt, o lockfile não foi gerado nesta máquina Windows para evitar resolução de wheels específicas de plataforma. O arquivo `Dockerfile` foi preparado para usar `requirements.lock` se presente (`COPY requirements.txt requirements.lock* ./`), com fallback para `requirements.txt`. A checagem `B4.lock_regenerated` passará assim que o lock for gerado em Linux.
+2. **Exclusão de `scripts` no `ruff`**: O script `scripts/verify_phase1.py` possui imports e funções utilitárias que não devem ser modificados (regra: "NÃO edite scripts/verify_phase1.py"). Para que o linter `ruff check .` analise estritamente o código de produção (`src/`) e testes (`tests/`) sem violar a regra de imutabilidade do script verificador, adicionou-se `extend-exclude = ["scripts"]` em `[tool.ruff]` no `pyproject.toml`.
+3. **Isolamento de sessão quando `session_id` é omitido**: O LangGraph armazena histórico conversacional por `thread_id`. Para requisições em que o cliente não informa `session_id`, gera-se um UUID novo por turno, prevenindo poluição de contexto entre testes independentes sem quebrar o suporte a múltiplos turnos quando `session_id` é fornecido.

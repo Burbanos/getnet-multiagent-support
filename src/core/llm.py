@@ -3,9 +3,9 @@ import json
 import logging
 import re
 import uuid
-from typing import Optional, Dict, Any, List
+from typing import Any
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 logger = logging.getLogger("multiagent.llm")
 
@@ -21,7 +21,7 @@ class RulesFallbackEngine:
 
     def decide_or_synthesize(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         user_id: str = "cliente1988"
     ) -> AIMessage:
         """
@@ -49,7 +49,7 @@ class RulesFallbackEngine:
 
     async def a_decide_or_synthesize(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         user_id: str = "cliente1988"
     ) -> AIMessage:
         return self.decide_or_synthesize(messages, user_id=user_id)
@@ -57,7 +57,7 @@ class RulesFallbackEngine:
     def _decide_tool_call_or_reply(
         self,
         user_text: str,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         user_id: str
     ) -> AIMessage:
         """Analyze intent and emit structured tool_call or direct response."""
@@ -222,7 +222,7 @@ class RulesFallbackEngine:
 
     def _synthesize_from_tool_observation(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         user_id: str
     ) -> AIMessage:
         """Observe tool result messages and synthesize final grounded response."""
@@ -235,7 +235,7 @@ class RulesFallbackEngine:
 
         try:
             data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             return AIMessage(content=f"Resultado da consulta operacional:\n\n{raw_content}")
 
         if "yesterday_sales" in data:
@@ -261,7 +261,7 @@ class RulesFallbackEngine:
 
         return AIMessage(content=f"Consulta executada com sucesso:\n\n{json.dumps(data, ensure_ascii=False, indent=2)}")
 
-    def _format_settlement(self, data: Dict[str, Any]) -> str:
+    def _format_settlement(self, data: dict[str, Any]) -> str:
         sales = data.get("yesterday_sales", {})
         total_tx = sales.get("total_transactions", 0)
         gross = sales.get("gross_amount_brl", 0.0)
@@ -278,7 +278,7 @@ class RulesFallbackEngine:
             f"O depósito está programado e segue o fluxo padrão de liquidação financeira da sua conta."
         )
 
-    def _format_terminal_troubleshooting(self, data: Dict[str, Any]) -> str:
+    def _format_terminal_troubleshooting(self, data: dict[str, Any]) -> str:
         model = data.get("terminal_model", "Terminal Getnet")
         serial = data.get("serial_number", "GET-883921")
         operator = data.get("sim_operator", "Claro/Vivo")
@@ -295,7 +295,7 @@ class RulesFallbackEngine:
             f"{steps_formatted}"
         )
 
-    def _format_declined_transaction(self, data: Dict[str, Any]) -> str:
+    def _format_declined_transaction(self, data: dict[str, Any]) -> str:
         code = data.get("queried_code", "")
         details = data.get("code_details", {})
         title = details.get("title", "")
@@ -313,7 +313,7 @@ class RulesFallbackEngine:
             f"• **O que fazer**: {action}"
         )
 
-    def _format_escalation_ticket(self, data: Dict[str, Any]) -> str:
+    def _format_escalation_ticket(self, data: dict[str, Any]) -> str:
         ticket_id = data.get("ticket_id", "GET-TKT-PENDING")
         tracking_endpoint = data.get("tracking_endpoint", f"/tickets/{ticket_id}")
         reason = data.get("reason", "Atendimento humano")
@@ -328,8 +328,8 @@ class RulesFallbackEngine:
 
     def _format_knowledge_response(
         self,
-        data: Dict[str, Any],
-        messages: Optional[List[BaseMessage]] = None
+        data: dict[str, Any],
+        messages: list[BaseMessage] | None = None
     ) -> str:
         documents = data.get("documents", [])
 
@@ -350,7 +350,7 @@ class RulesFallbackEngine:
             or "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."
         )
 
-    def _format_web_search_response(self, data: Dict[str, Any]) -> str:
+    def _format_web_search_response(self, data: dict[str, Any]) -> str:
         query = data.get("query", "sua consulta")
         status = data.get("status", "unavailable")
 
@@ -372,7 +372,7 @@ class RulesFallbackEngine:
         return f"Resultados da pesquisa web sobre '{query}':\n\n{body}"
 
 
-_rules_engine_instance: Optional[RulesFallbackEngine] = None
+_rules_engine_instance: RulesFallbackEngine | None = None
 
 
 def get_rules_engine() -> RulesFallbackEngine:

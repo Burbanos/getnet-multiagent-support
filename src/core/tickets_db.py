@@ -1,10 +1,10 @@
 """Persistent SQLite repository for human escalation tickets."""
+import logging
 import os
 import sqlite3
 import uuid
-from datetime import datetime, timezone
-import logging
-from typing import Optional, Dict, Any, List
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger("multiagent.tickets_db")
 
@@ -14,7 +14,7 @@ DEFAULT_DB_PATH = os.path.join(os.getcwd(), "data", "tickets.db")
 class TicketsRepository:
     """Manages SQLite storage and retrieval for customer escalation tickets."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         target_path = db_path or os.environ.get("TICKETS_DB_PATH", DEFAULT_DB_PATH)
         self.db_path = target_path
         db_dir = os.path.dirname(os.path.abspath(self.db_path))
@@ -26,9 +26,9 @@ class TicketsRepository:
                 os.chmod(db_dir, 0o777)
                 if os.path.exists(self.db_path):
                     os.chmod(self.db_path, 0o666)
-            except Exception:
-                pass
-        except Exception as e:
+            except OSError as chmod_err:
+                logger.debug(f"Could not chmod tickets db directory or file: {chmod_err}")
+        except OSError as e:
             logger.warning(f"Could not prepare tickets db directory '{db_dir}': {e}")
 
         # Check writability; if directory or file is read-only, fallback to /tmp
@@ -54,7 +54,7 @@ class TicketsRepository:
             test_conn.execute("PRAGMA schema_version;")
             test_conn.close()
             return True
-        except Exception:
+        except (sqlite3.Error, OSError):
             return False
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -80,7 +80,7 @@ class TicketsRepository:
                 """)
                 conn.commit()
                 logger.info(f"Tickets database initialized at: {self.db_path}")
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Failed to initialize tickets database at {self.db_path}: {e}")
 
     def create_ticket(
@@ -88,10 +88,10 @@ class TicketsRepository:
         user_id: str,
         reason: str,
         priority: str = "standard"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create and persist a new customer support escalation ticket."""
-        now = datetime.now(timezone.utc).isoformat()
-        date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        now = datetime.now(UTC).isoformat()
+        date_str = datetime.now(UTC).strftime("%Y%m%d")
         suffix = uuid.uuid4().hex[:4].upper()
         ticket_id = f"GET-TKT-{date_str}-{suffix}"
 
@@ -141,7 +141,7 @@ class TicketsRepository:
             )
         }
 
-    def get_ticket(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+    def get_ticket(self, ticket_id: str) -> dict[str, Any] | None:
         """Retrieve ticket details by its unique identifier."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -165,12 +165,12 @@ class TicketsRepository:
                     alt_row = cur.fetchone()
                     if alt_row:
                         return dict(alt_row)
-            except Exception:
-                pass
+            except sqlite3.Error as alt_err:
+                logger.debug(f"Fallback ticket lookup failed for {DEFAULT_DB_PATH}: {alt_err}")
 
         return None
 
-    def list_tickets(self, user_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    def list_tickets(self, user_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """List persisted tickets, optionally filtered by user."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -187,7 +187,7 @@ class TicketsRepository:
             return [dict(row) for row in cursor.fetchall()]
 
 
-_tickets_repo: Optional[TicketsRepository] = None
+_tickets_repo: TicketsRepository | None = None
 
 
 def get_tickets_repository() -> TicketsRepository:

@@ -1,6 +1,5 @@
 """PII Sanitization utilities for masking sensitive data (credit cards, CPFs)."""
 import re
-from typing import Tuple
 
 
 def luhn_checksum(card_number: str) -> bool:
@@ -48,7 +47,7 @@ FORMATTED_CPF_PATTERN = re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")
 UNFORMATTED_CPF_PATTERN = re.compile(r"\b\d{11}\b")
 
 
-def sanitize_pii(text: str) -> Tuple[str, bool]:
+def sanitize_pii(text: str) -> tuple[str, bool]:
     """
     Sanitize sensitive Personally Identifiable Information (PII) from text.
     

@@ -3,9 +3,10 @@ import json
 import logging
 import os
 import re
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 import chromadb
+
 from src.config import settings
 
 logger = logging.getLogger("multiagent.knowledge")
@@ -26,9 +27,9 @@ STOPWORDS = {
     "ter", "tem", "temos", "têm", "tinha", "fazer", "faz", "faco", "faço", "fizer",
     "posso", "pode", "podem", "consigo", "consegue", "conseguem", "sobre", "entre", "sem",
     # Stopwords (EN)
-    "the", "a", "an", "in", "on", "at", "for", "with", "to", "of", "and", "is", "are",
+    "the", "an", "in", "on", "at", "for", "with", "to", "of", "and", "is", "are",
     "what", "how", "between", "from", "by", "this", "that", "it", "my", "your", "can",
-    "do", "does", "did", "have", "has", "will", "would", "should"
+    "does", "did", "have", "has", "will", "would", "should"
 }
 
 
@@ -37,13 +38,13 @@ class ChromaDBKnowledgeRetriever:
 
     COLLECTION_NAME = "getnet_kb"
 
-    def __init__(self, data_path: Optional[str] = None):
+    def __init__(self, data_path: str | None = None):
         self.data_path = data_path or settings.KB_DATA_PATH
-        self.raw_documents: List[Dict[str, Any]] = []
+        self.raw_documents: list[dict[str, Any]] = []
         self._init_chroma()
         self.documents = self.raw_documents
 
-    def _load_documents_from_file(self) -> List[Dict[str, Any]]:
+    def _load_documents_from_file(self) -> list[dict[str, Any]]:
         candidate_paths = [
             self.data_path,
             os.path.join(os.getcwd(), "data", "getnet_kb.json"),
@@ -57,7 +58,7 @@ class ChromaDBKnowledgeRetriever:
                         docs = json.load(f)
                     logger.info(f"Loaded {len(docs)} documents from {path}")
                     return docs
-                except Exception as e:
+                except (OSError, json.JSONDecodeError) as e:
                     logger.error(f"Error reading knowledge base at {path}: {e}")
 
         logger.warning("Could not load knowledge base file from candidate paths. Using default documents.")
@@ -101,11 +102,11 @@ class ChromaDBKnowledgeRetriever:
             else:
                 logger.info(f"ChromaDB collection '{self.COLLECTION_NAME}' ready with {self.collection.count()} documents.")
             self.chroma_ready = True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Fallback to lexical search on initialization error
             logger.error(f"Failed to initialize ChromaDB collection: {e}. Falling back to lexical retriever.")
             self.chroma_ready = False
 
-    def retrieve(self, query: str, top_k: int = 3, threshold: float = 0.20) -> List[Dict[str, Any]]:
+    def retrieve(self, query: str, top_k: int = 3, threshold: float = 0.20) -> list[dict[str, Any]]:
         """Dense vector search combined with title and token overlap ranking, with similarity threshold."""
         if self.chroma_ready and self.raw_documents:
             try:
@@ -116,7 +117,7 @@ class ChromaDBKnowledgeRetriever:
 
                 if results and "ids" in results and results["ids"] and results["ids"][0]:
                     vec_ids = results["ids"][0]
-                    distances = results["distances"][0] if "distances" in results and results["distances"] else [0.0] * len(vec_ids)
+                    distances = results["distances"][0] if results.get("distances") else [0.0] * len(vec_ids)
 
                     q_tokens = set(re.findall(r"\w+", query.lower()))
                     content_q_tokens = {w for w in q_tokens if w not in STOPWORDS and len(w) > 2}
@@ -180,7 +181,7 @@ class ChromaDBKnowledgeRetriever:
                         return []
 
                     return top_candidates
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - Fallback to lexical retrieval on query error
                 logger.error(f"Error executing hybrid ChromaDB query: {e}. Executing lexical fallback.")
 
         fallback_docs = self._lexical_fallback(query, top_k=top_k)
@@ -188,7 +189,7 @@ class ChromaDBKnowledgeRetriever:
             return []
         return fallback_docs
 
-    def _lexical_fallback(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
+    def _lexical_fallback(self, query: str, top_k: int = 2) -> list[dict[str, Any]]:
         logger.warning(f"Falling back to lexical retrieval for query: '{query}'")
         q_tokens = set(re.findall(r"\w+", query.lower()))
         content_q_tokens = {w for w in q_tokens if w not in STOPWORDS and len(w) > 2}
@@ -219,7 +220,7 @@ class ChromaDBKnowledgeRetriever:
         return scored[:top_k]
 
 
-_retriever_instance: Optional[ChromaDBKnowledgeRetriever] = None
+_retriever_instance: ChromaDBKnowledgeRetriever | None = None
 
 
 def get_retriever() -> ChromaDBKnowledgeRetriever:

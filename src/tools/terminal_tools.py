@@ -1,12 +1,13 @@
 """Terminal diagnostics and troubleshooting tools for POS card machines."""
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
+
 from src.core.mock_db import get_mock_db
 
 logger = logging.getLogger("multiagent.terminal_tools")
 
 
-def diagnose_terminal_connectivity(user_id: str, terminal_serial: Optional[str] = None) -> Dict[str, Any]:
+def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = None) -> dict[str, Any]:
     """
     Diagnose POS card machine connectivity issues (4G/Wi-Fi, SIM card, signal).
     

@@ -1,6 +1,6 @@
 """Mock customer and operational database for customer support operations."""
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 
 class MockDatabase:
@@ -13,7 +13,7 @@ class MockDatabase:
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         today_str = datetime.now().strftime("%Y-%m-%d")
 
-        self.users: Dict[str, Dict[str, Any]] = {
+        self.users: dict[str, dict[str, Any]] = {
             "cliente1988": {
                 "user_id": "cliente1988",
                 "trade_name": "Padaria & Confeitaria Central",
@@ -87,7 +87,7 @@ class MockDatabase:
             }
         }
 
-        self.decline_code_catalog: Dict[str, Dict[str, str]] = {
+        self.decline_code_catalog: dict[str, dict[str, str]] = {
             "51": {
                 "name": "Saldo / Limite Insuficiente",
                 "description": "O banco emissor do cartão recusou a transação por falta de saldo em conta ou limite de crédito.",
@@ -110,7 +110,7 @@ class MockDatabase:
             }
         }
 
-    def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_user(self, user_id: str) -> dict[str, Any] | None:
         """Fetch user by id or create a dynamic fallback record if not exists."""
         if user_id in self.users:
             return self.users[user_id]

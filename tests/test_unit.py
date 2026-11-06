@@ -2,15 +2,15 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from src.agents.guardrails import GuardrailAgent
+from src.agents.knowledge import get_retriever
+from src.core.state import AgentRole, AgentState
 from src.tools.balance_tools import (
-    get_settlement_and_sales_status,
     get_declined_transaction_details,
+    get_settlement_and_sales_status,
 )
 from src.tools.terminal_tools import diagnose_terminal_connectivity
 from src.tools.web_search import web_search_tool
-from src.agents.knowledge import get_retriever
-from src.agents.guardrails import GuardrailAgent
-from src.core.state import AgentState, AgentRole
 
 
 def test_root_endpoint(client: TestClient):
@@ -287,10 +287,11 @@ def test_multiturn_followup_concise_touch_android():
 
 def test_rag_abstention_out_of_domain():
     """Verify that out-of-domain queries properly trigger mathematical vector abstention (<0.35 similarity)."""
-    from src.agents.knowledge import get_retriever
-    from src.tools.agent_tools import search_knowledge_base
-    from src.core.graph import get_orchestrator
     import json
+
+    from src.agents.knowledge import get_retriever
+    from src.core.graph import get_orchestrator
+    from src.tools.agent_tools import search_knowledge_base
 
     retriever = get_retriever()
     # 1. Query: tractor motor

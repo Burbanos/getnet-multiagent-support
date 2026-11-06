@@ -1,10 +1,11 @@
 """Input sanitization, PII masking, and prompt injection protection."""
 import logging
 import re
-from typing import Tuple
-from src.core.state import AgentState, AgentRole
-from src.core.pii import sanitize_pii
+from typing import ClassVar
+
 from src.config import settings
+from src.core.pii import sanitize_pii
+from src.core.state import AgentRole, AgentState
 
 logger = logging.getLogger("multiagent.guardrails")
 
@@ -12,7 +13,7 @@ logger = logging.getLogger("multiagent.guardrails")
 class GuardrailAgent:
     """Detects unsafe prompts, prompt injections, and masks sensitive PII (PAN/CPF)."""
 
-    INJECTION_PATTERNS = [
+    INJECTION_PATTERNS: ClassVar[list[str]] = [
         # English patterns
         r"ignore\s+(all\s+)?(previous|prior)\s+instructions",
         r"system\s*prompt",
@@ -29,11 +30,11 @@ class GuardrailAgent:
         r"esque[cç]a\s+(o\s+que\s+foi\s+dito|tudo)",
     ]
 
-    TOXIC_PATTERNS = [
+    TOXIC_PATTERNS: ClassVar[list[str]] = [
         r"\b(hack|exploit|ddos|sql\s*injection)\b",
     ]
 
-    def sanitize_input(self, text: str) -> Tuple[str, bool]:
+    def sanitize_input(self, text: str) -> tuple[str, bool]:
         """Mask credit card PANs and CPFs from input text."""
         return sanitize_pii(text)
 

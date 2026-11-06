@@ -1,0 +1,11 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["scripts"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "network: tests that need internet",
+]
+addopts = "-m 'not network'"

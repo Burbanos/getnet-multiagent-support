@@ -1,17 +1,18 @@
 """Typed agent tools with Pydantic schemas for the LangGraph Supervisor."""
 import json
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 from langchain_core.tools import tool
 
+from src.agents.knowledge import get_retriever
+from src.core.tickets_db import get_tickets_repository
 from src.tools.balance_tools import (
-    get_settlement_and_sales_status,
     get_declined_transaction_details,
+    get_settlement_and_sales_status,
 )
 from src.tools.terminal_tools import diagnose_terminal_connectivity
 from src.tools.web_search import web_search_tool
-from src.agents.knowledge import get_retriever
-from src.core.tickets_db import get_tickets_repository
 
 logger = logging.getLogger("multiagent.tools")
 
@@ -35,7 +36,7 @@ def get_settlement_status(user_id: str) -> str:
 
 
 @tool
-def diagnose_declined_transaction(user_id: str, error_code: Optional[str] = None) -> str:
+def diagnose_declined_transaction(user_id: str, error_code: str | None = None) -> str:
     """
     Diagnostica motivos de transações recusadas na maquininha Getnet e orienta o lojista.
     Use sempre que o usuário relatar:
@@ -53,7 +54,7 @@ def diagnose_declined_transaction(user_id: str, error_code: Optional[str] = None
 
 
 @tool
-def diagnose_terminal(user_id: str, serial_number: Optional[str] = None) -> str:
+def diagnose_terminal(user_id: str, serial_number: str | None = None) -> str:
     """
     Realiza diagnóstico técnico e de conectividade nas maquininhas Getnet (Get Smart, Get Clássica, etc.).
     Use sempre que o usuário relatar:
@@ -157,7 +158,7 @@ def escalate_to_human(user_id: str, reason: str) -> str:
     return json.dumps(ticket, ensure_ascii=False, indent=2)
 
 
-ALL_TOOLS: List[Any] = [
+ALL_TOOLS: list[Any] = [
     get_settlement_status,
     diagnose_declined_transaction,
     diagnose_terminal,
@@ -166,4 +167,4 @@ ALL_TOOLS: List[Any] = [
     escalate_to_human,
 ]
 
-TOOLS_BY_NAME: Dict[str, Any] = {tool_fn.name: tool_fn for tool_fn in ALL_TOOLS}
+TOOLS_BY_NAME: dict[str, Any] = {tool_fn.name: tool_fn for tool_fn in ALL_TOOLS}

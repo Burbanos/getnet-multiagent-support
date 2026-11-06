@@ -1,15 +1,16 @@
 """External web search tool using ddgs / DuckDuckGo."""
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
 from src.config import settings
 
 logger = logging.getLogger("multiagent.search")
 
 
-def web_search_tool(query: str, max_results: int = 3) -> Dict[str, Any]:
+def web_search_tool(query: str, max_results: int = 3) -> dict[str, Any]:
     """Execute external search for real-time information with graceful fallback on failure."""
     logger.info(f"Executing web search for query: '{query}'")
-    results_list: List[Dict[str, str]] = []
+    results_list: list[dict[str, str]] = []
 
     try:
         try:
@@ -48,7 +49,7 @@ def web_search_tool(query: str, max_results: int = 3) -> Dict[str, Any]:
             "results": results_list
         }
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - Web search must catch all network/service exceptions
         logger.warning(f"DuckDuckGo search error: {exc}. Returning unavailable status.")
         return {
             "status": "unavailable",

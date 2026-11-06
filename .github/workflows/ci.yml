@@ -14,11 +14,38 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Lint with ruff
+        run: |
+          ruff check .
       - name: Run Pytest
         run: |
-          pytest tests/ -v
+          pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: |
+          docker build -t getnet-app .
+      - name: Run container and probe health
+        run: |
+          docker run -d -p 8000:8000 --name app getnet-app
+          timeout=60
+          elapsed=0
+          until [ $(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health) -eq 200 ]; do
+            if [ $elapsed -ge $timeout ]; then
+              echo "Healthcheck timed out after ${timeout}s"
+              docker logs app
+              exit 1
+            fi
+            sleep 2
+            elapsed=$((elapsed+2))
+          done
+          echo "Health check succeeded!"
+          docker logs app

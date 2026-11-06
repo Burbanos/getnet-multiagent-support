@@ -1,23 +1,23 @@
 """FastAPI HTTP service exposing the Multi-Agent Support System API."""
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, status, Header, Depends
+from typing import Any
+
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from src.config import settings, logger
+from src.config import logger, settings
 from src.core.graph import get_orchestrator
-from src.agents.knowledge import get_retriever
 
 
 class ChatRequest(BaseModel):
     """Chat request payload containing user identifier, message, and optional session ID."""
     message: str = Field(..., description="Message payload to be evaluated by the multi-agent graph", min_length=1)
     user_id: str = Field(default="cliente1988", description="Unique merchant or customer identifier", min_length=1)
-    session_id: Optional[str] = Field(default=None, description="Conversational thread/session ID for persistent multi-turn memory")
+    session_id: str | None = Field(default=None, description="Conversational thread/session ID for persistent multi-turn memory")
 
     model_config = {
         "json_schema_extra": {
@@ -37,18 +37,18 @@ class AgentMetadata(BaseModel):
     decision_engine: str = Field(default="rules_fallback", description="Engine used for decision/routing")
     session_id: str = Field(default="", description="Conversational session ID")
     trace_id: str = Field(default="", description="Unique UUID trace identifier for observability")
-    tools_used: List[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
-    tool_calls: List[Dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
+    tools_used: list[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
     execution_time_ms: float = Field(..., description="Total execution latency in milliseconds")
-    sources: List[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
-    retrieved_docs: List[Dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
-    ticket: Optional[Dict[str, Any]] = Field(default=None, description="Persisted support ticket if escalation occurred")
-    tokens: Optional[Dict[str, int]] = Field(default=None, description="Token usage estimation")
-    estimated_cost_usd: Optional[float] = Field(default=None, description="Estimated execution cost in USD")
-    debug_details: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic payload")
+    sources: list[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
+    retrieved_docs: list[dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
+    ticket: dict[str, Any] | None = Field(default=None, description="Persisted support ticket if escalation occurred")
+    tokens: dict[str, int] | None = Field(default=None, description="Token usage estimation")
+    estimated_cost_usd: float | None = Field(default=None, description="Estimated execution cost in USD")
+    debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
 
-def verify_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> Optional[str]:
+def verify_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> str | None:
     """
     Validate optional X-API-Key header.
     Defaults to accepting 'getnet-dev-key' or omitted header for frictionless local/docker execution.
@@ -268,9 +268,9 @@ def chat_endpoint(payload: ChatRequest):
             metadata=metadata,
         )
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - Top-level handler must catch all errors to return HTTP 500 JSON
         logger.exception(f"Unhandled error processing message from user '{payload.user_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro interno no processamento multi-agente: {str(exc)}"
+            detail=f"Erro interno no processamento multi-agente: {exc!s}"
         )

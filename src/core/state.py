@@ -1,11 +1,12 @@
 """State, message, and schema definitions for the LangGraph Supervisor workflow."""
+from collections.abc import Sequence
 from enum import Enum
-from typing import Sequence, List, Dict, Any, Optional, Annotated
-from typing_extensions import TypedDict
+from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
 
 
 class AgentRole(str, Enum):
@@ -27,17 +28,17 @@ class SupervisorState(TypedDict):
     session_id: str
     trace_id: str
     is_safe: bool
-    safety_violations: List[str]
-    tools_used: List[str]
-    tool_calls: List[Dict[str, Any]]
-    tool_results: List[Dict[str, Any]]
-    sources: List[str]
-    retrieved_docs: List[Dict[str, Any]]
-    ticket: Optional[Dict[str, Any]]
+    safety_violations: list[str]
+    tools_used: list[str]
+    tool_calls: list[dict[str, Any]]
+    tool_results: list[dict[str, Any]]
+    sources: list[str]
+    retrieved_docs: list[dict[str, Any]]
+    ticket: dict[str, Any] | None
     final_response: str
     execution_time_ms: float
-    tokens: Optional[Dict[str, int]]
-    estimated_cost_usd: Optional[float]
+    tokens: dict[str, int] | None
+    estimated_cost_usd: float | None
 
 
 class AgentState(BaseModel):
@@ -47,33 +48,33 @@ class AgentState(BaseModel):
     """
     user_id: str = "cliente1988"
     message: str = ""
-    session_id: Optional[str] = None
-    trace_id: Optional[str] = None
-    messages: List[Any] = Field(default_factory=list)
+    session_id: str | None = None
+    trace_id: str | None = None
+    messages: list[Any] = Field(default_factory=list)
 
     is_safe: bool = True
-    safety_violations: List[str] = Field(default_factory=list)
+    safety_violations: list[str] = Field(default_factory=list)
 
-    intent: Optional[str] = None
+    intent: str | None = None
 
-    context_docs: List[Dict[str, Any]] = Field(default_factory=list)
-    retrieved_docs: List[Dict[str, Any]] = Field(default_factory=list)
-    tool_results: List[Dict[str, Any]] = Field(default_factory=list)
-    tools_used: List[str] = Field(default_factory=list)
-    tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
-    sources: List[str] = Field(default_factory=list)
-    ticket: Optional[Dict[str, Any]] = None
+    context_docs: list[dict[str, Any]] = Field(default_factory=list)
+    retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
+    tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    tools_used: list[str] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+    ticket: dict[str, Any] | None = None
 
-    agent_response: Optional[str] = None
-    final_agent: Optional[AgentRole] = AgentRole.SUPERVISOR
+    agent_response: str | None = None
+    final_agent: AgentRole | None = AgentRole.SUPERVISOR
     escalate_to_human: bool = False
     escalation_flag: bool = False
-    escalation_ticket_id: Optional[str] = None
+    escalation_ticket_id: str | None = None
 
     start_time: float = 0.0
     execution_time_ms: float = 0.0
-    tokens: Optional[Dict[str, int]] = None
-    estimated_cost_usd: Optional[float] = None
+    tokens: dict[str, int] | None = None
+    estimated_cost_usd: float | None = None
 
     model_config = {
         "arbitrary_types_allowed": True
@@ -84,7 +85,7 @@ class ChatRequest(BaseModel):
     """Incoming chat message request schema."""
     message: str
     user_id: str = "cliente1988"
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
 
 class AgentMetadata(BaseModel):
@@ -93,16 +94,16 @@ class AgentMetadata(BaseModel):
     session_id: str
     user_id: str
     trace_id: str = ""
-    tools_used: List[str] = Field(default_factory=list)
-    tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
-    sources: List[str] = Field(default_factory=list)
-    retrieved_docs: List[Dict[str, Any]] = Field(default_factory=list)
-    ticket: Optional[Dict[str, Any]] = None
+    tools_used: list[str] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+    retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
+    ticket: dict[str, Any] | None = None
     is_safe: bool = True
-    safety_violations: List[str] = Field(default_factory=list)
+    safety_violations: list[str] = Field(default_factory=list)
     execution_time_ms: float = 0.0
-    tokens: Optional[Dict[str, int]] = None
-    estimated_cost_usd: Optional[float] = None
+    tokens: dict[str, int] | None = None
+    estimated_cost_usd: float | None = None
 
 
 class ChatResponse(BaseModel):
