@@ -146,9 +146,9 @@ PASS Q3.tree_unchanged
 SUMMARY: 22/22 passed
 ```
 
-#### Commit Base Fase 2B:
+#### Commit Fase 2B (`git rev-parse HEAD`):
 ```text
-7408e3d037d981810768c5d2c1d84b97b2c6439e
+946bfe9cac1dd0cbdebd84b0375f350ee1d84194
 ```
 
 #### Verificação Fase 2A (`python scripts/verify_phase2a.py`):
