@@ -66,7 +66,10 @@ def static_checks() -> None:
 
     req, dev, lock = read("requirements.txt").lower(), read("requirements-dev.txt").lower(), read("requirements.lock").lower()
     check("S6.dep_declared", "langchain-google-genai" in req, "langchain-google-genai not in requirements.txt")
-    check("S6.dev_uses_lock", "-r requirements.lock" in dev, "requirements-dev.txt does not include -r requirements.lock")
+    ci_txt = read(".github/workflows/ci.yml")
+    check("S6.ci_tests_use_lock", "-r requirements.lock" in ci_txt and "-r requirements.lock" not in dev,
+          "CI test job must install -r requirements.lock; requirements-dev.txt must stay on requirements.txt "
+          "(the Linux lock pins uvloop, which does not install on Windows)")
     check("S6.docker_no_fallback", "-r requirements.txt" not in read("Dockerfile"), "Dockerfile still falls back to requirements.txt")
     check("S6.lock_has_dep", "langchain-google-genai==" in lock,
           "requirements.lock not regenerated (user step in Codespaces)")
