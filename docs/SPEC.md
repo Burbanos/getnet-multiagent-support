@@ -127,6 +127,13 @@ phases build on a truthful base. No new features.
 
 ### Phase 2 — LLM supervisor with function calling
 **Goal:** replace the rules engine with a real LLM supervisor that chooses specialists/tools.
+**Split:** 2A = model factory, scripted fake, single supervisor with `bind_tools` over the six
+tools, `user_id` injection, PII fix, 503 handling (checked by `scripts/verify_phase2a.py`).
+2B = Knowledge and Support specialists as sub-agents exposed to the supervisor as tools,
+max-steps guard with forced escalation, real token usage, tool outputs without invented defaults.
+Additional 2A criteria:
+- AC2.9 The guardrail replaces the incoming HumanMessage (same message id) instead of appending a masked copy; raw PII never reaches the model and is not stored in the checkpointer (test).
+- AC2.10 `langchain-google-genai` declared and locked; `requirements-dev.txt` installs from the lock; Dockerfile fails if the lock is missing; CI actions on `checkout@v5` / `setup-python@v6`.
 **Files:** `src/core/llm.py` (factory only), `src/core/graph.py`, `src/agents/{supervisor,knowledge,support}.py`, `src/tools/*`, `src/prompts/*.md`, `tests/fakes.py`, tests.
 **Acceptance:**
 - AC2.1 `grep -rn "re\.search\|re\.match" src/core src/agents/supervisor.py` → only guardrail/PII modules match.
