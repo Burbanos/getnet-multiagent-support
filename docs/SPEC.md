@@ -129,8 +129,15 @@ phases build on a truthful base. No new features.
 **Goal:** replace the rules engine with a real LLM supervisor that chooses specialists/tools.
 **Split:** 2A = model factory, scripted fake, single supervisor with `bind_tools` over the six
 tools, `user_id` injection, PII fix, 503 handling (checked by `scripts/verify_phase2a.py`).
-2B = Knowledge and Support specialists as sub-agents exposed to the supervisor as tools,
-max-steps guard with forced escalation, real token usage, tool outputs without invented defaults.
+2B = LLM robustness (checked by `scripts/verify_phase2b.py`): default model `gemini-3.8-flash`
+(`gemini-2.5-flash` is retired for new keys); explicit `LLM_TIMEOUT_S` / `LLM_MAX_RETRIES`;
+final text read with `AIMessage.text` (content may be a list of blocks); configuration errors
+(model not found, auth, permission, invalid request) → `LLMConfigurationError` → 503 "misconfigured",
+transient errors → 503 "unavailable"; 500 never echoes exception text; one `trace_id` per request,
+returned in the `X-Trace-Id` header on every `/chat` response; `MAX_SUPERVISOR_STEPS` guard that
+answers pending tool calls and forces a persisted escalation (AC2.4).
+2C = Knowledge and Support specialists as sub-agents exposed to the supervisor as tools,
+real token usage, tool outputs without invented defaults (AC2.8).
 Additional 2A criteria:
 - AC2.9 The guardrail replaces the incoming HumanMessage (same message id) instead of appending a masked copy; raw PII never reaches the model and is not stored in the checkpointer (test).
 - AC2.10 `langchain-google-genai` declared and locked; the CI test job installs `-r requirements.lock -r requirements-dev.txt` (requirements-dev stays on ranges because the Linux lock pins `uvloop`, which does not install on Windows); Dockerfile fails if the lock is missing; CI actions on `checkout@v5` / `setup-python@v6`.
