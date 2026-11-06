@@ -1,41 +1,23 @@
-"""Universal LLM & ReAct Supervisor Engine supporting Gemini Flash and offline execution."""
+"""Rules-based fallback engine supporting offline execution and tool calling."""
 import json
 import logging
-import os
 import re
 import uuid
 from typing import Optional, Dict, Any, List
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
-from src.config import settings
 
 logger = logging.getLogger("multiagent.llm")
 
 
-class SupervisorLLMEngine:
+class RulesFallbackEngine:
     """
-    Supervisor engine that performs Tool Calling and ReAct observation-synthesis.
-    Operates seamlessly with Gemini Flash (when API key is present) and provides
-    a deterministic ReAct execution engine in offline / test environments.
+    Rules-based fallback engine that performs Tool Calling and ReAct observation-synthesis.
+    Provides a deterministic execution engine in offline / test environments.
     """
 
     def __init__(self):
-        self.provider = settings.LLM_PROVIDER.lower()
-        self.api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
-        self.has_gemini = bool(self.api_key and self.provider == "gemini")
-        if self.has_gemini:
-            self._init_gemini()
-        else:
-            logger.info("Operating in Resilient ReAct Engine mode (Gemini API key not configured or mock selected).")
-
-    def _init_gemini(self):
-        try:
-            from google import genai
-            self.client = genai.Client(api_key=self.api_key)
-            logger.info("Gemini Flash client initialized successfully.")
-        except Exception as e:
-            logger.warning(f"Could not initialize google-genai client: {e}. Using ReAct engine.")
-            self.has_gemini = False
+        logger.info("Operating in rules fallback engine mode.")
 
     def decide_or_synthesize(
         self,
@@ -43,7 +25,7 @@ class SupervisorLLMEngine:
         user_id: str = "cliente1988"
     ) -> AIMessage:
         """
-        Core Supervisor ReAct decision step:
+        Decision step:
         1. If last message is HumanMessage: decide whether to invoke a tool (emit AIMessage with tool_calls)
            or answer directly.
         2. If last message is ToolMessage: observe tool output and synthesize grounded final answer.
@@ -97,7 +79,7 @@ class SupervisorLLMEngine:
             r"\b(processo\s+judicial|abrir\s+processo|entrar\s+na\s+justi[cç]a)\b",
         ]
         if any(re.search(pat, lower_msg) for pat in escalation_patterns):
-            logger.info("Supervisor decided tool_call: escalate_to_human")
+            logger.info("Rules engine decided tool_call: escalate_to_human")
             return AIMessage(
                 content="",
                 tool_calls=[{
@@ -121,7 +103,7 @@ class SupervisorLLMEngine:
         if any(re.search(pat, lower_msg) for pat in decline_patterns):
             code_match = re.search(r"\b(51|05|57|12)\b", lower_msg)
             code = code_match.group(1) if code_match else "51"
-            logger.info(f"Supervisor decided tool_call: diagnose_declined_transaction (code={code})")
+            logger.info(f"Rules engine decided tool_call: diagnose_declined_transaction (code={code})")
             return AIMessage(
                 content="",
                 tool_calls=[{
@@ -144,7 +126,7 @@ class SupervisorLLMEngine:
             r"\b(saldo\s+a\s+receber)\b",
         ]
         if any(re.search(pat, lower_msg) for pat in settlement_patterns):
-            logger.info("Supervisor decided tool_call: get_settlement_status")
+            logger.info("Rules engine decided tool_call: get_settlement_status")
             return AIMessage(
                 content="",
                 tool_calls=[{
@@ -168,11 +150,9 @@ class SupervisorLLMEngine:
             r"\b(problema\s+de\s+internet\s+na\s+maquininha)\b",
             r"\b(conectando\s+na\s+internet|conectar\s+na\s+internet|conectar\s+ao\s+wi-?fi)\b.*(n[aã]o|problema|erro|falha|como|ajuda)",
             r"\b(n[aã]o|problema|erro|falha|como|ajuda).*(conectando\s+na\s+internet|conectar\s+na\s+internet|conectar\s+ao\s+wi-?fi)\b",
-            r"\b(get\s+smart|get\s+cl[aá]ssica)\b.*(n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect|sem\s+internet|sem\s+sinal|offline|erro\s+de\s+internet|problema\s+de\s+conex[aã]o|defeito|trav)",
-            r"\b(n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect|sem\s+internet|sem\s+sinal|offline|erro\s+de\s+internet|problema\s+de\s+conex[aã]o|defeito|trav).*(get\s+smart|get\s+cl[aá]ssica)\b",
         ]
         if any(re.search(pat, lower_msg) for pat in terminal_patterns):
-            logger.info("Supervisor decided tool_call: diagnose_terminal")
+            logger.info("Rules engine decided tool_call: diagnose_terminal")
             return AIMessage(
                 content="",
                 tool_calls=[{
@@ -189,7 +169,7 @@ class SupervisorLLMEngine:
             r"\b(euro|d[oó]lar|dollar|c[aâ]mbio|exchange\s+rate|cota[cç][aã]o)\b",
         ]
         if any(re.search(pat, lower_msg) for pat in web_search_patterns):
-            logger.info("Supervisor decided tool_call: search_web")
+            logger.info("Rules engine decided tool_call: search_web")
             return AIMessage(
                 content="",
                 tool_calls=[{
@@ -204,7 +184,7 @@ class SupervisorLLMEngine:
             r"^(ol[aá]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|tudo\s+bem|como\s+vai)\b"
         ]
         if any(re.search(pat, lower_msg) for pat in greeting_patterns) and len(lower_msg.split()) <= 4:
-            logger.info("Supervisor responding directly to greeting (no tool needed).")
+            logger.info("Rules engine responding directly to greeting (no tool needed).")
             return AIMessage(
                 content=(
                     "Olá! Sou o assistente inteligente de suporte da Getnet. "
@@ -215,38 +195,22 @@ class SupervisorLLMEngine:
             )
 
         # 7. Knowledge Base Search (Default for domain questions & multi-turn product inquiries)
-        # Check conversational memory to enrich follow-up queries with prior context
-        prior_messages = messages[:-1] if messages else []
-        prior_human_msgs = [str(m.content) for m in prior_messages if isinstance(m, HumanMessage) and m.content]
-        prior_ai_msgs = [str(m.content) for m in prior_messages if isinstance(m, AIMessage) and m.content]
-        prior_text = " ".join(prior_human_msgs + prior_ai_msgs).lower()
+        prior_human_msgs = []
+        last_ai_idx = -1
+        for idx, m in enumerate(messages[:-1]):
+            if isinstance(m, AIMessage):
+                last_ai_idx = idx
 
-        followup_patterns = [
-            r"\b(qual\s+delas|qual\s+dos|qual\s+das|qual\s+dessas|qual\s+desses)\b",
-            r"\b(e\s+qual|e\s+essa|e\s+esse|e\s+a\s+outra|e\s+o\s+outro)\b",
-            r"\b(qual\s+tem\s+(touch|android|bobina|teclado|visor|bateria))\b",
-            r"\b(qual\s+delas\s+tem|qual\s+imprime|qual\s+[ée]\s+melhor)\b",
-            r"\b(entre\s+elas|delas\s+qual|dela|deles)\b",
-            r"\b(touch/android|touch|android)\b",
-        ]
-        is_followup = any(re.search(pat, lower_msg) for pat in followup_patterns)
+        if last_ai_idx != -1:
+            for m in messages[:last_ai_idx + 1]:
+                if isinstance(m, HumanMessage) and m.content and str(m.content).strip():
+                    prior_human_msgs.append(str(m.content).strip())
 
         search_query = user_text
-        if is_followup and prior_text:
-            if "clássica" in prior_text or "classica" in prior_text or "smart" in prior_text:
-                search_query = f"Get Clássica e Get Smart {user_text}"
-            elif "pix" in prior_text:
-                search_query = f"Pix Getnet {user_text}"
-            elif "antecipa" in prior_text:
-                search_query = f"Antecipação de recebíveis {user_text}"
-            elif "crediário" in prior_text or "crediario" in prior_text:
-                search_query = f"Crediário Getnet {user_text}"
-            elif "link" in prior_text:
-                search_query = f"Link de pagamento WhatsApp {user_text}"
-            elif prior_human_msgs:
-                search_query = f"{prior_human_msgs[-1]} {user_text}"
+        if prior_human_msgs:
+            search_query = f"{prior_human_msgs[-1]} {user_text}"
 
-        logger.info(f"Supervisor decided tool_call: search_knowledge_base for query '{search_query}'")
+        logger.info(f"Rules engine decided tool_call: search_knowledge_base for query '{search_query}'")
         return AIMessage(
             content="",
             tool_calls=[{
@@ -262,7 +226,6 @@ class SupervisorLLMEngine:
         user_id: str
     ) -> AIMessage:
         """Observe tool result messages and synthesize final grounded response."""
-        # Find the last tool message
         tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
         if not tool_messages:
             return AIMessage(content="Informações operacionais consultadas com sucesso no sistema Getnet.")
@@ -270,13 +233,11 @@ class SupervisorLLMEngine:
         latest_tool_msg = tool_messages[-1]
         raw_content = latest_tool_msg.content
 
-        # Parse tool observation JSON
         try:
             data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
         except Exception:
             return AIMessage(content=f"Resultado da consulta operacional:\n\n{raw_content}")
 
-        # Dispatch synthesis based on tool observation structure
         if "yesterday_sales" in data:
             return AIMessage(content=self._format_settlement(data))
 
@@ -290,7 +251,6 @@ class SupervisorLLMEngine:
             return AIMessage(content=self._format_escalation_ticket(data))
 
         if "results" in data and ("status" in data or "query" in data):
-            # Check if this is knowledge base or web search
             if "documents" in data or ("status" in data and data.get("status") in ["success", "abstain"] and "documents" in data):
                 return AIMessage(content=self._format_knowledge_response(data, messages=messages))
             else:
@@ -312,14 +272,14 @@ class SupervisorLLMEngine:
         return (
             f"Verifiquei as suas vendas de ontem no sistema Getnet:\n\n"
             f"• **Total transacionado**: R$ {gross:,.2f} ({total_tx} transações)\n"
-            f"• **Valor líquido a receber**: R$ {net:,.2f} (3.367,20)\n"
+            f"• **Valor líquido a receber**: R$ {net:,.2f}\n"
             f"• **Previsão de depósito**: **Hoje, {deposit_time}** (D+1 útil)\n"
             f"• **Conta de destino**: {dest_account}\n\n"
             f"O depósito está programado e segue o fluxo padrão de liquidação financeira da sua conta."
         )
 
     def _format_terminal_troubleshooting(self, data: Dict[str, Any]) -> str:
-        model = data.get("terminal_model", "Get Smart")
+        model = data.get("terminal_model", "Terminal Getnet")
         serial = data.get("serial_number", "GET-883921")
         operator = data.get("sim_operator", "Claro/Vivo")
         signal = data.get("signal_level", "fraco")
@@ -336,22 +296,21 @@ class SupervisorLLMEngine:
         )
 
     def _format_declined_transaction(self, data: Dict[str, Any]) -> str:
-        code = data.get("queried_code", "51")
+        code = data.get("queried_code", "")
         details = data.get("code_details", {})
-        title = details.get("title", "Saldo Insuficiente")
-        cause = details.get("cause", "Recusado pelo banco emissor por saldo/limite insuficiente.")
-        action = details.get("recommended_action", "Solicite outra forma de pagamento ao comprador (outro cartão ou Pix).")
+        title = details.get("title", "")
+        cause = details.get("cause", "")
+        action = details.get("recommended_action", "")
         last_txn = data.get("latest_declined_transaction") or data.get("last_declined_transaction", {})
-        txn_id = last_txn.get("transaction_id", "TXN-902188")
-        amount = last_txn.get("amount_brl", 150.0)
-        brand = last_txn.get("card_brand", "Mastercard")
+        txn_id = last_txn.get("transaction_id", "")
+        amount = last_txn.get("amount_brl", 0.0)
+        brand = last_txn.get("card_brand", "")
 
         return (
             f"Analisando a sua última transação recusada (Código {code} - {title}):\n\n"
             f"• **Transação**: {txn_id} no valor de R$ {amount:,.2f} ({brand})\n"
             f"• **Motivo da recusa**: {cause}\n"
-            f"• **O que fazer**: {action}\n\n"
-            f"Como se trata de recusa por saldo insuficiente no banco emissor, o lojista pode orientar o cliente a utilizar outro cartão ou Pix."
+            f"• **O que fazer**: {action}"
         )
 
     def _format_escalation_ticket(self, data: Dict[str, Any]) -> str:
@@ -372,59 +331,19 @@ class SupervisorLLMEngine:
         data: Dict[str, Any],
         messages: Optional[List[BaseMessage]] = None
     ) -> str:
-        # Check conversational history in messages for multi-turn synthesis
-        prior_context = ""
-        if messages and len(messages) > 1:
-            prior_context = " ".join([
-                str(m.content) for m in messages[:-1]
-                if isinstance(m, (HumanMessage, AIMessage)) and m.content
-            ]).lower()
-
         documents = data.get("documents", [])
-        query = data.get("query", "").lower()
 
-        # If documents were found
         if documents:
             primary = documents[0]
             title = primary.get("title", "Getnet Documentação")
             content = primary.get("content", "")
             url = primary.get("url", "https://www.getnet.com.br")
 
-            # Check if this was a specific comparative follow-up (e.g. touch / Android / bobina)
-            if "touch" in query or "android" in query:
-                return (
-                    f"Com base na documentação oficial da Getnet (**{title}**):\n\n"
-                    f"A **Get Smart** é o modelo que possui tela sensível ao toque (*touch screen*) e opera com sistema **Android**, "
-                    f"permitindo a instalação de aplicativos integrados de gestão e vendas. Já a **Get Clássica** conta com teclado físico e bobina de papel para impressão de comprovante.\n\n"
-                    f"Fonte oficial: {url}"
-                )
-            if "bobina" in query or "impress" in query or "teclado" in query:
-                return (
-                    f"Com base na documentação oficial da Getnet (**{title}**):\n\n"
-                    f"A **Get Clássica** é o modelo que possui teclado físico e bobina de papel inclusa para impressão imediata de comprovantes aos clientes. "
-                    f"Já a **Get Smart** opera com tela touch screen e sistema Android.\n\n"
-                    f"Fonte oficial: {url}"
-                )
-
             return (
                 f"De acordo com a documentação oficial da Getnet (**{title}**):\n\n"
                 f"{content}\n\n"
                 f"Fonte oficial: {url}"
             )
-
-        # If tool returned no documents / abstained, check if memory already holds the context
-        if prior_context and ("clássica" in prior_context or "classica" in prior_context or "smart" in prior_context):
-            if "touch" in query or "android" in query:
-                return (
-                    "Aproveitando o contexto da nossa conversa anterior sobre a Get Clássica e a Get Smart: "
-                    "a maquininha que possui tela sensível ao toque (*touch screen*) e opera com sistema operacional **Android** "
-                    "é a **Get Smart**, enquanto a Get Clássica conta com teclado físico e bobina de papel para impressão."
-                )
-            if "bobina" in query or "impress" in query or "teclado" in query:
-                return (
-                    "Aproveitando o contexto da nossa conversa anterior sobre a Get Clássica e a Get Smart: "
-                    "a maquininha que conta com bobina de papel inclusa para impressão e teclado físico é a **Get Clássica**."
-                )
 
         return (
             data.get("message")
@@ -452,31 +371,18 @@ class SupervisorLLMEngine:
         body = "\n".join(formatted)
         return f"Resultados da pesquisa web sobre '{query}':\n\n{body}"
 
-    def _synthesize_web_search_response(self, prompt: str) -> str:
-        query_match = re.search(r"Pergunta do usu[aá]rio:\s*(.+)", prompt)
-        query = query_match.group(1).strip() if query_match else "pesquisa"
-        snippet_lines = [l for l in prompt.splitlines() if l.strip().startswith("- ")]
-        snippets_text = "\n".join(snippet_lines)
-        return f"Resultados da pesquisa web sobre '{query}':\n\n{snippets_text}"
 
-    def _synthesize_rag_response(self, prompt: str) -> str:
-        return (
-            "De acordo com a base oficial da Getnet:\n\n"
-            "### Get Smart Maquininha\nAndroid com tela touch e Wi-Fi."
-        )
+_rules_engine_instance: Optional[RulesFallbackEngine] = None
 
 
-_supervisor_llm_instance: Optional[SupervisorLLMEngine] = None
+def get_rules_engine() -> RulesFallbackEngine:
+    """Dependency getter for Rules Fallback Engine."""
+    global _rules_engine_instance
+    if _rules_engine_instance is None:
+        _rules_engine_instance = RulesFallbackEngine()
+    return _rules_engine_instance
 
 
-def get_supervisor_llm() -> SupervisorLLMEngine:
-    """Dependency getter for Supervisor LLM Engine."""
-    global _supervisor_llm_instance
-    if _supervisor_llm_instance is None:
-        _supervisor_llm_instance = SupervisorLLMEngine()
-    return _supervisor_llm_instance
-
-
-# Backward compatibility aliases
-LLMClient = SupervisorLLMEngine
-get_llm = get_supervisor_llm
+get_supervisor_llm = get_rules_engine
+LLMClient = RulesFallbackEngine
+get_llm = get_rules_engine

@@ -34,17 +34,17 @@ class AgentMetadata(BaseModel):
     """Telemetry and trace metadata for graph execution."""
     agent_type: str = Field(default="SupervisorAgent", description="Final agent that synthesized the response")
     routed_by: str = Field(default="SupervisorAgent", description="Supervisor ReAct orchestration engine")
+    decision_engine: str = Field(default="rules_fallback", description="Engine used for decision/routing")
     session_id: str = Field(default="", description="Conversational session ID")
     trace_id: str = Field(default="", description="Unique UUID trace identifier for observability")
     tools_used: List[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
     tool_calls: List[Dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
     execution_time_ms: float = Field(..., description="Total execution latency in milliseconds")
-    confidence: float = Field(default=1.0, description="Confidence score from retrieval similarity or tool execution")
     sources: List[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
     retrieved_docs: List[Dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
     ticket: Optional[Dict[str, Any]] = Field(default=None, description="Persisted support ticket if escalation occurred")
-    tokens: Dict[str, int] = Field(default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}, description="Token usage estimation")
-    estimated_cost_usd: float = Field(default=0.0, description="Estimated Gemini Flash execution cost in USD")
+    tokens: Optional[Dict[str, int]] = Field(default=None, description="Token usage estimation")
+    estimated_cost_usd: Optional[float] = Field(default=None, description="Estimated execution cost in USD")
     debug_details: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic payload")
 
 
@@ -147,19 +147,15 @@ async def health_check():
 @app.get("/agents", tags=["Architecture"])
 async def list_agents():
     return {
-        "architecture": "LangGraph Supervisor ReAct Workflow",
+        "architecture": "LangGraph Supervisor Workflow",
         "orchestrator": {
             "name": "SupervisorAgent",
-            "model_reference": "Gemini 2.0 Flash (with native Tool Calling)",
+            "model_reference": "Rules fallback (fallback por regras)",
             "checkpointer": "MemorySaver (thread-scoped multi-turn state)",
             "safety": "GuardrailAgent (PII sanitization & prompt injection defense)"
         },
         "agents": [
-            {"name": "SupervisorAgent", "role": "LangGraph Supervisor ReAct Orchestrator", "tools": ["decide_or_synthesize"]},
-            {"name": "RouterAgent", "role": "Semantic Intent Classifier (Supervisor Engine)", "tools": ["intent_evaluator"]},
-            {"name": "KnowledgeAgent", "role": "RAG Knowledge Base & Web Search Specialist", "tools": ["search_knowledge_base", "search_web"]},
-            {"name": "CustomerSupportAgent", "role": "Financial Settlements & Hardware Terminal Specialist", "tools": ["get_settlement_status", "diagnose_terminal", "diagnose_declined_transaction"]},
-            {"name": "HumanEscalationAgent", "role": "SQLite Persistent Tickets Specialist", "tools": ["escalate_to_human"]},
+            {"name": "SupervisorAgent", "role": "LangGraph Supervisor Orchestrator (fallback por regras)", "tools": ["decide_or_synthesize"]},
             {"name": "GuardrailAgent", "role": "PII Masking & Safety Guardrail", "tools": ["sanitize_pii", "regex_safety_evaluator"]}
         ],
         "tools": [
@@ -184,7 +180,7 @@ async def list_agents():
             {
                 "name": "search_knowledge_base",
                 "specialist": "KnowledgeSpecialist",
-                "description": "RAG semântico ChromaDB (15 artigos Getnet com limiar de abstenção < 0.35)",
+                "description": "RAG semântico ChromaDB (artigos Getnet)",
                 "schema": "search_knowledge_base(query: str)"
             },
             {
@@ -237,28 +233,22 @@ def chat_endpoint(payload: ChatRequest):
             session_id=payload.session_id
         )
 
-        # Dynamic confidence based on vector similarity or tool execution (never hardcoded constant)
-        dynamic_confidence = 1.0
-        if state.retrieved_docs:
-            top_sim = state.retrieved_docs[0].get("similarity", state.retrieved_docs[0].get("score", 1.0))
-            dynamic_confidence = round(float(top_sim), 4)
-
         active_session = state.session_id or payload.session_id or payload.user_id
 
         metadata = AgentMetadata(
             agent_type="SupervisorAgent",
             routed_by="SupervisorAgent",
+            decision_engine="rules_fallback",
             session_id=active_session,
             trace_id=state.trace_id or "",
             tools_used=state.tools_used,
             tool_calls=state.tool_calls,
             execution_time_ms=state.execution_time_ms,
-            confidence=dynamic_confidence,
             sources=state.sources,
             retrieved_docs=state.retrieved_docs,
             ticket=state.ticket,
-            tokens=state.tokens,
-            estimated_cost_usd=state.estimated_cost_usd,
+            tokens=None,
+            estimated_cost_usd=None,
             debug_details={
                 "session_id": active_session,
                 "trace_id": state.trace_id,
@@ -267,8 +257,7 @@ def chat_endpoint(payload: ChatRequest):
                 "escalate_to_human": state.escalate_to_human,
                 "ticket_id": state.escalation_ticket_id,
                 "tools_used": state.tools_used,
-                "tokens": state.tokens,
-                "estimated_cost_usd": state.estimated_cost_usd
+                "decision_engine": "rules_fallback"
             }
         )
 

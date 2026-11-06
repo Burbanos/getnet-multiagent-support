@@ -6,9 +6,6 @@ import re
 from typing import List, Dict, Any, Optional
 
 import chromadb
-from src.core.state import AgentState, AgentRole
-from src.tools.web_search import web_search_tool
-from src.core.llm import get_llm
 from src.config import settings
 
 logger = logging.getLogger("multiagent.knowledge")
@@ -152,7 +149,8 @@ class ChromaDBKnowledgeRetriever:
                             "distance": round(d_val, 4),
                             "similarity": round(cos_sim, 4),
                             "score": round(hybrid_score, 4),
-                            "lex_overlap": lex_overlap
+                            "lex_overlap": lex_overlap,
+                            "retrieval_mode": "vector"
                         })
 
                     scored.sort(key=lambda x: x["score"], reverse=True)
@@ -191,6 +189,7 @@ class ChromaDBKnowledgeRetriever:
         return fallback_docs
 
     def _lexical_fallback(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
+        logger.warning(f"Falling back to lexical retrieval for query: '{query}'")
         q_tokens = set(re.findall(r"\w+", query.lower()))
         content_q_tokens = {w for w in q_tokens if w not in STOPWORDS and len(w) > 2}
         if not content_q_tokens:
@@ -214,8 +213,7 @@ class ChromaDBKnowledgeRetriever:
                     "content": doc.get("content"),
                     "score": round(score, 4),
                     "density": round(density, 4),
-                    "similarity": round(min(1.0, 0.40 + density * 0.40), 4),
-                    "distance": round(max(0.0, 0.60 - density * 0.40), 4)
+                    "retrieval_mode": "lexical_fallback"
                 })
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
@@ -230,93 +228,3 @@ def get_retriever() -> ChromaDBKnowledgeRetriever:
     if _retriever_instance is None:
         _retriever_instance = ChromaDBKnowledgeRetriever()
     return _retriever_instance
-
-
-class KnowledgeAgent:
-    """Answers queries via ChromaDB knowledge retrieval or external web search."""
-
-    def __init__(self):
-        self.retriever = get_retriever()
-        self.llm = get_llm()
-
-    async def execute(self, state: AgentState) -> AgentState:
-        message = state.message
-        intent = state.route.intent if state.route else "getnet_knowledge_retrieval"
-
-        if intent == "external_web_search" or self._is_external_query(message):
-            return await self._handle_web_search(state)
-        else:
-            return await self._handle_rag(state)
-
-    def _is_external_query(self, message: str) -> bool:
-        lower_msg = message.lower()
-        external_keywords = [
-            "weather", "tempo", "previsão", "porto alegre",
-            "euro", "dollar", "dólar", "exchange rate", "cotação", "cotacao"
-        ]
-        return any(k in lower_msg for k in external_keywords)
-
-    async def _handle_web_search(self, state: AgentState) -> AgentState:
-        logger.info(f"Knowledge Agent executing Web Search for: '{state.message}'")
-        search_result = web_search_tool(state.message, max_results=settings.WEB_SEARCH_MAX_RESULTS)
-        state.tools_used.append("web_search_tool")
-        state.tool_results.append(search_result)
-
-        snippets = search_result.get("results", [])
-        context_str = "\n".join([f"- [{s.get('title')}]: {s.get('snippet')} (Fonte: {s.get('url')})" for s in snippets])
-
-        for s in snippets:
-            if s.get("url"):
-                state.sources.append(s.get("url"))
-
-        system_prompt = (
-            "Você é o Knowledge Agent do sistema de suporte da Getnet. "
-            "Responda à pergunta do usuário de forma clara, prestativa e objetiva com base nos dados externos encontrados."
-        )
-
-        user_prompt = (
-            f"Pergunta do usuário: {state.message}\n\n"
-            f"Dados da pesquisa na Web:\n{context_str}\n\n"
-            "Elabore uma resposta amigável e direta em português:"
-        )
-
-        response_text = await self.llm.generate_text(user_prompt, system_prompt=system_prompt)
-        state.agent_response = response_text
-        state.final_agent = AgentRole.KNOWLEDGE
-        return state
-
-    async def _handle_rag(self, state: AgentState) -> AgentState:
-        logger.info(f"Knowledge Agent executing ChromaDB RAG retrieval for: '{state.message}'")
-        docs = self.retriever.retrieve(state.message, top_k=2)
-        state.context_docs = docs
-        state.retrieved_docs = docs
-        state.tools_used.append("knowledge_retriever")
-        state.tools_used.append("chromadb_vector_search")
-
-        for d in docs:
-            if d.get("url"):
-                state.sources.append(d.get("url"))
-
-        # Focus context synthesis on the primary top-1 ranked document
-        primary_doc = docs[0] if docs else {}
-        context_str = f"### {primary_doc.get('title', 'Getnet')}\n{primary_doc.get('content', '')}"
-
-        system_prompt = (
-            "Você é o Knowledge Agent especialista em produtos e soluções da Getnet. "
-            "Seu papel é responder às dúvidas com base exclusivamente nas informações oficiais da Getnet. "
-            "Seja claro, didático e profissional."
-        )
-
-        user_prompt = (
-            f"Pergunta do usuário: {state.message}\n\n"
-            f"Base de Conhecimento Oficial Getnet:\n{context_str}\n\n"
-            "Instruções:\n"
-            "- Responda a dúvida com precisão e clareza com base no artigo principal.\n"
-            "- Destaque os benefícios e opções disponíveis para o lojista.\n"
-            "- Responda em português com boa formatação."
-        )
-
-        response_text = await self.llm.generate_text(user_prompt, system_prompt=system_prompt)
-        state.agent_response = response_text
-        state.final_agent = AgentRole.KNOWLEDGE
-        return state

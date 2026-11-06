@@ -9,9 +9,9 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
 
-from src.core.state import SupervisorState, AgentState, AgentRole, RouteDecision
+from src.core.state import SupervisorState, AgentState, AgentRole
 from src.agents.guardrails import GuardrailAgent
-from src.core.llm import get_supervisor_llm
+from src.core.llm import get_rules_engine
 from src.tools.agent_tools import TOOLS_BY_NAME
 
 logger = logging.getLogger("multiagent.orchestrator")
@@ -29,7 +29,7 @@ class OrchestrationGraph:
 
     def __init__(self):
         self.guardrail_agent = GuardrailAgent()
-        self.supervisor_llm = get_supervisor_llm()
+        self.supervisor_llm = get_rules_engine()
         self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
 
@@ -166,18 +166,6 @@ class OrchestrationGraph:
                     result_str = json.dumps({"error": f"Falha na execução da ferramenta {tool_name}: {e}"})
 
                 tools_used.append(tool_name)
-                # Ensure alias compatibility for both new schemas and legacy tools
-                tool_aliases = {
-                    "get_settlement_status": ["get_settlement_and_sales_status"],
-                    "diagnose_declined_transaction": ["get_declined_transaction_details"],
-                    "diagnose_terminal": ["diagnose_terminal_connectivity"],
-                    "search_knowledge_base": ["knowledge_retriever", "chromadb_vector_search"],
-                    "search_web": ["web_search_tool"],
-                    "escalate_to_human": ["create_escalation_ticket"],
-                }
-                for alias in tool_aliases.get(tool_name, []):
-                    if alias not in tools_used:
-                        tools_used.append(alias)
 
                 t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
                 tool_messages.append(t_msg)
@@ -233,7 +221,7 @@ class OrchestrationGraph:
         Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
         """
         start_time = time.perf_counter()
-        active_session_id = session_id or user_id or str(uuid.uuid4())
+        active_session_id = session_id or str(uuid.uuid4())
         trace_id = f"trc-{uuid.uuid4().hex[:12]}"
 
         initial_state: SupervisorState = {
@@ -251,8 +239,8 @@ class OrchestrationGraph:
             "ticket": None,
             "final_response": "",
             "execution_time_ms": 0.0,
-            "tokens": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            "estimated_cost_usd": 0.0
+            "tokens": None,
+            "estimated_cost_usd": None
         }
 
         # Checkpointer thread configuration
@@ -279,16 +267,9 @@ class OrchestrationGraph:
                     final_text = m.content if isinstance(m.content, str) else str(m.content)
                     break
 
-        # Calculate token metrics & cost estimation (Gemini Flash: $0.075/1M input, $0.30/1M output)
-        prompt_tokens = max(1, len(message) // 4 + 120)
-        completion_tokens = max(1, len(final_text) // 4)
-        total_tokens = prompt_tokens + completion_tokens
-        cost_usd = round((prompt_tokens * 0.000000075) + (completion_tokens * 0.00000030), 7)
-        token_usage = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens
-        }
+        # Token metrics & cost estimation are unmeasured, set to None
+        token_usage = None
+        cost_usd = None
 
         # Map to backward-compatible AgentState
         agent_state = AgentState(
@@ -309,12 +290,6 @@ class OrchestrationGraph:
             final_agent=AgentRole.SUPERVISOR,
             escalate_to_human=bool(result.get("ticket")),
             escalation_ticket_id=result.get("ticket", {}).get("ticket_id") if result.get("ticket") else None,
-            route=RouteDecision(
-                target_agent=AgentRole.SUPERVISOR,
-                intent="dynamic_react",
-                confidence=1.0,
-                reasoning="Supervisor ReAct execution with tool calling."
-            ),
             intent="dynamic_react",
             execution_time_ms=elapsed_ms,
             tokens=token_usage,

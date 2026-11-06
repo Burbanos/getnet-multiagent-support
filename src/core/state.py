@@ -13,19 +13,6 @@ class AgentRole(str, Enum):
     SUPERVISOR = "SupervisorAgent"
     TOOL_NODE = "ToolNode"
     GUARDRAIL = "GuardrailAgent"
-    # Legacy identifiers kept for backward introspection compatibility
-    ROUTER = "SupervisorAgent"
-    KNOWLEDGE = "SupervisorAgent"
-    CUSTOMER_SUPPORT = "SupervisorAgent"
-    ESCALATION = "SupervisorAgent"
-
-
-class RouteDecision(BaseModel):
-    """Routing decision produced by the Supervisor."""
-    target_agent: AgentRole = AgentRole.SUPERVISOR
-    intent: str = "dynamic_react"
-    confidence: float = 1.0
-    reasoning: str = "Decisão dinâmica guiada por Tool Calling."
 
 
 class SupervisorState(TypedDict):
@@ -49,8 +36,8 @@ class SupervisorState(TypedDict):
     ticket: Optional[Dict[str, Any]]
     final_response: str
     execution_time_ms: float
-    tokens: Dict[str, int]
-    estimated_cost_usd: float
+    tokens: Optional[Dict[str, int]]
+    estimated_cost_usd: Optional[float]
 
 
 class AgentState(BaseModel):
@@ -67,7 +54,6 @@ class AgentState(BaseModel):
     is_safe: bool = True
     safety_violations: List[str] = Field(default_factory=list)
 
-    route: Optional[RouteDecision] = None
     intent: Optional[str] = None
 
     context_docs: List[Dict[str, Any]] = Field(default_factory=list)
@@ -86,8 +72,8 @@ class AgentState(BaseModel):
 
     start_time: float = 0.0
     execution_time_ms: float = 0.0
-    tokens: Dict[str, int] = Field(default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
-    estimated_cost_usd: float = 0.0
+    tokens: Optional[Dict[str, int]] = None
+    estimated_cost_usd: Optional[float] = None
 
     model_config = {
         "arbitrary_types_allowed": True
@@ -115,8 +101,8 @@ class AgentMetadata(BaseModel):
     is_safe: bool = True
     safety_violations: List[str] = Field(default_factory=list)
     execution_time_ms: float = 0.0
-    tokens: Dict[str, int] = Field(default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
-    estimated_cost_usd: float = 0.0
+    tokens: Optional[Dict[str, int]] = None
+    estimated_cost_usd: Optional[float] = None
 
 
 class ChatResponse(BaseModel):

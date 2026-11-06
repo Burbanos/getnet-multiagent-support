@@ -9,83 +9,118 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ---
 
-### 2. Arquitetura Atual
+### 2. Arquitetura Atual (Fase 1A)
 - **Grafo compilado**: `OrchestrationGraph` em `src/core/graph.py` com nós `guardrail`, `supervisor` e `tools`.
-- **Agentes**: `GuardrailAgent` (`src/agents/guardrails.py`), `SupervisorLLMEngine` (`src/core/llm.py`) e classes legadas mantidas para retrocompatibilidade de testes (`RouterAgent`, `KnowledgeAgent`, `CustomerSupportAgent`, `HumanEscalationAgent`).
+- **Agentes**: `GuardrailAgent` (`src/agents/guardrails.py`) e `RulesFallbackEngine` (`src/core/llm.py`). Código morto eliminado: `RouterAgent`, `KnowledgeAgent`, `CustomerSupportAgent` e `HumanEscalationAgent` foram removidos.
 - **Decisão de rota e tools**:
-  - Com `LLM_PROVIDER=gemini` e chave configurada: o `google.genai` executa Tool Calling nativo com declarações de função (`src/core/llm.py`).
-  - No modo padrão offline (`LLM_PROVIDER=mock`): o `SupervisorLLMEngine._decide_tool_call_or_reply` avalia padrões semânticos e emite `AIMessage(tool_calls=[...])`, despachando a execução ao nó `tools` (`src/tools/agent_tools.py`) e sintetizando a resposta final via `ToolMessage`.
+  - `RulesFallbackEngine._decide_tool_call_or_reply`: avalia padrões e emite `AIMessage(tool_calls=[...])`, despachando a execução ao nó `tools` (`src/tools/agent_tools.py`) e sintetizando a resposta final via `ToolMessage`.
+  - A resposta da API `/chat` sinaliza explicitamente `"decision_engine": "rules_fallback"`.
+  - `tools_used` contém estritamente nomes reais de ferramentas invocadas (aliases removidos).
 
 ---
 
 ### 3. RAG (Recuperação de Informações)
-- **Origem dos dados**: Arquivo JSON local estático escrito à mão (`data/getnet_kb.json`) com 15 artigos curtos. Não há crawler ou raspagem de páginas reais do site getnet.com.br.
-- **Ingestão e Armazenamento**: `ChromaDBKnowledgeRetriever` (`src/agents/knowledge.py`) carrega o JSON na coleção `getnet_kb` com embeddings padrão do ChromaDB em memória (ou persistente se `CHROMA_PERSIST_DIR` for setado).
-- **Recuperação**: Score híbrido ponderado: 60% similaridade cosseno ChromaDB + 25% overlap léxico substantivo + 15% overlap de título.
+- **Origem dos dados**: Arquivo JSON local estático (`data/getnet_kb.json`) com 15 artigos curtos.
+- **Ingestão e Armazenamento**: `ChromaDBKnowledgeRetriever` (`src/agents/knowledge.py`) carrega o JSON na coleção `getnet_kb`.
+- **Recuperação e Tagging**: Cada documento recuperado inclui `"retrieval_mode": "vector"` ou `"retrieval_mode": "lexical_fallback"`.
+- **Fallback Léxico**: O método `_lexical_fallback` emite log `WARNING` ao ser acionado e não inventa mais campos de `similarity` ou `distance`.
 - **Limiar de relevância**: Limiar geral `threshold = 0.20`. Se a query contiver termos substantivos com zero sobreposição léxica (`top_lex_overlap == 0`) e similaridade cosseno $< 0.55$, o retriever abstém-se matematicamente e retorna vazio (`[]`).
 
 ---
 
 ### 4. Tools do Agente de Suporte
 Definidas e decoradas em `src/tools/agent_tools.py`:
-1. `get_settlement_status`: Entrada `user_id: str`. Saída: JSON com extrato de vendas de ontem e previsão de depósito D+1. Fonte: dados mock em memória (`src/tools/balance_tools.py`).
-2. `diagnose_declined_transaction`: Entrada `user_id: str, error_code: Optional[str]`. Saída: JSON com causa da recusa (código 51, etc.) e ação sugerida. Fonte: dicionário fixo (`src/tools/balance_tools.py`).
-3. `diagnose_terminal`: Entrada `user_id: str, serial_number: Optional[str]`. Saída: JSON com diagnóstico de conectividade e passos de reinicialização. Fonte: mock em código (`src/tools/terminal_tools.py`).
-4. `search_knowledge_base`: Entrada `query: str`. Saída: JSON com documentos recuperados ou status `abstain`. Fonte: ChromaDB (`data/getnet_kb.json`).
-5. `search_web`: Entrada `query: str`. Saída: JSON com resultados de busca pública. Fonte: DuckDuckGo Search (`duckduckgo_search` / `ddgs`).
-6. `escalate_to_human`: Entrada `user_id: str, reason: str`. Saída: JSON com protocolo `GET-TKT-...` e status `open`. Fonte: SQLite (`data/tickets.db`).
+1. `get_settlement_status`: Entrada `user_id: str`. Saída: JSON com extrato de vendas de ontem e previsão de depósito D+1.
+2. `diagnose_declined_transaction`: Entrada `user_id: str, error_code: Optional[str]`. Saída: JSON com causa da recusa e ação sugerida.
+3. `diagnose_terminal`: Entrada `user_id: str, serial_number: Optional[str]`. Saída: JSON com conectividade do terminal.
+4. `search_knowledge_base`: Entrada `query: str`. Saída: JSON com documentos recuperados ou status `abstain`.
+5. `search_web`: Entrada `query: str`. Saída: JSON com resultados de busca pública (DuckDuckGo).
+6. `escalate_to_human`: Entrada `user_id: str, reason: str`. Saída: JSON com protocolo `GET-TKT-...` e status `open`.
 
 ---
 
 ### 5. Escalonamento Humano
-- **O que acontece**: A ferramenta `escalate_to_human` invoca `TicketsRepository.create_ticket` (`src/core/tickets_db.py`), persistindo o protocolo no formato `GET-TKT-YYYYMMDD-XXXX`.
-- **Onde é gravado**: Tabela `tickets` no banco SQLite local (`data/tickets.db`, com fallback dinâmico para `/tmp/tickets.db` se o volume for read-only).
-- **Quem recebe**: Ninguém de forma ativa/push. Não há webhook, mensageria (Kafka/RabbitMQ) ou integração com CRM/Slack. Os chamados ficam armazenados no SQLite e são consultados passivamente via endpoints HTTP `GET /tickets/{ticket_id}` e `GET /tickets` (`src/main.py`).
+- **Gravação**: Tabela `tickets` no banco SQLite local (`data/tickets.db`, com fallback para `/tmp/tickets.db`).
+- **Acompanhamento**: Endpoints HTTP `GET /tickets/{ticket_id}` e `GET /tickets` (`src/main.py`).
 
 ---
 
 ### 6. Memória, Autenticação, Guardrails e Observabilidade
-- **Memória e Sessão**: `MemorySaver` nativo do LangGraph (`langgraph.checkpoint.memory`) em `src/core/graph.py`, indexado por `thread_id` (`session_id`). Mantém histórico multi-turn em memória RAM durante a execução do processo. Não há persistência externa de sessão (Redis/Postgres); se o processo reiniciar, o histórico de mensagens em RAM é limpo.
-- **Autenticação**: Header opcional `X-API-Key` validado em `verify_api_key` (`src/main.py`). Aceita `getnet-dev-key` por padrão e rejeita chaves não autorizadas com HTTP 401. Não há OAuth2, JWT ou controle por perfil (RBAC).
-- **Guardrails**: `GuardrailAgent` (`src/agents/guardrails.py`) avalia injeções de prompt em PT-BR e EN via regex. Módulo `src/core/pii.py` mascara cartões válidos pelo algoritmo de Luhn e números de CPF. Não há modelos de moderação LLM dedicados.
-- **Observabilidade**: Geração de `trace_id` UUID (`trc-<hex12>`), latência em ms, estimativa de tokens (`prompt`, `completion`, `total`) e cálculo de custo em USD do Gemini Flash em cada resposta (`src/main.py`) e na UI (`src/static/demo.html`). Não há exportador OpenTelemetry conectado a backends APM externos.
+- **Memória e Sessão**: `MemorySaver` nativo do LangGraph (`langgraph.checkpoint.memory`), indexado por `thread_id` (`session_id`). Quando `session_id` não é fornecido, é gerado UUID único por requisição para isolar sessões independentes.
+- **Autenticação**: Header opcional `X-API-Key` validado em `verify_api_key` (`src/main.py`), aceitando `getnet-dev-key` por padrão.
+- **Guardrails**: `GuardrailAgent` (`src/agents/guardrails.py`) e `src/core/pii.py` (Luhn e CPF).
+- **Observabilidade**: `trace_id` UUID mantido. Métricas fabricadas removidas: `tokens` e `estimated_cost_usd` são retornados como `null` (não medidos) e `confidence` foi removido da resposta e metadados. Na interface `/demo`, esses campos exibem `n/a`.
 
 ---
 
-### 7. Testes Automatizados
-- **Quantidade e cobertura**: 56 testes automatizados cobrindo os 10 cenários oficiais (`tests/test_scenarios.py`), endpoints, ferramentas, RAG, guardrails, memória multi-turn e fallback do SQLite (`tests/test_unit.py`), e rotina de avaliação LLM-as-a-judge e resiliência a timeout (`tests/test_eval_judge.py`).
-- **Última execução real**:
-  - Comando: `pytest tests/ -v`
-  - Saída resumida: `56 passed in 32.64s` (Python 3.13.3).
+### 7. Testes Automatizados e Higienização (Fase 1A)
+
+**Total atual**: 46 testes aprovados no pytest.
+
+#### Testes Apagados (10 testes):
+1. `test_router_dispatches_customer_support`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+2. `test_router_dispatches_knowledge_agent`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+3. `test_router_dispatches_escalation`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+4. `test_router_antecipacao_processo_semantic_route`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+5. `test_router_confidence_threshold_escalation`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+6. `test_router_unmatched_low_confidence`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+7. `test_router_terminal_connectivity_with_model_name`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+8. `test_router_decline_priority_over_terminal_defect`: dependia de `RouterAgent` (`src/agents/router.py`), removido como código morto.
+9. `test_llm_web_search_synthesis_pure_dynamic_header`: dependia de `_synthesize_web_search_response` em `src/core/llm.py`, método removido conforme item 3.
+10. `test_llm_rag_synthesis_focused_on_top1_doc`: dependia de `_synthesize_rag_response` em `src/core/llm.py`, método removido conforme item 3.
+
+#### Testes Alterados (5 testes):
+1. `tests/test_unit.py::test_agents_introspection_endpoint`: removidos asserts checando presença de `RouterAgent`, `KnowledgeAgent`, `CustomerSupportAgent` e `HumanEscalationAgent` (classes removidas do endpoint `/agents`).
+2. `tests/test_unit.py::test_chat_endpoint_valid_response`: atualizados asserts para checar `SupervisorAgent` em `agent` e `agent_type` (removido `KnowledgeAgent`) e verificar o nome real da ferramenta `search_knowledge_base` (sem alias).
+3. `tests/test_unit.py::test_langgraph_orchestration_direct_execution`: removido assert checando `AgentRole.KNOWLEDGE` (alias legado removido do enum `AgentRole`) e ajustado assert para ferramenta real `search_knowledge_base`.
+4. `tests/test_unit.py::test_supervisor_react_tool_calling`: assert atualizado para validar `"3,367.20"` em vez do literal hardcoded `"(3.367,20)"` removido do formatador conforme item 4.
+5. `tests/test_scenarios.py::test_evaluation_scenarios`:
+   - `expected_agent` ajustado para `SupervisorAgent` (agentes legados removidos).
+   - `expected_tool` ajustado para os nomes reais de ferramentas (`search_knowledge_base`, `search_web`, `get_settlement_status`, `diagnose_terminal`, `diagnose_declined_transaction`).
+   - Cenário 3: removido `"3.367,20"` de `expected_keywords` devido à remoção do literal hardcoded no formatador.
+6. `tests/test_eval_judge.py::test_llm_as_a_judge_evaluation_suite`: ajustados asserts de `state.tokens` e `state.estimated_cost_usd` para verificar `is None` (remoção de fórmulas estimadas falsas conforme item 6).
+7. `tests/test_eval_judge.py::test_llm_api_resilience_and_graceful_degradation`: atualizado monkeypatch de `SupervisorLLMEngine` para `RulesFallbackEngine` (renomeação conforme item 3).
 
 ---
 
-### 8. Docker
-- **Status de execução**: não verificado diretamente (o binário `docker` não está presente no PATH do ambiente Windows host de desenvolvimento).
-- **Arquivos presentes**:
-  - `Dockerfile`: Multi-stage build com `python:3.11-slim`, criação do usuário não-root `appuser` e permissão explícita `chmod -R 777 /app/data`.
-  - `docker-compose.yml`: Serviço configurado na porta 8000 com volumes nomeados `tickets_data:/app/data` e `chroma_data:/app/chroma_db`.
+### 8. Fase 1A — Saídas Brutas de Verificação
+
+#### Verificação Parte A (`python scripts/verify_phase1.py --part a`):
+```text
+PASS A1.files
+PASS A1.refs
+PASS A2.rules_engine_named
+PASS A2.no_fake_gemini
+PASS A2.no_hardcoded_answers
+PASS A3.no_token_estimation
+PASS A3.no_tool_aliases
+PASS A4.chat_200
+PASS A4.decision_engine
+PASS A4.tokens_null
+PASS A4.cost_null
+PASS A4.no_confidence
+PASS A4.tools_used_real
+PASS A5.agents_endpoint_truthful
+PASS A6.lexical_no_fake_similarity
+PASS A6.retrieval_mode_tagged
+PASS A7.demo_no_fake_metrics
+
+SUMMARY: 17/17 passed
+```
+
+#### Testes Automatizados (`python -m pytest -q`):
+```text
+..............................................                           [100%]
+46 passed in 24.91s
+```
+
+#### Git Commit Base:
+```text
+4ddb8209643408db8c7f9460146783ae830f4d03
+```
 
 ---
 
-### 9. Afirmações do README que o Código NÃO Sustenta
-1. **CI completo com linting**: O README afirma que o CI executa linting e testes a cada push; o arquivo `.github/workflows/ci.yml` existente apenas executa `pip install -r requirements.txt` e `pytest tests/ -v`, sem executar linters (`flake8`, `ruff`, `black`).
-2. **Uso de LLM generativo como padrão**: O README apresenta o fluxo focado no Gemini 2.0 Flash; na prática, a configuração default de execução (`src/config.py`) roda com `LLM_PROVIDER=mock` determinístico offline.
-3. **Documentação oficial completa da Getnet**: O README cita diversos tópicos contratuais e regulatórios avançados; o corpus real consiste em apenas 15 resumos curtos escritos manualmente em `data/getnet_kb.json`.
-
----
-
-### 10. Problemas Conhecidos e Dívidas Técnicas
-- **Sessões voláteis**: O checkpointer `MemorySaver` guarda o histórico de mensagens em memória do processo, perdendo o estado conversacional em restarts.
-- **Simulação estática de suporte**: Dados de liquidação financeira, terminais e recusas são estáticos em memória, sem integração com APIs bancárias reais.
-- **Notificação de transbordo passiva**: Tickets residem no SQLite sem fila assíncrona para encaminhamento aos atendentes humanos.
-- **Roteamento offline por padrões**: No modo mock, a seleção de ferramentas do supervisor depende de casamento de padrões em `src/core/llm.py` em vez de inferência probabilística.
-
----
-
-### 11. Decisões de Design e Motivações
-1. **LangGraph com MemorySaver**: Estrutura o ciclo ReAct em nós (`guardrail`, `supervisor`, `tools`), garantindo suporte conversacional multi-turn via `thread_id`.
-2. **Modo Híbrido (Offline Mock + Gemini Flash)**: Permite que avaliadores e testes executem 100% dos cenários sem necessidade de chave de API ou conexão de rede, preservando suporte ao modelo real quando configurado.
-3. **SQLite Local com Fallback**: Garante persistência relacional real dos chamados de escalonamento em `tickets.db`, com desvio automático para `/tmp` em ambientes containerizados com restrições de permissão.
-4. **Abstenção Vetorial Matemática**: Elimina listas fixas de termos obrigatórios no RAG, utilizando o limiar de similaridade e a densidade de termos substantivos para rejeitar consultas fora de domínio.
-5. **Autenticação Leve com Dev Key Padrão**: Habilita segurança de API com o header `X-API-Key` sem criar fricção na execução automatizada de testes e containers.
+### 9. Perguntas / Divergências com o SPEC
+1. **Isolamento de sessão quando `session_id` é nulo**: O SPEC define que a memória do LangGraph utiliza `thread_id`. Quando clientes chamam `/chat` sem fornecer `session_id`, associar ao `user_id` causava vazamento de contexto entre cenários de teste independentes executados pelo mesmo usuário padrão (`cliente1988`). Foi adotada a geração de um UUID novo quando `session_id` não é fornecido, preservando o isolamento de testes e mantendo o multi-turn quando `session_id` é explicitamente informado.
+2. **Escopo estrito da Fase 1A vs. Requisitos da Parte B**: O SPEC cita requisitos de isolamento de rede (`NO_NETWORK_PLUGIN`), desativação de tracking de `data/tickets.db`, substituição de dependências de runtime (`requirements.txt`) e geração de `requirements.lock` no Codespaces. Conforme orientado pelo prompt, todos esses pontos pertencem à Parte 1B e não foram antecipados na Parte 1A.
