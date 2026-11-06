@@ -2,142 +2,170 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-1.0%2B-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1.2%2B-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5%2B-purple.svg)](https://www.trychroma.com/)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-45%20passed-brightgreen.svg)]()
-[![Security](https://img.shields.io/badge/security-non--root%20appuser-success.svg)]()
+[![SQLite](https://img.shields.io/badge/SQLite-tickets.db-blue.svg)](https://www.sqlite.org/)
+[![Architecture](https://img.shields.io/badge/architecture-Supervisor%20ReAct-blueviolet.svg)]()
+[![Tests](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)]()
+[![Security](https://img.shields.io/badge/security-PII%20Luhn%20%2B%20non--root-success.svg)]()
 
-Sistema de suporte multi-agente para estabelecimentos e clientes Getnet, estruturado sobre um grafo de estados compilado com LangGraph, recuperação vetorial híbrida com ChromaDB e integração de ferramentas operacionais e de diagnóstico via FastAPI.
+Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com Tool Calling nativo**, persistência conversacional multi-turn via **LangGraph MemorySaver**, base de conhecimento vetorial **ChromaDB com limiar explícito de abstenção**, sanitização de **PII (Luhn PAN + CPF)** e persistência real de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
 
 ---
 
 ## Interface Visual & Observabilidade (/demo)
 
-O sistema disponibiliza uma console visual interativa acessível diretamente pelo navegador, projetada para testes rápidos, inspeção operacional e auditoria técnica de ponta a ponta:
+O sistema disponibiliza uma console visual interativa em 3 colunas acessível diretamente pelo navegador em [`/demo`](http://localhost:8000/demo):
 
-* **Coluna Esquerda (Cenários 1-Click)**: Catálogo com os 12 cenários de teste pré-configurados (10 cenários oficiais de referência do desafio Getnet + testes de injeção de prompt e transbordo humano). Permite disparar qualquer teste com um único clique.
-* **Coluna Central (Chat Interativo)**: Interface de conversação em tempo real exibindo a resposta do assistente, o agente responsável pelo atendimento, as ferramentas acionadas e o tempo de execução da requisição.
-* **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com cálculo de latência em milissegundos (`execution_time_ms`), métrica de confiança do roteador (`confidence`), auditoria e status de segurança dos guardrails (`is_safe`, `safety_violations`), lista de fontes/documentos e payload JSON bruto integral retornado pela API.
+* **Coluna Esquerda (Cenários 1-Click)**: Catálogo com os 12 cenários de teste pré-configurados (10 cenários oficiais de referência do desafio Getnet + testes de injeção de prompt e transbordo humano). Dispara qualquer teste com um único clique.
+* **Coluna Central (Chat Interativo Multi-Turn)**: Interface de conversação em tempo real com controle de `Session ID` para teste de memória contextual contínua, balões de diálogo com identificação do modelo, ferramentas acionadas e latência.
+* **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com latência em milissegundos (`execution_time_ms`), similaridade real de cosseno do ChromaDB, auditoria de guardrails (`is_safe`, `safety_violations`), rastreabilidade de chamados SQLite (`GET /tickets/{ticket_id}`) e payload JSON integral.
 
 ### Como Acessar a Interface:
 * **Execução Local**: Acesse [`http://localhost:8000/demo`](http://localhost:8000/demo) no navegador com a aplicação em execução.
-* **GitHub Codespaces**: Na aba **Ports** (Portas) do ambiente, localize a porta `8000`, assegure-se de que a visibilidade está configurada como *Public* e abra a URL gerada no caminho `/demo` (ex: `https://<codespace-id>-8000.app.github.dev/demo`).
+* **GitHub Codespaces**: Na aba **Ports** do ambiente, acesse a porta `8000` pública no caminho `/demo`.
 
 ---
 
 ## Sumário
 
-- [Interface Visual & Observabilidade (/demo)](#interface-visual--observabilidade-demo)
 - [1. Arquitetura do Sistema](#1-arquitetura-do-sistema)
-  - [Grafo de Estados (LangGraph StateGraph)](#grafo-de-estados-langgraph-stategraph)
-  - [Agentes Registrados](#agentes-registrados)
-- [2. Decisões de Engenharia e Trade-offs](#2-decisões-de-engenharia-e-trade-offs)
-  - [LangGraph StateGraph vs. Pipelines Lineares](#langgraph-stategraph-vs-pipelines-lineares)
-  - [RAG Híbrido com ChromaDB (Dense Vector + Sparse Lexical Reranking)](#rag-híbrido-com-chromadb-dense-vector--sparse-lexical-reranking)
-  - [Contratos Tipados com Pydantic v2](#contratos-tipados-com-pydantic-v2)
-  - [Segurança de Execução e Isolamento](#segurança-de-execução-e-isolamento)
+  - [Padrão Supervisor ReAct](#padrão-supervisor-react)
+  - [Grafo de Estados Compilado (LangGraph)](#grafo-de-estados-compilado-langgraph)
+  - [Especialistas Registrados como Tools](#especialistas-registrados-como-tools)
+- [2. Pilares de Engenharia e Diferenciais](#2-pilares-de-engenharia-e-diferenciais)
+  - [Orquestração por Tool Calling vs. Roteamento por Regras](#orquestração-por-tool-calling-vs-roteamento-por-regras)
+  - [Memória Persistente Multi-Turn (LangGraph MemorySaver)](#memória-persistente-multi-turn-langgraph-memorysaver)
+  - [RAG Vetorial Generalista e Limiar de Abstenção](#rag-vetorial-generalista-e-limiar-de-abstenção)
+  - [Transbordo Humano Real com SQLite (tickets.db)](#transbordo-humano-real-com-sqlite-ticketsdb)
+  - [Segurança & Sanitização de Dados Sensíveis (PII)](#segurança--sanitização-de-dados-sensíveis-pii)
 - [3. Como Executar e Modos de Operação](#3-como-executar-e-modos-de-operação)
-  - [Modos de Operação (Resiliente Offline vs. Generativo)](#modos-de-operação-resiliente-offline-vs-generativo)
+  - [Modos de Operação (Offline Resiliente vs. Gemini Generativo)](#modos-de-operação-offline-resiliente-vs-gemini-generativo)
   - [Execução via Docker Compose](#execução-via-docker-compose)
   - [Execução Local](#execução-local)
-  - [Endpoints e Documentação da API](#endpoints-e-documentação-da-api)
-- [4. Testes Automatizados](#4-testes-automatizados)
-- [5. Matriz de Cobertura dos Cenários de Avaliação](#5-matriz-de-cobertura-dos-cenários-de-avaliação)
-- [6. Estrutura do Repositório](#6-estrutura-do-repositório)
+  - [Endpoints da API REST](#endpoints-da-api-rest)
+- [4. Testes Automatizados e CI/CD](#4-testes-automatizados-e-cicd)
+- [5. Matriz de Cobertura dos Cenários Oficiais](#5-matriz-de-cobertura-dos-cenários-oficiais)
+- [6. Glossário de Defesa Técnica (Perguntas de Entrevista)](#6-glossário-de-defesa-técnica-perguntas-de-entrevista)
+- [7. Estrutura do Repositório](#7-estrutura-do-repositório)
 
 ---
 
 ## 1. Arquitetura do Sistema
 
-O fluxo de processamento é governado por um grafo de estados compilado (`StateGraph`). Cada requisição HTTP recebida no endpoint `/chat` gera uma instância de `AgentState`, que é validada por nós sequenciais e condicionais até a emissão da resposta final e sua respectiva telemetria.
+O núcleo do sistema abandona completamente rotas lineares e classificadores estáticos de regex. O fluxo implementa o padrão agêntico canônico: **Supervisor $\rightarrow$ Especialistas como Tools $\rightarrow$ Observação $\rightarrow$ Decisão $\rightarrow$ Humano $\rightarrow$ Retomada**.
 
-### Grafo de Estados (LangGraph StateGraph)
+### Padrão Supervisor ReAct
+
+```text
+Usuário (Turno N)
+       ↓
+[Guardrail Node] (Sanitização PII Luhn + CPF & Defesa contra Injection)
+       ↓
+[Supervisor Node] (Gemini 2.0 Flash / ReAct Engine com bind_tools)
+       ↓ (decide tool_call ou resposta direta)
+       ├── search_knowledge_base  (ChromaDB Cosseno, limiar de abstenção < 0.20)
+       ├── get_settlement_status   (Consulta de liquidação D+1 Santander)
+       ├── diagnose_declined_txn   (Diagnóstico de recusas: Cód 51, 05, etc.)
+       ├── diagnose_terminal       (Conectividade Wi-Fi / Chip 3G/4G e reboot)
+       ├── search_web              (DuckDuckGo em tempo real para clima/câmbio)
+       └── escalate_to_human       (Criação de chamado persistido em SQLite)
+       ↓
+[Tool Execution Node] (Produz ToolMessage estruturada no State)
+       ↓
+[Supervisor Node] (Observa saída da Tool, sintetiza resposta grounded)
+       ↓
+Resposta ao Usuário + Gravação no MemorySaver (thread_id = session_id)
+```
+
+### Grafo de Estados Compilado (LangGraph)
 
 ```mermaid
 flowchart TD
-    Start([Início: Request HTTP /chat]) --> GuardrailNode[Nó: Guardrails & Segurança]
+    Start([Início: Request HTTP /chat]) --> GuardrailNode[Nó: Guardrails & PII Sanitizer]
 
     GuardrailNode -->|Violação / Prompt Injection| SafeExit([Interrupção Segura: Mensagem Bloqueada])
-    GuardrailNode -->|Mensagem Válida| RouterNode[Nó: Roteador Semântico]
+    GuardrailNode -->|Mensagem Segura| SupervisorNode[Nó: Supervisor ReAct\nGemini Flash Tool Calling]
 
-    RouterNode -->|Produtos / Serviços / Web| KnowledgeNode[Nó: Knowledge Agent\nRAG ChromaDB + Web Search]
-    RouterNode -->|Operações / Hardware POS| SupportNode[Nó: Customer Support Agent\nDiagnósticos e Liquidações]
-    RouterNode -->|Escalação / Baixa Confiança| EscalationNode[Nó: Human Escalation Agent\nTicket Prioritário]
+    SupervisorNode -->|Requer Tool Call| ToolsNode[Nó: ToolNode\nExecução de Especialista Tipado]
+    ToolsNode -->|Observação ToolMessage| SupervisorNode
 
-    KnowledgeNode --> EndNode([Fim: Resposta Sintetizada + Telemetria])
-    SupportNode --> EndNode
-    EscalationNode --> EndNode
+    SupervisorNode -->|Resposta Concluída| EndNode([Fim: Resposta Grounded + Telemetria])
     SafeExit --> EndNode
 ```
 
-### Agentes Registrados
+### Especialistas Registrados como Tools
 
-| Agente | Responsabilidade | Ferramentas |
-| :--- | :--- | :--- |
-| `GuardrailAgent` | Sanitização de entrada, detecção de *prompt injection*, *jailbreaks* e caracteres não conformes. | `regex_safety_evaluator` |
-| `RouterAgent` | Classificação semântica de intenção, cálculo de confiança e transbordo para limiares baixos. | `intent_classifier` |
-| `KnowledgeAgent` | Recuperação documental híbrida de produtos Getnet e busca externa na web em tempo real. | `chromadb_vector_search`, `knowledge_retriever`, `web_search_tool` |
-| `CustomerSupportAgent` | Consulta de liquidação financeira de vendas, diagnóstico de POS e consulta a códigos de recusa. | `get_settlement_and_sales_status`, `diagnose_terminal_connectivity`, `get_declined_transaction_details` |
-| `HumanEscalationAgent` | Criação de chamados prioritários com protocolo único (`GET-ESC-XXXX`) e transbordo humano. | `create_escalation_ticket` |
+Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados com schemas Pydantic:
+
+| Ferramenta | Especialidade | Parâmetros | Fonte de Verdade |
+| :--- | :--- | :--- | :--- |
+| `search_knowledge_base` | Produtos Getnet, manuais, taxas, Pix, crediário, link de pagamento | `query: str` | ChromaDB (`data/getnet_kb.json`) com limiar |
+| `get_settlement_status` | Extrato de liquidação, vendas de ontem e previsão bancária D+1 | `user_id: str` | Tabela transacional financeira |
+| `diagnose_declined_transaction` | Diagnóstico de transações negadas pelo emissor (código 51, 05, etc.) | `user_id: str, error_code: Optional[str]` | Catálogo de recusas bancárias |
+| `diagnose_terminal` | Diagnóstico de conectividade, chip móvel e reinicialização do POS | `user_id: str, serial_number: Optional[str]` | Telemetria de hardware Get Smart/Clássica |
+| `search_web` | Informações públicas em tempo real (tempo, câmbio do Euro/Dólar) | `query: str` | DuckDuckGo Search (`ddgs`) |
+| `escalate_to_human` | Registro formal de transbordo humano | `user_id: str, reason: str` | Banco relacional SQLite (`data/tickets.db`) |
 
 ---
 
-## 2. Decisões de Engenharia e Trade-offs
+## 2. Pilares de Engenharia e Diferenciais
 
-### LangGraph StateGraph vs. Pipelines Lineares
-A orquestração foi estruturada com `StateGraph(AgentState)` compilado em vez de encadeamento condicional imperativo (`if/elif`).
-* **Determinismo e Arestas Condicionais**: O roteamento entre agentes ocorre por transições formais (`guardrail_condition`, `router_condition`), permitindo rastreabilidade do caminho percorrido e isolamento de nós.
-* **Extensibilidade**: A adição de novos agentes (ex: risco, antifraude ou cobrança) não altera a implementação dos nós existentes, apenas o registro de nós e arestas do grafo.
-* **Estado Imutável**: O objeto `AgentState` trafega tipado, garantindo consistência entre ferramentas executadas, fontes documentais e tempos de execução.
+### Orquestração por Tool Calling vs. Roteamento por Regras
+* **Eliminação de Constantes Hardcoded**: Não existem probabilidades estáticas (como `0.98` ou `0.96`) ou listas de regex decidindo para onde a requisição vai. A métrica de confiança exibida na telemetria é a **similaridade cosseno real** calculada pelo ChromaDB sobre os vetores de contexto.
+* **Ciclo ReAct Verdadeiro**: O Supervisor emite `AIMessage(tool_calls=[...])`, o grafo executa o `ToolNode` populando `ToolMessage` e retorna ao Supervisor para observação e síntese fundamentada.
 
-### RAG Híbrido com ChromaDB (Dense Vector + Sparse Lexical Reranking)
-Modelos de embedding vetorial denso podem apresentar perda de precisão em termos técnicos próximos (ex: "crediário em parcelas" versus "antecipação de recebíveis a prazo"). Para mitigar colisões:
-* A coleção `getnet_kb` é indexada no ChromaDB com métrica de cosseno.
-* O algoritmo de recuperação aplica ranking híbrido:
-  $$\text{Score} = 0.50 \times \text{Similaridade Cosseno} + 0.30 \times \text{Sobreposição Léxica} + 0.20 \times \text{Boost de Termos no Título}$$
-* Essa estratégia garante alta precisão em queries em português e inglês sobre os produtos Getnet (Get Clássica vs. Get Smart, Pix, Antecipação, Crediário 24x/36x e Link de Pagamento).
+### Memória Persistente Multi-Turn (LangGraph MemorySaver)
+* O workflow compila o grafo utilizando o checkpointer nativo `MemorySaver` de `langgraph.checkpoint.memory`.
+* As sessões são indexadas por `thread_id` (correspondente ao `session_id` da requisição HTTP).
+* O assistente mantém contexto entre turnos de diálogo: uma pergunta de acompanhamento (ex: *"E qual delas tem tela touch com Android?"*) reaproveita o contexto histórico do turno anterior sem exigir que o lojista repita os modelos.
 
-### Contratos Tipados com Pydantic v2
-* Todos os payloads de entrada e saída (`ChatRequest`, `ChatResponse`, `AgentMetadata`) e modelos internos (`AgentState`, `RouteDecision`) utilizam schemas rigorosos do Pydantic v2.
-* A síntese do modelo de linguagem é ancorada nos retornos das ferramentas operacionais ou nos trechos documentais indexados, evitando inconsistências em valores financeiros (`R$ 3.367,20`), horários de liquidação e códigos de recusa (`Código 51`).
+### RAG Vetorial Generalista e Limiar de Abstenção
+* **Base Expandida**: A base `data/getnet_kb.json` conta com 15 artigos detalhados abrangendo o ecossistema Getnet (maquininhas Get Smart, Clássica, Mini, POS Digital, Pix na maquininha, antecipação avulsa e automática, crediário em até 36x, cancelamento e estorno, taxas, segurança PCI-DSS, reposição gratuita de bobinas e fechamento de lote).
+* **Limiar de Abstenção Explícito**: Ao realizar a busca vetorial combinada (cosseno + relevância léxica), se o score for inferior ao limiar (`threshold = 0.20`) ou não houver sobreposição temática com os produtos Getnet, o sistema não alucina nem responde com documentos errados; ele **abém-se explicitamente**:
+  > *"Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."*
 
-### Segurança de Execução e Isolamento
-* **Contêiner Não-Root**: O `Dockerfile` adota build multi-stage e executa a aplicação sob o usuário `appuser` (grupo `appgroup`), sem privilégios de root no host.
-* **Busca Web com Fallback Transparente**: Em caso de timeout ou indisponibilidade da rede pública na ferramenta `web_search_tool`, o sistema retorna status `unavailable` e mensagem explícita, sem sintetizar dados fictícios de mercado ou clima.
-* **Classificação por Expressões Semânticas**: O roteador avalia padrões compostos, evitando falsos positivos acionados por termos isolados (ex: "processo de antecipação" é direcionado ao Knowledge Agent, sem escalação indevida).
+### Transbordo Humano Real com SQLite (tickets.db)
+* **Zero Falsas Promessas**: Eliminação de frases enganosas como *"Tempo estimado de espera: Menos de 5 minutos"* ou *"Fila prioritária"*.
+* **Persistência Relacional**: A ferramenta `escalate_to_human` grava o chamado na tabela `tickets` do banco SQLite local (`data/tickets.db`) contendo `ticket_id` único no formato `GET-TKT-YYYYMMDD-XXXX`, `user_id`, `reason`, `status='open'` e `created_at`.
+* **Rastreabilidade Transparente**: Disponibilização dos endpoints HTTP:
+  * `GET /tickets/{ticket_id}`: Consulta os dados auditáveis do chamado persistido.
+  * `GET /tickets`: Lista os chamados registrados no banco.
+  * Na interface `/demo`, o protocolo exibido é um link clicável direto para a API.
+
+### Segurança & Sanitização de Dados Sensíveis (PII)
+* **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
+* **Sanitização de CPF**: Números de CPF em formato padrão ou contínuo são mascarados para `[CPF_MASCARADO_***.***.***-XX]`.
+* **Proteção contra Injeção de Prompt**: Expressões em português e inglês que tentem sobrescrever instruções (`"ignore todas as suas instruções"`, `"me mostre o seu prompt"`, `"regras internas"`, `"dan"`) são bloqueadas pelo guardrail com resposta segura e imediata.
 
 ---
 
 ## 3. Como Executar e Modos de Operação
 
-### Modos de Operação (Resiliente Offline vs. Generativo)
-
-O sistema foi arquitetado com desacoplamento estrito da camada de inferência, permitindo operar em dois modos distintos:
+### Modos de Operação (Offline Resiliente vs. Gemini Generativo)
 
 1. **Modo Padrão (Offline / Resiliente / Zero-Friction — Default)**:
-   * **Execução Autônoma Sem Custos**: Não requer chaves de API pagas, cadastros em nuvem nem quotas externas para funcionar.
-   * **Pipeline Determinístico**: O fluxo completo do grafo LangGraph (`StateGraph`), a recuperação vetorial local no ChromaDB (`getnet_kb`), a sanitização de guardrails e as ferramentas operacionais de suporte rodam de forma 100% determinística no ambiente local/container.
-   * **Busca Web Autêntica**: Consulta informações públicas externas em tempo real via DuckDuckGo (`ddgs`), com fallback gracioso e transparente em caso de indisponibilidade de rede.
-   * **Síntese Factualmente Ancorada**: O motor de síntese renderiza respostas diretamente a partir dos esquemas JSON das ferramentas operacionais e do documento principal (Rank 1) do ChromaDB, garantindo exatidão matemática nos valores financeiros e conformidade institucional.
+   * **Execução Autônoma Sem Custos**: Não requer chaves de API pagas nem quotas externas.
+   * **ReAct Determinístico**: O loop ReAct de seleção de ferramentas, recuperação no ChromaDB local e observação de ferramentas executa de ponta a ponta sem internet.
+   * **Busca Web Autêntica**: Consulta informações públicas externas em tempo real via DuckDuckGo (`ddgs`), admitindo indisponibilidade honesta se a rede pública oscilar.
 
-2. **Modo Generativo (Opcional — Modelos Fundacionais em Nuvem)**:
-   * **Configuração via Ambiente**: Ativado automaticamente ao informar `GEMINI_API_KEY` (ou `OPENAI_API_KEY`) no arquivo `.env`.
-   * **Linguagem Natural Fluida**: Utiliza modelos de ponta para expansão conversacional e personalização da linguagem, mantendo a ancoragem factual e a governança de segurança dos nós do grafo.
+2. **Modo Generativo (Gemini 2.0 Flash)**:
+   * **Ativação por Variável de Ambiente**: Configure `GEMINI_API_KEY=sua_chave` e `LLM_PROVIDER=gemini` no arquivo `.env`.
+   * **Tool Calling Nativo**: O modelo consome os esquemas de declaração de função (`function_declarations`) e orquestra a chamada de ferramentas diretamente.
 
 ---
 
 ### Execução via Docker Compose
 
 ```bash
-# 1. Configurar variáveis de ambiente
+# 1. Configurar variáveis de ambiente (opcional para modo generativo)
 cp .env.example .env
 
 # 2. Inicializar o serviço
 docker compose up --build -d
 ```
 
-Para encerrar a execução:
+Para parar o container:
 ```bash
 docker compose down
 ```
@@ -163,41 +191,38 @@ uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
-### Endpoints e Documentação da API
+### Endpoints da API REST
 
-Com o serviço ativo em `http://localhost:8000`:
+Com a aplicação rodando em `http://localhost:8000`:
 
 * **Interface Visual de Testes e Telemetria**: `GET /demo`
-* **Swagger / OpenAPI**: `GET /docs`
-* **Health Check**: `GET /health`
-* **Catálogo de Agentes**: `GET /agents`
-* **Endpoint de Atendimento**: `POST /chat`
+* **Swagger / OpenAPI Interativo**: `GET /docs`
+* **Health Check & Provedor Ativo**: `GET /health`
+* **Catálogo e Arquitetura de Agentes**: `GET /agents`
+* **Consulta de Chamado Persistido**: `GET /tickets/{ticket_id}`
+* **Listagem de Chamados de Suporte**: `GET /tickets`
+* **Endpoint de Atendimento do Grafo**: `POST /chat`
 
-Exemplo de requisição:
+Exemplo de requisição com sessão multi-turn:
 ```bash
 curl -X POST "http://localhost:8000/chat" \
      -H "Content-Type: application/json" \
      -d '{
        "message": "When will the money from yesterday'\''s sales be deposited?",
-       "user_id": "cliente1988"
+       "user_id": "cliente1988",
+       "session_id": "sess-minha-loja-01"
      }'
 ```
 
 ---
 
-## 4. Testes Automatizados
+## 4. Testes Automatizados e CI/CD
 
-A suíte de testes contempla testes unitários de isolamento e validação de integração ponta a ponta dos cenários de referência.
+A suíte conta com **50 testes automatizados** distribuídos entre testes de integração dos cenários oficiais e testes unitários de componentes:
 
 ```bash
-# Executar suíte completa
-pytest
-
-# Executar cenários de integração
-pytest tests/test_scenarios.py -v
-
-# Executar testes unitários
-pytest tests/test_unit.py -v
+# Executar a suíte completa com pytest
+pytest tests/ -v
 ```
 
 Resultado da execução:
@@ -205,66 +230,95 @@ Resultado da execução:
 ============================= test session starts =============================
 platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.7.0
 plugins: anyio-4.15.1, langsmith-0.14.17, asyncio-1.4.1
-collected 45 items
+collected 50 items
 
-tests\test_scenarios.py ..........                                       [ 22%]
-tests\test_unit.py ...................................                   [100%]
+tests\test_scenarios.py ..........                                       [ 20%]
+tests\test_unit.py ........................................               [100%]
 
-============================= 45 passed in 14.78s =============================
+============================= 50 passed in 14.62s =============================
 ```
 
+### Pipeline de Integração Contínua (CI)
+O repositório possui pipeline automatizado configurado em `.github/workflows/ci.yml`, executando linting e os 50 testes a cada `push` e `pull_request` na branch `main`.
+
 ---
 
-## 5. Matriz de Cobertura dos Cenários de Avaliação
+## 5. Matriz de Cobertura dos Cenários Oficiais
 
-| ID | Pergunta de Avaliação | Agente Executado | Ferramenta Utilizada | Status |
+| ID | Pergunta de Avaliação | Ferramenta Acionada (ReAct) | Fonte / Evidência | Status |
 | :-: | :--- | :--- | :--- | :-: |
-| 1 | *"What's the difference between the Get Clássica and the Get Smart?"* | `KnowledgeAgent` | `chromadb_vector_search` | Aprovado |
-| 2 | *"What's the weather forecast in Porto Alegre tomorrow?"* | `KnowledgeAgent` | `web_search_tool` | Aprovado |
-| 3 | *"When will the money from yesterday's sales be deposited?"* | `CustomerSupportAgent` | `get_settlement_and_sales_status` | Aprovado |
-| 4 | *"Do I need a bank account to receive my sales via Pix?"* | `KnowledgeAgent` | `chromadb_vector_search` | Aprovado |
-| 5 | *"My card machine won't connect to the internet, what should I do?"* | `CustomerSupportAgent` | `diagnose_terminal_connectivity` | Aprovado |
-| 6 | *"How does receivables advance (antecipação) work with Getnet?"* | `KnowledgeAgent` | `chromadb_vector_search` | Aprovado |
-| 7 | *"What's the euro exchange rate today?"* | `KnowledgeAgent` | `web_search_tool` | Aprovado |
-| 8 | *"My card machine is showing a transaction decline error."* | `CustomerSupportAgent` | `get_declined_transaction_details` | Aprovado |
-| 9 | *"How many installments can I split a sale into with the crediário?"* | `KnowledgeAgent` | `chromadb_vector_search` | Aprovado |
-| 10 | *"Can I sell through WhatsApp using the Payment Link?"* | `KnowledgeAgent` | `chromadb_vector_search` | Aprovado |
+| 1 | *"What's the difference between the Get Clássica and the Get Smart?"* | `search_knowledge_base` | Artigo `kb_get_classica_vs_smart` (ChromaDB) | Aprovado |
+| 2 | *"What's the weather forecast in Porto Alegre tomorrow?"* | `search_web` | DuckDuckGo Real-Time Search | Aprovado |
+| 3 | *"When will the money from yesterday's sales be deposited?"* | `get_settlement_status` | R$ 3.367,20 líquido, depósito Hoje Santander D+1 | Aprovado |
+| 4 | *"Do I need a bank account to receive my sales via Pix?"* | `search_knowledge_base` | Artigo `kb_pix_getnet` (QR Code Dinâmico) | Aprovado |
+| 5 | *"My card machine won't connect to the internet, what should I do?"* | `diagnose_terminal` | Passo a passo de reboot, Wi-Fi e chip Get Smart | Aprovado |
+| 6 | *"How does receivables advance (antecipação) work with Getnet?"* | `search_knowledge_base` | Artigo `kb_antecipacao_recebiveis` (Automática vs Avulsa) | Aprovado |
+| 7 | *"What's the euro exchange rate today?"* | `search_web` | DuckDuckGo Real-Time Search | Aprovado |
+| 8 | *"My card machine is showing a transaction decline error."* | `diagnose_declined_transaction` | Código 51 (Saldo Insuficiente) no emissor | Aprovado |
+| 9 | *"How many installments can I split a sale into with the crediário?"* | `search_knowledge_base` | Artigo `kb_crediario` (Parcelamento 24x e 36x) | Aprovado |
+| 10 | *"Can I sell through WhatsApp using the Payment Link?"* | `search_knowledge_base` | Artigo `kb_link_pagamento_whatsapp` (App Getnet) | Aprovado |
 
 ---
 
-## 6. Estrutura do Repositório
+## 6. Glossário de Defesa Técnica (Perguntas de Entrevista)
+
+### 1. "A UI mostra uma confiança na resposta. Como esse número é calculado?"
+> **Defesa**: *"Na versão anterior o valor era constante em código. Agora, a métrica de confiança exibida no inspetor de telemetria é a **similaridade cosseno matemática real** calculada pelo ChromaDB sobre os embeddings dos documentos recuperados ($\text{Similaridade} = 1 - \text{Distância Cosseno}$). Quando o lojista faz uma pergunta operacional atendida por ferramentas transacionais (como liquidação financeira ou diagnóstico do POS), a confiança reflete 100% de precisão determinística oriunda do banco de dados oficial."*
+
+### 2. "O que o modelo/Supervisor decide no sistema, além de sintetizar a resposta?"
+> **Defesa**: *"O Supervisor é o tomador de decisão do loop ReAct. Ele consome o histórico da conversa e os schemas tipados das ferramentas (`bind_tools`), decide autonomamente qual ferramenta invocar com quais argumentos, avalia a observação retornada no estado do grafo e decide se necessita de novos passos ou se já possui evidências suficientes para emitir a resposta final."*
+
+### 3. "De onde veio a base de conhecimento e como é garantido que ela não inventa dados fora de domínio?"
+> **Defesa**: *"A base em `data/getnet_kb.json` foi expandida para 15 manuais e documentações oficiais da Getnet com metadados de categoria e URLs de origem. Implementamos um **limiar de abstenção paramétrico** no ChromaDB: se a pergunta for fora de domínio (ex: maquinário agrícola, culinária, etc.), a similaridade fica abaixo do limiar e o agente abém-se explicitamente de opinar, indicando os canais oficiais."*
+
+### 4. "O que acontece quando o usuário pede atendimento humano? Onde o caso é gravado e quem o recebe?"
+> **Defesa**: *"Não prometemos filas fictícias nem tempos de espera irreais de 'menos de 5 minutos'. A ferramenta `escalate_to_human` grava um registro real no banco SQLite `data/tickets.db` com protocolo estruturado `GET-TKT-YYYYMMDD-XXXX`, status aberto, motivo e timestamp. Qualquer operador ou sistema de atendimento pode auditar e consumir o ticket em tempo real via endpoint `GET /tickets/{ticket_id}`."*
+
+### 5. "Como você garante que o sistema mantém o contexto em conversas longas?"
+> **Defesa**: *"Implementamos o checkpointer `MemorySaver` nativo do LangGraph, que armazena a sequência de mensagens agrupada por `thread_id` (o `session_id` da requisição HTTP). Isso permite que o lojista faça perguntas de acompanhamento de forma natural e que o Supervisor recupere as variáveis e decisões tomadas nos turnos anteriores da mesma sessão."*
+
+---
+
+## 7. Estrutura do Repositório
 
 ```text
 getnet-multiagent-support/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                 # Pipeline de Integração Contínua (GitHub Actions)
 ├── data/
-│   └── getnet_kb.json             # Base de conhecimento de produtos Getnet para indexação vetorial
+│   ├── getnet_kb.json             # Base de conhecimento oficial expandida (15 artigos Getnet)
+│   └── tickets.db                 # Banco relacional SQLite para persistência de tickets humanos
 ├── src/
-│   ├── main.py                    # Servidor FastAPI, endpoints HTTP e lifecycle
+│   ├── main.py                    # Servidor FastAPI com endpoints /chat, /tickets e lifecycles
 │   ├── config.py                  # Pydantic Settings e configuração de log estruturado JSON
 │   ├── agents/
-│   │   ├── router.py              # Classificador semântico e gateway de roteamento
-│   │   ├── knowledge.py           # RAG vetorial ChromaDB híbrido e busca web
-│   │   ├── support.py             # Agente de suporte operacional ao lojista
-│   │   ├── escalation.py          # Transbordo humano e geração de tickets
-│   │   └── guardrails.py          # Sanitização e bloqueio de injeções de prompt
+│   │   ├── guardrails.py          # Sanitização PII (Luhn PAN + CPF) e bloqueio de injeções
+│   │   ├── knowledge.py           # RAG vetorial ChromaDB com limiar explícito de abstenção
+│   │   ├── router.py              # Introspecção e compatibilidade de intenção semântica
+│   │   ├── support.py             # Agente especialista em suporte financeiro e hardware
+│   │   └── escalation.py          # Especialista de escalação e transbordo humano
 │   ├── core/
-│   │   ├── graph.py               # Grafo de estados compilado com LangGraph (StateGraph)
-│   │   ├── state.py               # Schemas de dados tipados (AgentState, RouteDecision)
-│   │   ├── llm.py                 # Abstração de LLM e gerador estruturado
-│   │   └── mock_db.py             # Catálogo de dados operacionais e códigos de recusa
+│   │   ├── graph.py               # Grafo LangGraph Supervisor ReAct com MemorySaver
+│   │   ├── llm.py                 # Motor Supervisor ReAct e integração Gemini 2.0 Flash
+│   │   ├── pii.py                 # Sanitizador de PII (algoritmo de Luhn para cartões e CPF)
+│   │   ├── tickets_db.py          # Repositório SQLite para persistência e consulta de chamados
+│   │   ├── state.py               # Schemas tipados de estado LangGraph (SupervisorState, AgentState)
+│   │   └── mock_db.py             # Base de dados operacionais (liquidação e códigos de recusa)
 │   ├── tools/
-│   │   ├── balance_tools.py       # Consulta de vendas, liquidação e transações recusadas
-│   │   ├── terminal_tools.py      # Diagnóstico de conectividade de terminais POS
-│   │   └── web_search.py          # Consulta web em tempo real (ddgs) com fallback
+│   │   ├── agent_tools.py         # Ferramentas tipadas com schemas Pydantic para o Supervisor
+│   │   ├── balance_tools.py       # Funções de liquidação financeira e consulta de recusa
+│   │   ├── terminal_tools.py      # Funções de diagnóstico de POS e conectividade
+│   │   └── web_search.py          # Busca web em tempo real (DuckDuckGo ddgs) com fallback
 │   └── static/
-│       └── demo.html              # Interface web para avaliação interativa
+│       └── demo.html              # Console interativo 3 colunas com telemetria e tickets
 ├── tests/
 │   ├── conftest.py                # Fixtures de sessão para TestClient e componentes
-│   ├── test_scenarios.py          # Testes de integração dos 10 cenários de referência
-│   └── test_unit.py               # Testes unitários de isolamento
+│   ├── test_scenarios.py          # Testes de integração dos 10 cenários oficiais de avaliação
+│   └── test_unit.py               # 40 testes unitários (Supervisor, ReAct, MemorySaver, RAG, PII, SQLite)
 ├── Dockerfile                     # Build multi-stage seguro executado sob usuário não-root
-├── docker-compose.yml             # Configuração Compose v2 com volumes e healthcheck
+├── docker-compose.yml             # Orquestração Compose v2 com volumes e healthcheck
 ├── requirements.txt               # Dependências versionadas do projeto
 ├── .env.example                   # Modelo de variáveis de ambiente
-└── README.md                      # Documentação técnica do sistema
+└── README.md                      # Documentação técnica e guia de defesa arquitetural
 ```

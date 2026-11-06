@@ -3,42 +3,105 @@
     "id": "kb_get_classica_vs_smart",
     "title": "Diferença entre Get Clássica e Get Smart",
     "category": "Maquininhas de Cartão",
-    "url": "https://www.getnet.net/maquininhas",
-    "content": "A Get Clássica e a Get Smart são maquininhas completas da Getnet com impressora de bobina integrada, mas possuem tecnologias e propostas distintas:\n- **Get Clássica**: É o modelo POS tradicional, com teclado físico numérico, tela colorida e impressão rápida de comprovante em papel. Conecta via chip 3G/4G gratuito e Wi-Fi. É ideal para balcões com alto volume de vendas que priorizam robustez, simplicidade e agilidade na digitação de senhas.\n- **Get Smart**: É a máquina inteligente de última geração da Getnet com sistema operacional Android. Possui tela grande sensível ao toque (touchscreen), câmera integrada para leitura rápida de QR Code e código de barras, impressora térmica de alta velocidade e permite instalar aplicativos de gestão do seu negócio diretamente na maquininha. Conecta via 4G e Wi-Fi de alta performance, indicada para comércios que buscam modernidade, relatórios na tela e automação comercial integrada."
+    "url": "https://www.getnet.com.br/maquininhas",
+    "content": "A Get Clássica e a Get Smart são maquininhas completas da Getnet com impressora de bobina integrada, mas atendem perfis comerciais distintos:\n- **Get Clássica**: Modelo POS tradicional de alta durabilidade, teclado numérico físico emborrachado, visor colorido e impressão térmica rápida de comprovante. Opera com conexão chip 3G/4G gratuito e Wi-Fi integrado. É recomendada para estabelecimentos de alto fluxo no balcão que priorizam agilidade na digitação rápida de senha e resistência mecânica contínua.\n- **Get Smart**: Terminal inteligente de ponta equipado com sistema operacional Android, tela touchscreen capacitiva de 5.5 polegadas, câmera integrada para leitura instantânea de QR Code e código de barras, conexão 4G e Wi-Fi de alta performance. Permite instalar aplicativos de automação comercial, controle de estoque e relatórios de vendas diretamente no equipamento."
   },
   {
     "id": "kb_pix_getnet",
     "title": "Pix na Maquininha Getnet e Necessidade de Conta Bancária",
     "category": "Serviços Financeiros",
-    "url": "https://www.getnet.net/solucoes/pix",
-    "content": "Sobre o Pix na Getnet:\n- **Preciso de conta bancária para receber vendas via Pix?** Sim. Para receber os valores transacionados via Pix na maquininha Getnet, o lojista precisa ter uma conta bancária (corrente ou poupança PJ ou PF) cadastrada no seu perfil Getnet, em qualquer banco ou fintech brasileira habilitada pelo Banco Central. Também é possível utilizar uma conta Santander vinculada.\n- **Como funciona na maquininha:** O terminal gera um QR Code Dinâmico diretamente no visor. O cliente lê com o aplicativo do seu banco e o pagamento é confirmado na tela em poucos segundos (D+0 imediato), com taxas reduzidas e máxima segurança."
+    "url": "https://www.getnet.com.br/solucoes/pix",
+    "content": "Recebimento de vendas via Pix nas maquininhas Getnet:\n- **Necessidade de Conta Bancária**: Sim. Para receber os valores transacionados via Pix, o lojista precisa ter uma conta corrente ou poupança (PJ ou PF) ativa e cadastrada no perfil Getnet em qualquer instituição financeira regulada pelo Banco Central do Brasil, ou na conta digital parceira Santander.\n- **Operação na Maquininha**: O terminal gera automaticamente um QR Code Dinâmico exclusivo para a venda na tela. O comprador escaneia com o app do seu banco e a confirmação é exibida na tela em segundos (D+0 imediato), com emissão opcional do comprovante impresso."
   },
   {
     "id": "kb_antecipacao_recebiveis",
     "title": "Como Funciona a Antecipação de Recebíveis Getnet",
     "category": "Serviços Financeiros",
-    "url": "https://www.getnet.net/solucoes/antecipacao",
-    "content": "A Antecipação de Recebíveis da Getnet permite que o estabelecimento transforme suas vendas feitas a prazo no cartão de crédito em dinheiro na conta antes do prazo padrão de 30 dias por parcela:\n- **Modalidade Automática**: Todas as vendas efetuadas na modalidade crédito (à vista ou parceladas) são antecipadas e depositadas automaticamente na sua conta em D+1 ou D+2 dias úteis, garantindo fluxo de caixa contínuo.\n- **Modalidade Avulsa (Sob Demanda)**: O lojista escolhe quando e quanto deseja antecipar diretamente pelo App Getnet ou Portal do Cliente, antecipando apenas quando houver necessidade de capital de giro.\n- **Sem Risco de Inadimplência**: Uma vez aprovada e antecipada a venda, o risco de inadimplência do comprador é assumido pela emissora/adquirente. As taxas são transparentes e calculadas conforme o prazo antecipado."
+    "url": "https://www.getnet.com.br/solucoes/antecipacao",
+    "content": "A Antecipação de Recebíveis Getnet converte o saldo de vendas futuras no cartão de crédito em capital de giro disponível na conta antes dos 30 dias regulamentares:\n- **Modalidade Automática**: Todas as transações no crédito são antecipadas e depositadas automaticamente na conta bancária em prazo reduzido de D+1 ou D+2 dias úteis após a venda.\n- **Modalidade Avulsa (Sob Demanda)**: O lojista seleciona pontualmente pelo App Getnet ou Portal do Cliente qual montante deseja antecipar, mantendo total flexibilidade financeira e controle de prazo de recebimento.\n- **Garantia de Recebimento**: Após a antecipação aprovada dentro do prazo contratado, o risco de inadimplência da fatura do comprador é de responsabilidade da adquirente e da bandeira emissora."
   },
   {
     "id": "kb_crediario",
     "title": "Vendas no Crediário na Getnet e Parcelamento",
     "category": "Formas de Pagamento",
-    "url": "https://www.getnet.net/solucoes/crediario",
-    "content": "O Crediário na máquina Getnet é uma modalidade de parcelamento emitida pelo banco do cliente com condições exclusivas:\n- **Em quantas parcelas é possível dividir:** Com o Crediário na Getnet, o lojista pode parcelar a venda em até **24x ou até 36x** (dependendo da instituição emissora do cartão do cliente, como Banco do Brasil, Bradesco, Santander e bandeiras participantes Elo, Mastercard e Visa).\n- **Vantagem para o lojista:** O lojista recebe o valor total da venda antecipadamente no prazo contratado (por exemplo em D+1 ou D+30), sem risco de crédito, enquanto os juros do parcelamento estendido são negociados diretamente entre o comprador e o banco emissor."
+    "url": "https://www.getnet.com.br/solucoes/crediario",
+    "content": "A modalidade Crediário permite disponibilizar parcelamentos estendidos nas máquinas Getnet:\n- **Número de Parcelas**: O cliente pode parcelar compras em até **24x ou até 36x** no cartão, conforme a política da instituição emissora (Banco do Brasil, Santander, Bradesco e bandeiras Visa, Mastercard e Elo).\n- **Benefício para o Estabelecimento**: O comerciante recebe o valor total líquido da transação no prazo contratado (ex: D+1 ou D+30), sem risco de crédito, enquanto os juros do parcelamento estendido são negociados entre o cliente e o banco emissor."
   },
   {
     "id": "kb_link_pagamento_whatsapp",
     "title": "Venda pelo WhatsApp com o Link de Pagamento Getnet",
     "category": "Soluções Digitais",
-    "url": "https://www.getnet.net/solucoes/link-de-pagamento",
-    "content": "Sim! É 100% possível e muito simples vender pelo WhatsApp e redes sociais usando o **Link de Pagamento Getnet**:\n- **Como funciona:** O comerciante gera o link em segundos pelo App Getnet ou no Portal Web, definindo o valor e a descrição do produto ou serviço.\n- **Envio:** O link gerado pode ser copiado e compartilhado via WhatsApp, direct do Instagram, Telegram, SMS ou e-mail.\n- **Pagamento seguro:** O cliente clica no link e é direcionado para uma página de checkout segura da Getnet, onde pode pagar com Cartão de Crédito (com parcelamento em até 12x), Débito Virtual Caixa ou Pix.\n- **Antifraude integrado:** Todas as transações no Link contam com sistema de análise antifraude gratuito incluso, sem necessidade de maquininha física."
+    "url": "https://www.getnet.com.br/solucoes/link-de-pagamento",
+    "content": "O Link de Pagamento Getnet possibilita realizar vendas online e à distância sem a necessidade de maquininha física:\n- **Geração do Link**: O comerciante gera o link em segundos pelo App Getnet ou Portal Web, inserindo valor, descrição do produto e opções de parcelamento.\n- **Compartilhamento**: O endereço gerado pode ser enviado por WhatsApp, redes sociais, chat, SMS ou e-mail.\n- **Métodos de Pagamento**: O cliente acessa uma página de checkout segura da Getnet e pode pagar com Cartão de Crédito em até 12x, Pix instantâneo ou Cartão de Débito Virtual Caixa.\n- **Segurança**: Inclui análise antifraude integrada em todas as transações sem custo adicional."
   },
   {
     "id": "kb_suporte_conexao_maquininha",
     "title": "Problemas de Conexão na Maquininha Getnet",
     "category": "Suporte Técnico",
-    "url": "https://www.getnet.net/ajuda/conectividade",
-    "content": "Orientações para quando a maquininha Getnet não conecta à internet:\n- **Reinicialização:** Desligue e ligue o terminal pressionando o botão liga/desliga por 5 segundos.\n- **Conexão Wi-Fi:** Acesse o menu de configurações do aparelho, ative o Wi-Fi e selecione a rede sem fio (preferencialmente 2.4 GHz com boa intensidade de sinal).\n- **Conexão Móvel (Chip 3G/4G):** Verifique se o ícone do chip está ativo e se há indicação de barras de sinal. Se o sinal estiver fraco, desloque o aparelho para perto de uma janela ou área aberta.\n- **Atualização:** Vá em Menu > Ajustes > Atualizar Sistema para garantir que a versão mais recente do firmware está instalada."
+    "url": "https://www.getnet.com.br/ajuda/conectividade",
+    "content": "Passo a passo para diagnóstico e resolução de conectividade nos terminais POS Getnet:\n- **Reinicialização**: Mantenha o botão Liga/Desliga pressionado por 5 segundos até o terminal reiniciar completamente.\n- **Configuração Wi-Fi**: Acesse Menu > Configurações > Conexões > Wi-Fi, localize a rede sem fio (preferencialmente 2.4 GHz) e valide a senha.\n- **Conexão Móvel (Chip 3G/4G)**: Verifique se o ícone de rede móvel exibe barras de sinal. Se o sinal estiver fraco ou ausente, desloque o terminal para próximo de portas ou janelas.\n- **Teste de Comunicação**: Acesse Menu Lojista > Comunicação > Teste de Conexão para certificar a troca de pacotes com os servidores Getnet."
+  },
+  {
+    "id": "kb_taxas_planos",
+    "title": "Taxas e Tarifas Padrão Getnet",
+    "category": "Planos e Taxas",
+    "url": "https://www.getnet.com.br/taxas",
+    "content": "Estrutura geral de taxas e condições comerciais Getnet:\n- **Débito**: Taxa padrão a partir de 1,89% por transação, com recebimento em 1 dia útil (D+1).\n- **Crédito à Vista**: Taxa a partir de 2,99% para recebimento em 30 dias ou taxa ajustada para antecipação D+1.\n- **Crédito Parcelado (2x a 12x)**: Taxa base a partir de 3,49% acrescida da taxa por parcela conforme o plano contratado.\n- **Pix na Maquininha**: Taxa reduzida de 0,99% com liquidação imediata na conta bancária cadastrada."
+  },
+  {
+    "id": "kb_get_mini",
+    "title": "Maquininha Get Mini para Autônomos e Pequenos Negócios",
+    "category": "Maquininhas de Cartão",
+    "url": "https://www.getnet.com.br/maquininhas/get-mini",
+    "content": "A Get Mini é o modelo ultraportátil da Getnet projetado para autônomos, entregadores e prestadores de serviços:\n- **Características**: Design compacto de bolso, sem bobina física de papel, enviando comprovante digital gratuito via SMS ou e-mail para o cliente.\n- **Conexão**: Chip de dados incluso sem mensalidade e conectividade Bluetooth para pareamento rápido com smartphones Android e iOS.\n- **Bateria**: Autonomia prolongada para um dia inteiro de vendas na rua sem necessidade de recarga intermediária."
+  },
+  {
+    "id": "kb_pos_digital_tap_on_phone",
+    "title": "POS Digital Getnet e Tap on Phone",
+    "category": "Soluções Digitais",
+    "url": "https://www.getnet.com.br/solucoes/pos-digital",
+    "content": "Solução que transforma o smartphone do comerciante em uma maquininha de cartão por aproximação:\n- **Tecnologia NFC (Tap on Phone)**: Permite aproximar cartões com chip contactless, carteiras digitais (Google Pay, Apple Pay e Samsung Pay) diretamente na traseira do celular Android.\n- **Sem Custo de Aluguel**: Ideal para redução de custos com equipamento fixo, mantendo a mesma segurança das maquininhas tradicionais homologada pelas bandeiras."
+  },
+  {
+    "id": "kb_cancelamento_estorno",
+    "title": "Cancelamento e Estorno de Vendas no Terminal Getnet",
+    "category": "Operações",
+    "url": "https://www.getnet.com.br/ajuda/estorno",
+    "content": "Procedimento para estorno ou cancelamento de transações efetuadas:\n- **Cancelamento no mesmo dia**: Acesse Menu > Cancelamento, digite a senha administrativa do lojista, selecione a transação através do número do comprovante (CV/DOC) e insira ou aproxime o cartão do comprador.\n- **Cancelamento após a data da venda**: Pode ser solicitado diretamente pelo Portal do Cliente Getnet ou App Getnet em até 90 dias após a data da transação."
+  },
+  {
+    "id": "kb_seguranca_antifraude",
+    "title": "Padrões de Segurança e Certificação PCI-DSS Getnet",
+    "category": "Segurança",
+    "url": "https://www.getnet.com.br/seguranca",
+    "content": "Segurança nas transações e proteção de dados no ecossistema Getnet:\n- **Certificação PCI-DSS**: Todas as máquinas e gateways Getnet são certificados internacionalmente no nível mais elevado de proteção a dados de cartão.\n- **Criptografia Ponta a Ponta**: Os dados do cartão são criptografados no momento da inserção ou aproximação, não sendo armazenados de forma descriptografada no terminal físico.\n- **Prevenção a Golpes**: O terminal emite alertas visuais para conferência de valor e rejeita dispositivos adulterados com bloqueio automático inviolável."
+  },
+  {
+    "id": "kb_comprovante_reimpressao",
+    "title": "Reimpressão de Comprovante de Venda na Maquininha",
+    "category": "Operações",
+    "url": "https://www.getnet.com.br/ajuda/reimpressao",
+    "content": "Como emitir a segunda via do comprovante da última transação no terminal Getnet:\n- **Última Venda**: Acesse Menu > Reimpressão > Último Comprovante. O terminal emitirá automaticamente a cópia da via do cliente ou do estabelecimento.\n- **Vendas Anteriores do Dia**: Acesse Menu Lojista > Relatórios > Vendas do Dia e selecione a transação específica para reimpressão."
+  },
+  {
+    "id": "kb_solicitacao_bobinas",
+    "title": "Solicitação Gratuita de Bobinas de Papel Térmico",
+    "category": "Suporte Técnico",
+    "url": "https://www.getnet.com.br/ajuda/bobinas",
+    "content": "Pedido de reposição de suprimentos de papel para Get Clássica e Get Smart:\n- **Gratuidade**: As bobinas térmicas são fornecidas sem custo para lojistas ativos que transacionam nos terminais com impressora integrada.\n- **Como Solicitar**: O pedido pode ser realizado em 1 minuto pelo App Getnet em Suporte > Pedir Bobinas ou pelo telefone da Central de Atendimento, sendo entregue no endereço cadastrado do estabelecimento em até 5 dias úteis."
+  },
+  {
+    "id": "kb_codigos_erro_gerais",
+    "title": "Guia de Códigos de Recusa em Transações de Cartão",
+    "category": "Suporte Técnico",
+    "url": "https://www.getnet.com.br/ajuda/codigos-erro",
+    "content": "Principais códigos de recusa emitidos pelos bancos emissores na maquininha:\n- **Código 51 (Saldo Insuficiente)**: O titular do cartão não possui limite ou saldo bancário suficiente no momento da compra. Orientar a utilizar outra forma de pagamento ou Pix.\n- **Código 05 (Transação Não Autorizada)**: Recusa genérica de segurança pelo banco emissor. O cliente deve contatar o banco para liberação.\n- **Código 57 (Transação Não Permitida)**: Função débito ou crédito não habilitada no cartão do comprador.\n- **Código 12 (Transação Inválida)**: Dados incorretos de parcelamento, valor mínimo não atendido ou digitação inconsistente."
+  },
+  {
+    "id": "kb_fechamento_lote",
+    "title": "Fechamento de Lote e Relatório Consolidado do Dia",
+    "category": "Operações",
+    "url": "https://www.getnet.com.br/ajuda/relatorios",
+    "content": "Emissão de relatórios e encerramento diário das operações no POS:\n- **Fechamento Automático**: A Getnet processa o fechamento financeiro diário de forma automática durante a madrugada, dispensando fechamento manual obrigatório.\n- **Relatório Parcial / Total**: O lojista pode imprimir a qualquer momento um resumo consolidado do faturamento acessando Menu > Relatórios > Total do Dia, detalhado por bandeiras e modalidade (débito, crédito e Pix)."
   }
 ]

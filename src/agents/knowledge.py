@@ -14,6 +14,14 @@ from src.config import settings
 logger = logging.getLogger("multiagent.knowledge")
 
 
+STOPWORDS = {
+    "de", "da", "do", "das", "dos", "o", "a", "os", "as", "um", "uma", "uns", "umas",
+    "em", "na", "no", "nas", "nos", "por", "para", "com", "como", "e", "ou", "que",
+    "se", "qual", "quais", "the", "a", "an", "in", "on", "at", "for", "with", "to",
+    "of", "and", "is", "are", "what", "how", "between"
+}
+
+
 class ChromaDBKnowledgeRetriever:
     """Document retriever combining ChromaDB vector embeddings with lexical hybrid ranking."""
 
@@ -87,8 +95,8 @@ class ChromaDBKnowledgeRetriever:
             logger.error(f"Failed to initialize ChromaDB collection: {e}. Falling back to lexical retriever.")
             self.chroma_ready = False
 
-    def retrieve(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
-        """Dense vector search combined with title and token overlap ranking."""
+    def retrieve(self, query: str, top_k: int = 3, threshold: float = 0.20) -> List[Dict[str, Any]]:
+        """Dense vector search combined with title and token overlap ranking, with similarity threshold."""
         if self.chroma_ready and self.raw_documents:
             try:
                 results = self.collection.query(
@@ -101,10 +109,12 @@ class ChromaDBKnowledgeRetriever:
                     distances = results["distances"][0] if "distances" in results and results["distances"] else [0.0] * len(vec_ids)
 
                     q_tokens = set(re.findall(r"\w+", query.lower()))
+                    content_q_tokens = {w for w in q_tokens if w not in STOPWORDS and len(w) > 2}
 
                     scored = []
                     for doc_id, dist in zip(vec_ids, distances):
-                        cos_sim = max(0.0, 1.0 - (dist if dist is not None else 0.0))
+                        d_val = float(dist) if dist is not None else 0.0
+                        cos_sim = max(0.0, 1.0 - d_val)
                         doc = next((d for d in self.raw_documents if d["id"] == doc_id), None)
                         if not doc:
                             continue
@@ -112,11 +122,13 @@ class ChromaDBKnowledgeRetriever:
                         doc_tokens = set(re.findall(r"\w+", f"{doc.get('title', '')} {doc.get('content', '')}".lower()))
                         title_tokens = set(re.findall(r"\w+", doc.get("title", "").lower()))
 
-                        lexical_overlap = len(q_tokens.intersection(doc_tokens))
-                        title_overlap = len(q_tokens.intersection(title_tokens))
+                        lex_overlap = len(content_q_tokens.intersection(doc_tokens)) if content_q_tokens else len(q_tokens.intersection(doc_tokens))
+                        title_overlap = len(content_q_tokens.intersection(title_tokens)) if content_q_tokens else len(q_tokens.intersection(title_tokens))
 
-                        lexical_ratio = lexical_overlap / max(1, len(q_tokens))
-                        hybrid_score = (cos_sim * 0.5) + (lexical_ratio * 0.3) + (title_overlap * 0.2)
+                        lexical_ratio = (lex_overlap / max(1, len(content_q_tokens))) if content_q_tokens else 0.0
+                        title_ratio = (title_overlap / max(1, len(content_q_tokens))) if content_q_tokens else 0.0
+
+                        hybrid_score = (cos_sim * 0.60) + (lexical_ratio * 0.25) + (title_ratio * 0.15)
 
                         scored.append({
                             "id": doc_id,
@@ -124,16 +136,36 @@ class ChromaDBKnowledgeRetriever:
                             "category": doc.get("category", ""),
                             "url": doc.get("url", ""),
                             "content": doc.get("content", ""),
-                            "distance": round(dist, 4) if dist is not None else None,
-                            "score": round(hybrid_score, 4)
+                            "distance": round(d_val, 4),
+                            "similarity": round(cos_sim, 4),
+                            "score": round(hybrid_score, 4),
+                            "lex_overlap": lex_overlap
                         })
 
                     scored.sort(key=lambda x: x["score"], reverse=True)
-                    return scored[:top_k]
+                    top_candidates = scored[:top_k]
+
+                    # Filter by relevance threshold and domain coherence
+                    if not top_candidates or top_candidates[0]["score"] < threshold:
+                        logger.info(
+                            f"RAG abstained for query '{query}': top score {top_candidates[0]['score'] if top_candidates else 0.0:.4f} "
+                            f"below threshold {threshold:.2f}"
+                        )
+                        return []
+
+                    # If query had content tokens but none overlapped and semantic similarity is weak (< 0.50), abstain
+                    if content_q_tokens and top_candidates[0]["lex_overlap"] == 0 and top_candidates[0]["similarity"] < 0.50:
+                        logger.info(f"RAG abstained for unrelated query '{query}': no term overlap and low similarity {top_candidates[0]['similarity']}")
+                        return []
+
+                    return top_candidates
             except Exception as e:
                 logger.error(f"Error executing hybrid ChromaDB query: {e}. Executing lexical fallback.")
 
-        return self._lexical_fallback(query, top_k=top_k)
+        fallback_docs = self._lexical_fallback(query, top_k=top_k)
+        if not fallback_docs or fallback_docs[0]["score"] < 1.0:
+            return []
+        return fallback_docs
 
     def _lexical_fallback(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
         query_words = set(re.findall(r"\w+", query.lower()))

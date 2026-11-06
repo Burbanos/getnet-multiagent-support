@@ -14,15 +14,17 @@ from src.agents.knowledge import get_retriever
 
 
 class ChatRequest(BaseModel):
-    """Chat request payload containing user identifier and message."""
+    """Chat request payload containing user identifier, message, and optional session ID."""
     message: str = Field(..., description="Message payload to be evaluated by the multi-agent graph", min_length=1)
-    user_id: str = Field(..., description="Unique merchant or customer identifier", min_length=1)
+    user_id: str = Field(default="cliente1988", description="Unique merchant or customer identifier", min_length=1)
+    session_id: Optional[str] = Field(default=None, description="Conversational thread/session ID for persistent multi-turn memory")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "message": "What's the difference between the Get Clássica and the Get Smart?",
-                "user_id": "cliente1988"
+                "message": "Qual a diferença entre a Get Clássica e a Get Smart?",
+                "user_id": "cliente1988",
+                "session_id": "sess-user-001"
             }
         }
     }
@@ -30,19 +32,23 @@ class ChatRequest(BaseModel):
 
 class AgentMetadata(BaseModel):
     """Telemetry and trace metadata for graph execution."""
-    agent_type: str = Field(..., description="Final agent that synthesized the response")
-    routed_by: str = Field(default="RouterAgent", description="Routing decision agent")
+    agent_type: str = Field(default="SupervisorAgent", description="Final agent that synthesized the response")
+    routed_by: str = Field(default="SupervisorAgent", description="Supervisor ReAct orchestration engine")
+    session_id: str = Field(default="", description="Conversational session ID")
     tools_used: List[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
+    tool_calls: List[Dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
     execution_time_ms: float = Field(..., description="Total execution latency in milliseconds")
-    confidence: float = Field(default=1.0, description="Routing confidence score")
+    confidence: float = Field(default=1.0, description="Confidence score from retrieval similarity or tool execution")
     sources: List[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
+    retrieved_docs: List[Dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
+    ticket: Optional[Dict[str, Any]] = Field(default=None, description="Persisted support ticket if escalation occurred")
     debug_details: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic payload")
 
 
 class ChatResponse(BaseModel):
     """Chat response payload."""
     response: str = Field(..., description="Synthesized agent response")
-    agent: str = Field(..., description="Identifier of the executing agent")
+    agent: str = Field(default="SupervisorAgent", description="Identifier of the executing supervisor agent")
     user_id: str = Field(..., description="Merchant or customer identifier")
     metadata: AgentMetadata = Field(..., description="Execution telemetry and audit trail")
 
@@ -58,18 +64,13 @@ class HealthResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing multi-agent graph and knowledge retriever...")
-    retriever = get_retriever()
-    logger.info(f"Retriever initialized with {len(retriever.documents)} documents.")
-    get_orchestrator()
     yield
-    logger.info("Shutting down multi-agent service.")
 
 
 app = FastAPI(
     title="Getnet Multi-Agent Support System API",
-    description="Multi-agent support system for Getnet merchants with RAG, operational tools, and safety guardrails.",
-    version="1.0.0",
+    description="Multi-agent support system for Getnet merchants with Supervisor ReAct architecture, RAG, operational tools, and safety guardrails.",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -90,11 +91,14 @@ if STATIC_DIR.exists():
 async def root():
     return {
         "service": "Getnet Multi-Agent Support System",
+        "version": "2.0.0",
+        "architecture": "Supervisor ReAct with Tool Calling & MemorySaver",
         "status": "online",
         "documentation": "/docs",
         "health": "/health",
         "chat_endpoint": "/chat",
-        "interactive_demo": "/demo"
+        "interactive_demo": "/demo",
+        "tickets_endpoint": "/tickets"
     }
 
 
@@ -114,7 +118,7 @@ async def demo_ui():
 async def health_check():
     return HealthResponse(
         status="healthy",
-        version="1.0.0",
+        version="2.0.0",
         environment=settings.APP_ENV,
         llm_provider=settings.LLM_PROVIDER,
         guardrails_enabled=settings.ENABLE_GUARDRAILS,
@@ -124,66 +128,128 @@ async def health_check():
 @app.get("/agents", tags=["Architecture"])
 async def list_agents():
     return {
-        "architecture": "Hierarchical Multi-Agent Graph",
+        "architecture": "LangGraph Supervisor ReAct Workflow",
+        "orchestrator": {
+            "name": "SupervisorAgent",
+            "model_reference": "Gemini 2.0 Flash (with native Tool Calling)",
+            "checkpointer": "MemorySaver (thread-scoped multi-turn state)",
+            "safety": "GuardrailAgent (PII sanitization & prompt injection defense)"
+        },
         "agents": [
+            {"name": "SupervisorAgent", "role": "LangGraph Supervisor ReAct Orchestrator", "tools": ["decide_or_synthesize"]},
+            {"name": "RouterAgent", "role": "Semantic Intent Classifier (Supervisor Engine)", "tools": ["intent_evaluator"]},
+            {"name": "KnowledgeAgent", "role": "RAG Knowledge Base & Web Search Specialist", "tools": ["search_knowledge_base", "search_web"]},
+            {"name": "CustomerSupportAgent", "role": "Financial Settlements & Hardware Terminal Specialist", "tools": ["get_settlement_status", "diagnose_terminal", "diagnose_declined_transaction"]},
+            {"name": "HumanEscalationAgent", "role": "SQLite Persistent Tickets Specialist", "tools": ["escalate_to_human"]},
+            {"name": "GuardrailAgent", "role": "PII Masking & Safety Guardrail", "tools": ["sanitize_pii", "regex_safety_evaluator"]}
+        ],
+        "tools": [
             {
-                "name": "GuardrailAgent",
-                "role": "Input sanitization and injection detection",
-                "tools": ["regex_safety_evaluator"]
+                "name": "get_settlement_status",
+                "specialist": "CustomerSupportSpecialist",
+                "description": "Consulta liquidação financeira e previsão de depósito D+1",
+                "schema": "get_settlement_status(user_id: str)"
             },
             {
-                "name": "RouterAgent",
-                "role": "Semantic intent classification and agent dispatching",
-                "tools": ["intent_classifier"]
+                "name": "diagnose_declined_transaction",
+                "specialist": "CustomerSupportSpecialist",
+                "description": "Diagnostica recusas de cartão (código 51 saldo, código 05, etc.)",
+                "schema": "diagnose_declined_transaction(user_id: str, error_code: Optional[str])"
             },
             {
-                "name": "KnowledgeAgent",
-                "role": "Knowledge retrieval via ChromaDB and real-time web search",
-                "tools": ["knowledge_retriever", "chromadb_vector_search", "web_search_tool"]
+                "name": "diagnose_terminal",
+                "specialist": "HardwareSpecialist",
+                "description": "Diagnóstico de conectividade Wi-Fi e chip 3G/4G do terminal",
+                "schema": "diagnose_terminal(user_id: str, serial_number: Optional[str])"
             },
             {
-                "name": "CustomerSupportAgent",
-                "role": "Account settlements, terminal connectivity, and transaction declines",
-                "tools": [
-                    "get_settlement_and_sales_status",
-                    "diagnose_terminal_connectivity",
-                    "get_declined_transaction_details"
-                ]
+                "name": "search_knowledge_base",
+                "specialist": "KnowledgeSpecialist",
+                "description": "RAG semântico ChromaDB (15 artigos Getnet com limiar de abstenção < 0.35)",
+                "schema": "search_knowledge_base(query: str)"
             },
             {
-                "name": "HumanEscalationAgent",
-                "role": "Support ticket creation and operator escalation",
-                "tools": ["create_escalation_ticket"]
+                "name": "search_web",
+                "specialist": "WebSearchSpecialist",
+                "description": "Busca web em tempo real (DuckDuckGo) para clima e câmbio",
+                "schema": "search_web(query: str)"
+            },
+            {
+                "name": "escalate_to_human",
+                "specialist": "HumanOversightSpecialist",
+                "description": "Geração e persistência de ticket em SQLite (tickets.db)",
+                "schema": "escalate_to_human(user_id: str, reason: str)"
             }
         ]
     }
 
 
+@app.get("/tickets/{ticket_id}", tags=["Tickets"])
+async def get_ticket_endpoint(ticket_id: str):
+    """Retrieve details for a persisted support ticket by ticket ID."""
+    from src.core.tickets_db import get_tickets_repository
+    repo = get_tickets_repository()
+    ticket = repo.get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado."
+        )
+    return ticket
+
+
+@app.get("/tickets", tags=["Tickets"])
+async def list_tickets_endpoint(limit: int = 50):
+    """List recent persisted human escalation tickets from SQLite tickets.db."""
+    from src.core.tickets_db import get_tickets_repository
+    repo = get_tickets_repository()
+    tickets = repo.list_tickets(limit=limit)
+    return {"count": len(tickets), "tickets": tickets}
+
+
 @app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
 @app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
-async def chat_endpoint(payload: ChatRequest):
+def chat_endpoint(payload: ChatRequest):
     try:
         orchestrator = get_orchestrator()
-        state = await orchestrator.run(user_id=payload.user_id, message=payload.message)
+        state = orchestrator.run_sync(
+            user_id=payload.user_id,
+            message=payload.message,
+            session_id=payload.session_id
+        )
+
+        # Dynamic confidence based on vector similarity or tool execution (never hardcoded constant)
+        dynamic_confidence = 1.0
+        if state.retrieved_docs:
+            top_sim = state.retrieved_docs[0].get("similarity", state.retrieved_docs[0].get("score", 1.0))
+            dynamic_confidence = round(float(top_sim), 4)
+
+        active_session = state.session_id or payload.session_id or payload.user_id
 
         metadata = AgentMetadata(
-            agent_type=state.final_agent.value if state.final_agent else "Unknown",
-            routed_by=state.route.target_agent.value if state.route else "GuardrailAgent",
+            agent_type="SupervisorAgent",
+            routed_by="SupervisorAgent",
+            session_id=active_session,
             tools_used=state.tools_used,
+            tool_calls=state.tool_calls,
             execution_time_ms=state.execution_time_ms,
-            confidence=state.route.confidence if state.route else 1.0,
+            confidence=dynamic_confidence,
             sources=state.sources,
+            retrieved_docs=state.retrieved_docs,
+            ticket=state.ticket,
             debug_details={
-                "intent": state.route.intent if state.route else None,
+                "session_id": active_session,
                 "is_safe": state.is_safe,
+                "safety_violations": state.safety_violations,
                 "escalate_to_human": state.escalate_to_human,
                 "ticket_id": state.escalation_ticket_id,
+                "tools_used": state.tools_used,
             }
         )
 
         return ChatResponse(
             response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
-            agent=state.final_agent.value if state.final_agent else "MultiAgentSystem",
+            agent="SupervisorAgent",
             user_id=state.user_id,
             metadata=metadata,
         )

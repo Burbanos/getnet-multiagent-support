@@ -1,132 +1,328 @@
-"""State-based orchestration graph managing workflow between agents using LangGraph."""
+"""LangGraph Supervisor ReAct workflow with native MemorySaver checkpointer."""
+import json
 import logging
 import time
+import uuid
+from typing import Dict, Any, List, Optional
 
 from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
 
-from src.core.state import AgentState, AgentRole
+from src.core.state import SupervisorState, AgentState, AgentRole, RouteDecision
 from src.agents.guardrails import GuardrailAgent
-from src.agents.router import RouterAgent
-from src.agents.knowledge import KnowledgeAgent
-from src.agents.support import CustomerSupportAgent
-from src.agents.escalation import HumanEscalationAgent
+from src.core.llm import get_supervisor_llm
+from src.tools.agent_tools import TOOLS_BY_NAME
 
 logger = logging.getLogger("multiagent.orchestrator")
 
 
 class OrchestrationGraph:
-    """Coordinates execution pipeline: Guardrails -> Router -> Worker Nodes -> Response."""
+    """
+    Coordinates execution via LangGraph Supervisor ReAct architecture:
+    Guardrails (PII & Injection) -> Supervisor -> [ToolNode -> Supervisor]* -> Response.
+    
+    Checkpointer:
+        Uses native MemorySaver indexed by 'thread_id' (session_id) to persist
+        multi-turn conversational context across turns.
+    """
 
     def __init__(self):
         self.guardrail_agent = GuardrailAgent()
-        self.router_agent = RouterAgent()
-        self.knowledge_agent = KnowledgeAgent()
-        self.support_agent = CustomerSupportAgent()
-        self.escalation_agent = HumanEscalationAgent()
-
+        self.supervisor_llm = get_supervisor_llm()
+        self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
 
     def _build_graph(self):
-        builder = StateGraph(AgentState)
+        builder = StateGraph(SupervisorState)
 
+        # 1. Register Graph Nodes
         builder.add_node("guardrail", self._guardrail_node)
-        builder.add_node("router", self._router_node)
-        builder.add_node("knowledge", self._knowledge_node)
-        builder.add_node("support", self._support_node)
-        builder.add_node("escalation", self._escalation_node)
+        builder.add_node("supervisor", self._supervisor_node)
+        builder.add_node("tools", self._tools_node)
 
+        # 2. Add Edges
         builder.add_edge(START, "guardrail")
 
         builder.add_conditional_edges(
             "guardrail",
             self._guardrail_condition,
             {
-                "continue": "router",
+                "continue": "supervisor",
                 "stop": END
             }
         )
 
         builder.add_conditional_edges(
-            "router",
-            self._router_condition,
+            "supervisor",
+            self._supervisor_condition,
             {
-                "knowledge": "knowledge",
-                "support": "support",
-                "escalation": "escalation"
+                "tools": "tools",
+                "end": END
             }
         )
 
-        builder.add_edge("knowledge", END)
-        builder.add_edge("support", END)
-        builder.add_edge("escalation", END)
+        # ReAct observation loop: from tools back to supervisor
+        builder.add_edge("tools", "supervisor")
 
-        return builder.compile()
+        return builder.compile(checkpointer=self.checkpointer)
 
-    async def _guardrail_node(self, state: AgentState) -> AgentState:
-        return await self.guardrail_agent.evaluate(state)
+    def _guardrail_node(self, state: SupervisorState) -> Dict[str, Any]:
+        """Sanitize PII and validate safety of incoming message."""
+        raw_msg = ""
+        # Find the incoming human input
+        if state.get("messages"):
+            last_msg = state["messages"][-1]
+            if isinstance(last_msg, HumanMessage):
+                raw_msg = last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
 
-    def _guardrail_condition(self, state: AgentState) -> str:
-        return "continue" if state.is_safe else "stop"
+        agent_state = AgentState(user_id=state.get("user_id", "cliente1988"), message=raw_msg)
+        evaluated = self.guardrail_agent.evaluate_sync(agent_state)
 
-    async def _router_node(self, state: AgentState) -> AgentState:
-        state = self.router_agent.route(state)
-        if state.route:
-            state.intent = state.route.intent
-        return state
+        if not evaluated.is_safe:
+            refusal_content = evaluated.agent_response or "Instrução não permitida pelas políticas de segurança."
+            refusal_msg = AIMessage(content=refusal_content)
+            return {
+                "is_safe": False,
+                "safety_violations": evaluated.safety_violations,
+                "final_response": refusal_content,
+                "messages": [refusal_msg]
+            }
 
-    def _router_condition(self, state: AgentState) -> str:
-        if not state.route:
-            return "knowledge"
+        # Message is safe, mask PII in state if applicable
+        sanitized_msg = evaluated.message
+        human_msg = HumanMessage(content=sanitized_msg)
+        return {
+            "is_safe": True,
+            "safety_violations": [],
+            "messages": [human_msg]
+        }
 
-        target = state.route.target_agent
-        if target == AgentRole.CUSTOMER_SUPPORT:
-            return "support"
-        elif target == AgentRole.ESCALATION:
-            return "escalation"
-        return "knowledge"
+    def _guardrail_condition(self, state: SupervisorState) -> str:
+        """Route to supervisor if safe, else stop immediately."""
+        return "continue" if state.get("is_safe", True) else "stop"
 
-    async def _knowledge_node(self, state: AgentState) -> AgentState:
-        return await self.knowledge_agent.execute(state)
+    def _supervisor_node(self, state: SupervisorState) -> Dict[str, Any]:
+        """
+        Supervisor reasoning step: invokes the model / ReAct engine with bound tools.
+        Emits an AIMessage with either tool_calls or final synthesized content.
+        """
+        messages = list(state.get("messages", []))
+        user_id = state.get("user_id", "cliente1988")
 
-    async def _support_node(self, state: AgentState) -> AgentState:
-        return await self.support_agent.execute(state)
+        ai_message = self.supervisor_llm.decide_or_synthesize(messages, user_id=user_id)
 
-    async def _escalation_node(self, state: AgentState) -> AgentState:
-        return await self.escalation_agent.execute(state)
+        response_text = ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
+        tool_calls = getattr(ai_message, "tool_calls", []) or []
+        existing_calls = list(state.get("tool_calls", []))
+        if tool_calls:
+            existing_calls.extend(tool_calls)
 
-    async def run(self, user_id: str, message: str) -> AgentState:
-        """Execute the compiled LangGraph workflow for an incoming user query."""
+        return {
+            "messages": [ai_message],
+            "final_response": response_text,
+            "tool_calls": existing_calls
+        }
+
+    def _supervisor_condition(self, state: SupervisorState) -> str:
+        """Check if supervisor requested tool execution or finished response."""
+        messages = state.get("messages", [])
+        if messages:
+            last_msg = messages[-1]
+            if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
+                return "tools"
+        return "end"
+
+    def _tools_node(self, state: SupervisorState) -> Dict[str, Any]:
+        """
+        Tool Execution Node: executes requested tools and produces ToolMessage observations.
+        """
+        messages = state.get("messages", [])
+        if not messages:
+            return {}
+
+        last_msg = messages[-1]
+        tool_calls = getattr(last_msg, "tool_calls", []) or []
+
+        tool_messages: List[ToolMessage] = []
+        tools_used = list(state.get("tools_used", []))
+        tool_results = list(state.get("tool_results", []))
+        sources = list(state.get("sources", []))
+        retrieved_docs = list(state.get("retrieved_docs", []))
+        ticket = state.get("ticket")
+
+        for call in tool_calls:
+            tool_name = call.get("name")
+            tool_args = call.get("args", {})
+            call_id = call.get("id", str(uuid.uuid4()))
+
+            tool_fn = TOOLS_BY_NAME.get(tool_name)
+            if tool_fn:
+                logger.info(f"Executing tool '{tool_name}' with args {tool_args}")
+                try:
+                    result_str = tool_fn.invoke(tool_args)
+                except Exception as e:
+                    logger.error(f"Error executing tool {tool_name}: {e}")
+                    result_str = json.dumps({"error": f"Falha na execução da ferramenta {tool_name}: {e}"})
+
+                tools_used.append(tool_name)
+                # Ensure alias compatibility for both new schemas and legacy tools
+                tool_aliases = {
+                    "get_settlement_status": ["get_settlement_and_sales_status"],
+                    "diagnose_declined_transaction": ["get_declined_transaction_details"],
+                    "diagnose_terminal": ["diagnose_terminal_connectivity"],
+                    "search_knowledge_base": ["knowledge_retriever", "chromadb_vector_search"],
+                    "search_web": ["web_search_tool"],
+                    "escalate_to_human": ["create_escalation_ticket"],
+                }
+                for alias in tool_aliases.get(tool_name, []):
+                    if alias not in tools_used:
+                        tools_used.append(alias)
+
+                t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                tool_messages.append(t_msg)
+
+                # Parse and track telemetry
+                try:
+                    parsed = json.loads(result_str)
+                    tool_results.append(parsed)
+
+                    if tool_name == "search_knowledge_base":
+                        docs = parsed.get("documents", [])
+                        for d in docs:
+                            retrieved_docs.append(d)
+                            if d.get("url"):
+                                sources.append(d.get("url"))
+
+                    elif tool_name == "search_web":
+                        results = parsed.get("results", [])
+                        for r in results:
+                            if r.get("url"):
+                                sources.append(r.get("url"))
+
+                    elif tool_name == "escalate_to_human":
+                        ticket = parsed
+
+                except Exception:
+                    pass
+            else:
+                logger.warning(f"Tool '{tool_name}' not found in registry.")
+                t_msg = ToolMessage(
+                    content=json.dumps({"error": f"Ferramenta '{tool_name}' não encontrada."}),
+                    tool_call_id=call_id,
+                    name=tool_name
+                )
+                tool_messages.append(t_msg)
+
+        return {
+            "messages": tool_messages,
+            "tools_used": tools_used,
+            "tool_results": tool_results,
+            "sources": sources,
+            "retrieved_docs": retrieved_docs,
+            "ticket": ticket
+        }
+
+    def run_sync(
+        self,
+        user_id: str,
+        message: str,
+        session_id: Optional[str] = None
+    ) -> AgentState:
+        """
+        Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
+        """
         start_time = time.perf_counter()
-        initial_state = AgentState(
+        active_session_id = session_id or user_id or str(uuid.uuid4())
+
+        initial_state: SupervisorState = {
+            "messages": [HumanMessage(content=message)],
+            "user_id": user_id,
+            "session_id": active_session_id,
+            "is_safe": True,
+            "safety_violations": [],
+            "tools_used": [],
+            "tool_calls": [],
+            "tool_results": [],
+            "sources": [],
+            "retrieved_docs": [],
+            "ticket": None,
+            "final_response": "",
+            "execution_time_ms": 0.0
+        }
+
+        # Checkpointer thread configuration
+        config = {"configurable": {"thread_id": active_session_id}}
+
+        logger.info(
+            f"Invoking Supervisor ReAct workflow for user '{user_id}' [Session: {active_session_id}]: '{message[:60]}...'"
+        )
+
+        try:
+            result = self.graph.invoke(initial_state, config=config)
+        except Exception as e:
+            logger.error(f"Error in LangGraph execution: {e}", exc_info=True)
+            result = initial_state
+            result["final_response"] = "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
+
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        # Extract final reply
+        final_text = result.get("final_response", "")
+        if not final_text and result.get("messages"):
+            for m in reversed(result["messages"]):
+                if isinstance(m, AIMessage) and m.content:
+                    final_text = m.content if isinstance(m.content, str) else str(m.content)
+                    break
+
+        # Map to backward-compatible AgentState
+        agent_state = AgentState(
             user_id=user_id,
             message=message,
-            start_time=start_time
+            session_id=active_session_id,
+            is_safe=result.get("is_safe", True),
+            safety_violations=result.get("safety_violations", []),
+            tools_used=result.get("tools_used", []),
+            tool_calls=result.get("tool_calls", []),
+            tool_results=result.get("tool_results", []),
+            sources=result.get("sources", []),
+            retrieved_docs=result.get("retrieved_docs", []),
+            context_docs=result.get("retrieved_docs", []),
+            ticket=result.get("ticket"),
+            agent_response=final_text,
+            final_agent=AgentRole.SUPERVISOR,
+            escalate_to_human=bool(result.get("ticket")),
+            escalation_ticket_id=result.get("ticket", {}).get("ticket_id") if result.get("ticket") else None,
+            route=RouteDecision(
+                target_agent=AgentRole.SUPERVISOR,
+                intent="dynamic_react",
+                confidence=1.0,
+                reasoning="Supervisor ReAct execution with tool calling."
+            ),
+            intent="dynamic_react",
+            execution_time_ms=elapsed_ms
         )
 
-        logger.info(f"Running LangGraph workflow for user '{user_id}' with message: '{message[:60]}...'")
-
-        result = await self.graph.ainvoke(initial_state)
-
-        if isinstance(result, AgentState):
-            state = result
-        elif isinstance(result, dict):
-            state = AgentState.model_validate(result)
-        else:
-            state = initial_state
-
-        state.execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
         logger.info(
-            f"LangGraph execution finished in {state.execution_time_ms}ms by '{state.final_agent}'. "
-            f"Tools: {state.tools_used}"
+            f"Workflow finished in {elapsed_ms}ms. Tools: {agent_state.tools_used}"
         )
-        return state
+        return agent_state
+
+    async def run(
+        self,
+        user_id: str,
+        message: str,
+        session_id: Optional[str] = None
+    ) -> AgentState:
+        """Async compatibility wrapper invoking the compiled LangGraph workflow."""
+        return self.run_sync(user_id=user_id, message=message, session_id=session_id)
 
 
-_orchestrator_instance = None
+_orchestrator_instance: Optional[OrchestrationGraph] = None
 
 
 def get_orchestrator() -> OrchestrationGraph:
-    """Dependency getter for singleton Orchestrator."""
+    """Dependency getter for singleton OrchestrationGraph."""
     global _orchestrator_instance
     if _orchestrator_instance is None:
         _orchestrator_instance = OrchestrationGraph()

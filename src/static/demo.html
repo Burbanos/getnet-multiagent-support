@@ -66,6 +66,14 @@
         <span class="text-slate-300">User ID:</span>
         <input id="userIdInput" type="text" value="cliente1988" class="bg-slate-900 border border-slate-700 text-sky-300 font-mono px-2 py-0.5 rounded w-28 text-center text-xs focus:outline-none focus:border-red-500">
       </div>
+      <div class="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+        <i class="fa-solid fa-comments text-indigo-400"></i>
+        <span class="text-slate-300">Session ID:</span>
+        <input id="sessionIdInput" type="text" value="sess-2026-demo" class="bg-slate-900 border border-slate-700 text-indigo-300 font-mono px-2 py-0.5 rounded w-32 text-center text-xs focus:outline-none focus:border-indigo-500">
+        <button onclick="resetSession()" title="Nova Sessão (MemorySaver)" class="hover:text-red-400 text-slate-400 text-xs px-1">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -385,6 +393,11 @@
     };
 
     const AGENT_CONFIGS = {
+      'SupervisorAgent': {
+        color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+        icon: 'fa-brain',
+        desc: 'Supervisor LangGraph (Gemini Flash Tool Calling & MemorySaver)'
+      },
       'KnowledgeAgent': {
         color: 'bg-red-500/20 text-red-400 border-red-500/40',
         icon: 'fa-book-open',
@@ -412,6 +425,12 @@
       }
     };
 
+    function resetSession() {
+      const newSession = 'sess-' + Math.random().toString(36).substring(2, 9);
+      document.getElementById('sessionIdInput').value = newSession;
+      appendMessage('agent', `Sessão de atendimento reiniciada no MemorySaver: <code>${newSession}</code>. O contexto de memória das mensagens anteriores foi resetado.`, 'SupervisorAgent');
+    }
+
     function runScenario(id) {
       const text = SCENARIO_DATA[id];
       if (!text) return;
@@ -430,6 +449,7 @@
 
     async function sendMessage(text) {
       const userId = document.getElementById('userIdInput').value.trim() || 'cliente1988';
+      const sessionId = document.getElementById('sessionIdInput').value.trim() || 'sess-2026-demo';
       const sendBtn = document.getElementById('sendBtn');
       sendBtn.disabled = true;
       sendBtn.classList.add('opacity-50');
@@ -446,7 +466,7 @@
         const response = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, user_id: userId })
+          body: JSON.stringify({ message: text, user_id: userId, session_id: sessionId })
         });
 
         if (!response.ok) {
@@ -575,7 +595,14 @@
 
       // Metrics
       document.getElementById('latencyMetric').innerText = `${meta.execution_time_ms ? meta.execution_time_ms.toFixed(1) : 0} ms`;
-      document.getElementById('confidenceMetric').innerText = `${meta.confidence ? Math.round(meta.confidence * 100) : 100}%`;
+      if (meta.retrieved_docs && meta.retrieved_docs.length > 0) {
+        const topScore = meta.retrieved_docs[0].similarity || meta.retrieved_docs[0].score || meta.confidence;
+        document.getElementById('confidenceMetric').innerText = `${(topScore * 100).toFixed(1)}%`;
+        document.getElementById('confidenceMetric').title = 'Similaridade Cosseno ChromaDB';
+      } else {
+        document.getElementById('confidenceMetric').innerText = '100%';
+        document.getElementById('confidenceMetric').title = 'Execução Determinística de Tool';
+      }
 
       // Tools List
       const toolsBox = document.getElementById('toolsList');
@@ -606,23 +633,46 @@
 
       const escalationBadge = document.getElementById('escalationBadge');
       const ticketContainer = document.getElementById('ticketContainer');
-      if (debug.escalate_to_human) {
-        escalationBadge.innerText = 'Sim (Fila Humana)';
+      if (debug.escalate_to_human || meta.ticket) {
+        escalationBadge.innerText = 'Sim (Gravado em tickets.db)';
         escalationBadge.className = 'bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded text-[10px] font-semibold';
         ticketContainer.classList.remove('hidden');
-        document.getElementById('ticketIdVal').innerText = debug.ticket_id || 'GET-ESC-DEFAULT';
+        const tId = (meta.ticket && meta.ticket.ticket_id) || debug.ticket_id || 'GET-TKT-PENDING';
+        document.getElementById('ticketIdVal').innerHTML = `<a href="/tickets/${tId}" target="_blank" class="underline text-amber-300 hover:text-amber-100 flex items-center gap-1"><i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i> ${tId} (Abrir Ticket)</a>`;
       } else {
-        escalationBadge.innerText = 'Não (Resolvido por IA)';
+        escalationBadge.innerText = 'Não (Resolvido pelo Supervisor)';
         escalationBadge.className = 'bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded text-[10px]';
         ticketContainer.classList.add('hidden');
       }
 
-      // Sources
+      // Sources & Retrieved Docs (RAG)
       const sourcesBox = document.getElementById('sourcesList');
       sourcesBox.innerHTML = '';
-      const sources = meta.sources || [];
-      if (sources.length === 0) {
+      const docs = meta.retrieved_docs || [];
+      if (docs.length > 0) {
+        docs.forEach(d => {
+          const div = document.createElement('div');
+          div.className = 'p-1.5 bg-slate-900 rounded border border-slate-800 text-[10px] text-slate-300';
+          const sim = (d.similarity || d.score || 0).toFixed(3);
+          div.innerHTML = `
+            <div class="flex items-center justify-between font-semibold">
+              <span class="text-white truncate">${d.title || d.id}</span>
+              <span class="text-emerald-400 font-mono text-[9px]">cosseno: ${sim}</span>
+            </div>
+            <div class="text-slate-400 text-[9px] truncate">${d.url || ''}</div>
+          `;
+          sourcesBox.appendChild(div);
+        });
+      } else if (meta.sources && meta.sources.length > 0) {
+        meta.sources.forEach(s => {
+          const div = document.createElement('div');
+          div.className = 'flex items-center gap-1.5 text-slate-300 truncate text-[10px]';
+          div.innerHTML = `<i class="fa-solid fa-file-lines text-red-400 text-[10px]"></i> <span>${s}</span>`;
+          sourcesBox.appendChild(div);
+        });
+      } else {
         sourcesBox.innerHTML = '<span class="text-slate-500 italic">Nenhum documento de RAG citado</span>';
+      }
       } else {
         sources.forEach(s => {
           const div = document.createElement('div');

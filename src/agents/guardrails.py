@@ -1,14 +1,16 @@
-"""Input sanitization and prompt injection protection."""
+"""Input sanitization, PII masking, and prompt injection protection."""
 import logging
 import re
+from typing import Tuple
 from src.core.state import AgentState, AgentRole
+from src.core.pii import sanitize_pii
 from src.config import settings
 
 logger = logging.getLogger("multiagent.guardrails")
 
 
 class GuardrailAgent:
-    """Detects unsafe prompts, prompt injections, and unsupported inputs."""
+    """Detects unsafe prompts, prompt injections, and masks sensitive PII (PAN/CPF)."""
 
     INJECTION_PATTERNS = [
         # English patterns
@@ -31,13 +33,17 @@ class GuardrailAgent:
         r"\b(hack|exploit|ddos|sql\s*injection)\b",
     ]
 
-    async def evaluate(self, state: AgentState) -> AgentState:
+    def sanitize_input(self, text: str) -> Tuple[str, bool]:
+        """Mask credit card PANs and CPFs from input text."""
+        return sanitize_pii(text)
+
+    def evaluate_sync(self, state: AgentState) -> AgentState:
+        """Evaluate safety of input and apply PII masking synchronously."""
         if not settings.ENABLE_GUARDRAILS:
             state.is_safe = True
             return state
 
         message = state.message.strip()
-        lower_msg = message.lower()
 
         if not message:
             state.is_safe = False
@@ -46,6 +52,15 @@ class GuardrailAgent:
             state.final_agent = AgentRole.GUARDRAIL
             return state
 
+        # 1. Apply PII Sanitization
+        sanitized_msg, pii_found = self.sanitize_input(message)
+        if pii_found:
+            logger.info(f"PII masked in input for user {state.user_id}")
+            state.message = sanitized_msg
+
+        lower_msg = sanitized_msg.lower()
+
+        # 2. Check for Prompt Injections / Jailbreaks
         for pattern in self.INJECTION_PATTERNS:
             if re.search(pattern, lower_msg, re.IGNORECASE):
                 logger.warning(f"Prompt injection pattern detected: '{pattern}' in user {state.user_id}")
@@ -58,5 +73,19 @@ class GuardrailAgent:
                 state.final_agent = AgentRole.GUARDRAIL
                 return state
 
+        # 3. Check for Malicious Exploitation Terms
+        for pattern in self.TOXIC_PATTERNS:
+            if re.search(pattern, lower_msg, re.IGNORECASE):
+                logger.warning(f"Security threat term detected: '{pattern}' in user {state.user_id}")
+                state.is_safe = False
+                state.safety_violations.append("Termo de segurança malicioso detectado.")
+                state.agent_response = "Solicitação bloqueada devido a termos não permitidos."
+                state.final_agent = AgentRole.GUARDRAIL
+                return state
+
         state.is_safe = True
         return state
+
+    async def evaluate(self, state: AgentState) -> AgentState:
+        """Async compatibility wrapper."""
+        return self.evaluate_sync(state)

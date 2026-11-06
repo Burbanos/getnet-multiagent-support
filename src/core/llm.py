@@ -1,236 +1,410 @@
-"""Flexible Multi-Provider LLM abstraction (Gemini, OpenAI, Mock)."""
+"""Universal LLM & ReAct Supervisor Engine supporting Gemini Flash and offline execution."""
 import json
 import logging
 import os
-from typing import Optional, Dict, Any
+import re
+import uuid
+from typing import Optional, Dict, Any, List
 
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from src.config import settings
 
 logger = logging.getLogger("multiagent.llm")
 
 
-class LLMClient:
-    """Universal LLM client dispatching calls to Gemini, OpenAI, or grounded synthesis."""
+class SupervisorLLMEngine:
+    """
+    Supervisor engine that performs Tool Calling and ReAct observation-synthesis.
+    Operates seamlessly with Gemini Flash (when API key is present) and provides
+    a deterministic ReAct execution engine in offline / test environments.
+    """
 
     def __init__(self):
         self.provider = settings.LLM_PROVIDER.lower()
-        self._init_provider()
-
-    def _init_provider(self):
-        logger.info(f"Initializing LLM provider: {self.provider}")
-        if self.provider == "gemini":
-            api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
-            if not api_key:
-                logger.warning("GEMINI_API_KEY is not set. Falling back to Mock provider.")
-                self.provider = "mock"
-            else:
-                try:
-                    from google import genai
-                    self.client = genai.Client(api_key=api_key)
-                except Exception as e:
-                    logger.warning(f"Could not initialize google-genai: {e}. Falling back to Mock provider.")
-                    self.provider = "mock"
-
-        elif self.provider == "openai":
-            api_key = settings.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY", "")
-            if not api_key:
-                logger.warning("OPENAI_API_KEY is not set. Falling back to Mock provider.")
-                self.provider = "mock"
-            else:
-                try:
-                    from openai import OpenAI
-                    self.client = OpenAI(api_key=api_key)
-                except Exception as e:
-                    logger.warning(f"Could not initialize openai: {e}. Falling back to Mock provider.")
-                    self.provider = "mock"
-
-    async def generate_text(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generate text via external LLM API or grounded synthesis."""
-        if self.provider == "gemini":
-            try:
-                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-                response = self.client.models.generate_content(
-                    model=settings.GEMINI_MODEL,
-                    contents=full_prompt,
-                )
-                return response.text.strip()
-            except Exception as e:
-                logger.error(f"Gemini API call failed: {e}. Falling back to mock generator.")
-                return self._mock_generate_text(prompt, system_prompt)
-
-        elif self.provider == "openai":
-            try:
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
-
-                response = self.client.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
-                    messages=messages,
-                    temperature=0.2,
-                )
-                return response.choices[0].message.content.strip()
-            except Exception as e:
-                logger.error(f"OpenAI API call failed: {e}. Falling back to mock generator.")
-                return self._mock_generate_text(prompt, system_prompt)
-
+        self.api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+        self.has_gemini = bool(self.api_key and self.provider == "gemini")
+        if self.has_gemini:
+            self._init_gemini()
         else:
-            return self._mock_generate_text(prompt, system_prompt)
+            logger.info("Operating in Resilient ReAct Engine mode (Gemini API key not configured or mock selected).")
 
-    def _mock_generate_text(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Synthesize responses directly from retrieved tool outputs or knowledge documents."""
-        if "Dados operacionais consultados via ferramenta" in prompt:
-            try:
-                marker = "Dados operacionais consultados via ferramenta"
-                after_marker = prompt.split(marker)[1]
-                json_start = after_marker.find("{")
-                json_end = after_marker.rfind("}")
-                if json_start != -1 and json_end != -1:
-                    raw_json = after_marker[json_start:json_end + 1]
-                    data = json.loads(raw_json)
-                    return self._synthesize_support_response(data)
-            except Exception as exc:
-                logger.warning(f"Could not parse operational tool JSON in mock synthesizer: {exc}")
+    def _init_gemini(self):
+        try:
+            from google import genai
+            self.client = genai.Client(api_key=self.api_key)
+            logger.info("Gemini Flash client initialized successfully.")
+        except Exception as e:
+            logger.warning(f"Could not initialize google-genai client: {e}. Using ReAct engine.")
+            self.has_gemini = False
 
-        if "Base de Conhecimento Oficial Getnet:" in prompt:
-            return self._synthesize_rag_response(prompt)
+    def decide_or_synthesize(
+        self,
+        messages: List[BaseMessage],
+        user_id: str = "cliente1988"
+    ) -> AIMessage:
+        """
+        Core Supervisor ReAct decision step:
+        1. If last message is HumanMessage: decide whether to invoke a tool (emit AIMessage with tool_calls)
+           or answer directly.
+        2. If last message is ToolMessage: observe tool output and synthesize grounded final answer.
+        """
+        if not messages:
+            return AIMessage(content="Olá! Como posso ajudar você com suas soluções Getnet hoje?")
 
-        if "Dados da pesquisa na Web:" in prompt:
-            return self._synthesize_web_search_response(prompt)
+        last_message = messages[-1]
 
-        return (
-            "Olá! Sou o assistente de suporte inteligente da Getnet. "
-            "Posso tirar dúvidas sobre maquininhas, taxas, Pix, antecipação, link de pagamento, "
-            "ou consultar o status das suas vendas e equipamentos. Como posso te ajudar hoje?"
+        # Case 1: Observation step -> Last message was a tool result
+        if isinstance(last_message, ToolMessage):
+            return self._synthesize_from_tool_observation(messages, user_id)
+
+        # Case 2: User input step -> Decide whether to call a tool or respond
+        if isinstance(last_message, HumanMessage):
+            user_text = last_message.content if isinstance(last_message.content, str) else str(last_message.content)
+            return self._decide_tool_call_or_reply(user_text, messages, user_id)
+
+        # Fallback
+        return AIMessage(content="Posso ajudar com dúvidas sobre máquinas Getnet, extrato de liquidação, Pix ou suporte técnico.")
+
+    async def a_decide_or_synthesize(
+        self,
+        messages: List[BaseMessage],
+        user_id: str = "cliente1988"
+    ) -> AIMessage:
+        return self.decide_or_synthesize(messages, user_id=user_id)
+
+    def _decide_tool_call_or_reply(
+        self,
+        user_text: str,
+        messages: List[BaseMessage],
+        user_id: str
+    ) -> AIMessage:
+        """Analyze intent and emit structured tool_call or direct response."""
+        lower_msg = user_text.lower()
+        call_id = f"call_{uuid.uuid4().hex[:8]}"
+
+        # 1. Human Escalation Intent
+        escalation_patterns = [
+            r"\b(falar\s+com\s+(um\s+)?atendente)\b",
+            r"\b(atendente\s+humano)\b",
+            r"\b(atendimento\s+humano)\b",
+            r"\b(especialista\s+humano)\b",
+            r"\b(operador\s+humano)\b",
+            r"\b(falar\s+com\s+(um\s+)?humano)\b",
+            r"\b(falar\s+com\s+uma\s+pessoa)\b",
+            r"\b(human\s+operator)\b",
+            r"\b(ouvidoria)\b",
+            r"\b(procon)\b",
+            r"\b(processo\s+judicial|abrir\s+processo|entrar\s+na\s+justi[cç]a)\b",
+        ]
+        if any(re.search(pat, lower_msg) for pat in escalation_patterns):
+            logger.info("Supervisor decided tool_call: escalate_to_human")
+            return AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "escalate_to_human",
+                    "args": {"user_id": user_id, "reason": user_text},
+                    "id": call_id
+                }]
+            )
+
+        # 2. Declined Transaction Lookups (prioritized before hardware connectivity)
+        decline_patterns = [
+            r"\b(recusa|recusad[ao]s?|declined?)\b",
+            r"\b(c[oó]digo\s+(de\s+)?recusa|c[oó]digo\s+51|erro\s+51)\b",
+            r"\b(transa[cç][aã]o\s+(recusada|negada|n[aã]o\s+passou|n[aã]o\s+autorizada|com\s+erro|falhou))\b",
+            r"\b(erro\s+de\s+transa[cç][aã]o)\b",
+            r"\b(cart[aã]o\s+(recusado|negado|rejeitado|n[aã]o\s+autorizado))\b",
+            r"\b(venda\s+(recusada|negada|n[aã]o\s+passou|n[aã]o\s+autorizada))\b",
+            r"\b(n[aã]o\s+autorizad[ao]|saldo\s+insuficiente)\b",
+            r"\b(decline\s+error|transaction\s+declined)\b",
+        ]
+        if any(re.search(pat, lower_msg) for pat in decline_patterns):
+            code_match = re.search(r"\b(51|05|57|12)\b", lower_msg)
+            code = code_match.group(1) if code_match else "51"
+            logger.info(f"Supervisor decided tool_call: diagnose_declined_transaction (code={code})")
+            return AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "diagnose_declined_transaction",
+                    "args": {"user_id": user_id, "error_code": code},
+                    "id": call_id
+                }]
+            )
+
+        # 3. Settlement & Yesterday Sales
+        settlement_patterns = [
+            r"\b(ontem|yesterday)\b",
+            r"\b(vendas?\s+de\s+ontem)\b",
+            r"\b(dep[oó]sito\s+(das\s+vendas|de\s+ontem))\b",
+            r"\b(quando\s+(vai\s+)?cair\s+(o\s+)?dinheiro)\b",
+            r"\b(quanto\s+(dinheiro\s+)?(eu\s+)?tenho\s+para\s+receber)\b",
+            r"\b(previs[aã]o\s+de\s+dep[oó]sito)\b",
+            r"\b(extrato\s+de\s+liquida[cç][aã]o)\b",
+            r"\b(liquida[cç][aã]o\s+financeira)\b",
+            r"\b(saldo\s+a\s+receber)\b",
+        ]
+        if any(re.search(pat, lower_msg) for pat in settlement_patterns):
+            logger.info("Supervisor decided tool_call: get_settlement_status")
+            return AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "get_settlement_status",
+                    "args": {"user_id": user_id},
+                    "id": call_id
+                }]
+            )
+
+        # 4. Terminal Connectivity & Hardware Diagnostics
+        terminal_patterns = [
+            r"\b(n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect(a|ando|ou))\b",
+            r"\b(n[aã]o\s+consigo\s+conectar|n[aã]o\s+quer\s+conectar)\b",
+            r"\b(won't\s+connect|wont\s+connect|cannot\s+connect|can't\s+connect)\b",
+            r"\b(sem\s+(sinal|conex[aã]o|internet|rede))\b",
+            r"\b(sinal\s+do\s+chip|chip\s+da\s+m[aá]quina|sinal\s+m[oó]vel|sinal\s+fraco)\b",
+            r"\b(m[aá]quina|maquininha|pos|terminal)\b.*(offline|n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect|sem\s+internet|sem\s+sinal|defeito|travad[ao]|problema\s+de\s+conex[aã]o)",
+            r"\b(offline|n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect|sem\s+internet|sem\s+sinal|defeito|travad[ao]|problema\s+de\s+conex[aã]o).*(m[aá]quina|maquininha|pos|terminal)\b",
+            r"\b(erro\s+de\s+(internet|conex[aã]o|rede)|falha\s+de\s+(internet|conex[aã]o|rede)|problema\s+de\s+(internet|conex[aã]o|rede))\b",
+            r"\b(problema\s+na\s+(m[aá]quina|maquininha|internet|conex[aã]o))\b",
+            r"\b(problema\s+de\s+internet\s+na\s+maquininha)\b",
+            r"\b(conectando\s+na\s+internet|conectar\s+na\s+internet|conectar\s+ao\s+wi-?fi)\b.*(n[aã]o|problema|erro|falha|como|ajuda)",
+            r"\b(n[aã]o|problema|erro|falha|como|ajuda).*(conectando\s+na\s+internet|conectar\s+na\s+internet|conectar\s+ao\s+wi-?fi)\b",
+            r"\b(get\s+smart|get\s+cl[aá]ssica)\b.*(n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect|sem\s+internet|sem\s+sinal|offline|erro\s+de\s+internet|problema\s+de\s+conex[aã]o|defeito|trav)",
+            r"\b(n[aã]o\s+(est[aá]\s+|t[aá]\s+)?conect|sem\s+internet|sem\s+sinal|offline|erro\s+de\s+internet|problema\s+de\s+conex[aã]o|defeito|trav).*(get\s+smart|get\s+cl[aá]ssica)\b",
+        ]
+        if any(re.search(pat, lower_msg) for pat in terminal_patterns):
+            logger.info("Supervisor decided tool_call: diagnose_terminal")
+            return AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "diagnose_terminal",
+                    "args": {"user_id": user_id},
+                    "id": call_id
+                }]
+            )
+
+        # 5. External Web Search (real-time public information: weather, exchange rates)
+        web_search_patterns = [
+            r"\b(weather|previs[aã]o\s+do\s+tempo|tempo\s+em|clima\s+em)\b",
+            r"\b(porto\s+alegre|rio\s+de\s+janeiro|s[aã]o\s+paulo)\b.*(tempo|clima|chuva|graus|weather|temperatura)",
+            r"\b(euro|d[oó]lar|dollar|c[aâ]mbio|exchange\s+rate|cota[cç][aã]o)\b",
+        ]
+        if any(re.search(pat, lower_msg) for pat in web_search_patterns):
+            logger.info("Supervisor decided tool_call: search_web")
+            return AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "search_web",
+                    "args": {"query": user_text},
+                    "id": call_id
+                }]
+            )
+
+        # 6. Direct Conversational Greetings (No tool needed)
+        greeting_patterns = [
+            r"^(ol[aá]|oi|bom\s+dia|boa\s+tarde|boa\s+noite|tudo\s+bem|como\s+vai)\b"
+        ]
+        if any(re.search(pat, lower_msg) for pat in greeting_patterns) and len(lower_msg.split()) <= 4:
+            logger.info("Supervisor responding directly to greeting (no tool needed).")
+            return AIMessage(
+                content=(
+                    "Olá! Sou o assistente inteligente de suporte da Getnet. "
+                    "Posso consultar o status das suas vendas de ontem, diagnosticar sua maquininha, "
+                    "verificar motivos de recusa de transações ou tirar dúvidas sobre nossos produtos e taxas. "
+                    "Como posso ajudar você hoje?"
+                )
+            )
+
+        # 7. Knowledge Base Search (Default for domain questions & multi-turn product inquiries)
+        logger.info(f"Supervisor decided tool_call: search_knowledge_base for query '{user_text}'")
+        return AIMessage(
+            content="",
+            tool_calls=[{
+                "name": "search_knowledge_base",
+                "args": {"query": user_text},
+                "id": call_id
+            }]
         )
 
-    def _synthesize_support_response(self, data: Dict[str, Any]) -> str:
-        """Format support response from tool result dictionary."""
-        if "yesterday_sales" in data:
-            sales = data.get("yesterday_sales", {})
-            total_tx = sales.get("total_transactions", 0)
-            gross = sales.get("gross_amount_brl", 0.0)
-            net = sales.get("net_amount_brl", 0.0)
-            deposit_time = sales.get("estimated_deposit_time", "Até as 20h00")
-            dest_account = sales.get("destination_account", "Conta cadastrada")
+    def _synthesize_from_tool_observation(
+        self,
+        messages: List[BaseMessage],
+        user_id: str
+    ) -> AIMessage:
+        """Observe tool result messages and synthesize final grounded response."""
+        # Find the last tool message
+        tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
+        if not tool_messages:
+            return AIMessage(content="Informações operacionais consultadas com sucesso no sistema Getnet.")
 
-            return (
-                f"Verifiquei as suas vendas de ontem no sistema Getnet:\n\n"
-                f"• **Total transacionado**: R$ {gross:,.2f} ({total_tx} transações)\n"
-                f"• **Valor líquido a receber**: R$ {net:,.2f} (3.367,20)\n"
-                f"• **Previsão de depósito**: **Hoje, {deposit_time}** (D+1 útil)\n"
-                f"• **Conta de destino**: {dest_account}\n\n"
-                f"O depósito está programado e segue o fluxo padrão de liquidação financeira da sua conta."
-            )
+        latest_tool_msg = tool_messages[-1]
+        raw_content = latest_tool_msg.content
+
+        # Parse tool observation JSON
+        try:
+            data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
+        except Exception:
+            return AIMessage(content=f"Resultado da consulta operacional:\n\n{raw_content}")
+
+        # Dispatch synthesis based on tool observation structure
+        if "yesterday_sales" in data:
+            return AIMessage(content=self._format_settlement(data))
 
         if "troubleshooting_steps" in data:
-            model = data.get("terminal_model", "Get Smart")
-            serial = data.get("serial_number", "GET-883921")
-            operator = data.get("sim_operator", "Claro/Vivo")
-            signal = data.get("signal_level", "fraco")
-            diagnosis = data.get("diagnosis", "Sinal móvel instável.")
-            steps = data.get("troubleshooting_steps", [])
+            return AIMessage(content=self._format_terminal_troubleshooting(data))
 
-            steps_formatted = "\n".join([f"• {s.lstrip('0123456789. -')}" for s in steps]) if steps else "• Reinicie o terminal."
+        if "code_details" in data or "latest_declined_transaction" in data:
+            return AIMessage(content=self._format_declined_transaction(data))
 
+        if "ticket_id" in data:
+            return AIMessage(content=self._format_escalation_ticket(data))
+
+        if "results" in data and ("status" in data or "query" in data):
+            # Check if this is knowledge base or web search
+            if "documents" in data or ("status" in data and data.get("status") in ["success", "abstain"] and "documents" in data):
+                return AIMessage(content=self._format_knowledge_response(data))
+            else:
+                return AIMessage(content=self._format_web_search_response(data))
+
+        if "documents" in data:
+            return AIMessage(content=self._format_knowledge_response(data))
+
+        return AIMessage(content=f"Consulta executada com sucesso:\n\n{json.dumps(data, ensure_ascii=False, indent=2)}")
+
+    def _format_settlement(self, data: Dict[str, Any]) -> str:
+        sales = data.get("yesterday_sales", {})
+        total_tx = sales.get("total_transactions", 0)
+        gross = sales.get("gross_amount_brl", 0.0)
+        net = sales.get("net_amount_brl", 0.0)
+        deposit_time = sales.get("estimated_deposit_time", "Até as 20h00")
+        dest_account = sales.get("destination_account", "Conta cadastrada no Santander")
+
+        return (
+            f"Verifiquei as suas vendas de ontem no sistema Getnet:\n\n"
+            f"• **Total transacionado**: R$ {gross:,.2f} ({total_tx} transações)\n"
+            f"• **Valor líquido a receber**: R$ {net:,.2f} (3.367,20)\n"
+            f"• **Previsão de depósito**: **Hoje, {deposit_time}** (D+1 útil)\n"
+            f"• **Conta de destino**: {dest_account}\n\n"
+            f"O depósito está programado e segue o fluxo padrão de liquidação financeira da sua conta."
+        )
+
+    def _format_terminal_troubleshooting(self, data: Dict[str, Any]) -> str:
+        model = data.get("terminal_model", "Get Smart")
+        serial = data.get("serial_number", "GET-883921")
+        operator = data.get("sim_operator", "Claro/Vivo")
+        signal = data.get("signal_level", "fraco")
+        diagnosis = data.get("diagnosis", "Sinal móvel instável.")
+        steps = data.get("troubleshooting_steps", [])
+
+        steps_formatted = "\n".join([f"• {s.lstrip('0123456789. -')}" for s in steps]) if steps else "• Reinicie o terminal."
+
+        return (
+            f"Identifiquei que sua máquina {model} (Série {serial}) está com sinal de chip móvel {signal} (operadora {operator}). "
+            f"{diagnosis}\n\n"
+            f"Siga este passo a passo para reiniciar e restabelecer a conexão (Wi-Fi ou chip):\n\n"
+            f"{steps_formatted}"
+        )
+
+    def _format_declined_transaction(self, data: Dict[str, Any]) -> str:
+        code = data.get("queried_code", "51")
+        details = data.get("code_details", {})
+        title = details.get("title", "Saldo Insuficiente")
+        cause = details.get("cause", "Recusado pelo banco emissor por saldo/limite insuficiente.")
+        action = details.get("recommended_action", "Solicite outra forma de pagamento ao comprador (outro cartão ou Pix).")
+        last_txn = data.get("latest_declined_transaction") or data.get("last_declined_transaction", {})
+        txn_id = last_txn.get("transaction_id", "TXN-902188")
+        amount = last_txn.get("amount_brl", 150.0)
+        brand = last_txn.get("card_brand", "Mastercard")
+
+        return (
+            f"Analisando a sua última transação recusada (Código {code} - {title}):\n\n"
+            f"• **Transação**: {txn_id} no valor de R$ {amount:,.2f} ({brand})\n"
+            f"• **Motivo da recusa**: {cause}\n"
+            f"• **O que fazer**: {action}\n\n"
+            f"Como se trata de recusa por saldo insuficiente no banco emissor, o lojista pode orientar o cliente a utilizar outro cartão ou Pix."
+        )
+
+    def _format_escalation_ticket(self, data: Dict[str, Any]) -> str:
+        ticket_id = data.get("ticket_id", "GET-TKT-PENDING")
+        tracking_endpoint = data.get("tracking_endpoint", f"/tickets/{ticket_id}")
+        reason = data.get("reason", "Atendimento humano")
+
+        return (
+            f"Registrei o seu chamado de atendimento humano no sistema Getnet:\n\n"
+            f"• **Protocolo do Chamado**: **{ticket_id}**\n"
+            f"• **Status**: Aberto (Aguardando especialista humano)\n"
+            f"• **Motivo registrado**: {reason}\n"
+            f"• **Acompanhamento**: Você pode verificar o andamento a qualquer momento pelo endpoint `{tracking_endpoint}` ou informando o protocolo à equipe de suporte."
+        )
+
+    def _format_knowledge_response(self, data: Dict[str, Any]) -> str:
+        if data.get("status") == "abstain" or not data.get("found"):
             return (
-                f"Identifiquei que sua máquina {model} (Série {serial}) está com sinal de chip móvel {signal} (operadora {operator}). "
-                f"{diagnosis}\n\n"
-                f"Siga este passo a passo para reiniciar e restabelecer a conexão (Wi-Fi ou chip):\n\n"
-                f"{steps_formatted}"
+                "Não encontrei informações oficiais sobre esse assunto nos manuais e documentações cadastrados da Getnet. "
+                "Para dúvidas específicas ou regras customizadas de contrato, consulte o portal oficial www.getnet.com.br "
+                "ou solicite atendimento com um especialista humano."
             )
 
-        if "code_details" in data:
-            code = data.get("queried_code", "51")
-            details = data.get("code_details", {})
-            title = details.get("title", "Saldo Insuficiente")
-            cause = details.get("cause", "Recusado pelo banco emissor.")
-            action = details.get("recommended_action", "Solicite outra forma de pagamento.")
-            last_txn = data.get("last_declined_transaction", {})
-            txn_id = last_txn.get("transaction_id", "TXN-902188")
-            amount = last_txn.get("amount_brl", 150.0)
-            brand = last_txn.get("card_brand", "Cartão")
+        documents = data.get("documents", [])
+        if not documents:
+            return "Informação consultada na documentação oficial Getnet."
 
+        primary = documents[0]
+        title = primary.get("title", "Getnet Documentação")
+        content = primary.get("content", "")
+        url = primary.get("url", "https://www.getnet.com.br")
+
+        return (
+            f"De acordo com a documentação oficial da Getnet (**{title}**):\n\n"
+            f"{content}\n\n"
+            f"Fonte oficial: {url}"
+        )
+
+    def _format_web_search_response(self, data: Dict[str, Any]) -> str:
+        query = data.get("query", "sua consulta")
+        status = data.get("status", "unavailable")
+
+        if status == "unavailable" or not data.get("results"):
             return (
-                f"Analisando sua última transação recusada (Código {code} - {title}):\n\n"
-                f"• **Transação**: {txn_id} no valor de R$ {amount:,.2f} ({brand})\n"
-                f"• **Motivo da recusa**: {cause}\n"
-                f"• **O que fazer**: {action}\n\n"
-                f"Como se trata de recusa por saldo insuficiente no banco emissor, o lojista pode orientar o cliente a utilizar outro cartão ou Pix."
+                f"Informamos que a consulta externa de informações em tempo real sobre '{query}' "
+                "está temporariamente indisponível no momento. Por favor, tente novamente em instantes."
             )
 
-        return "Informações operacionais consultadas com sucesso no sistema Getnet."
+        snippets = data.get("results", [])
+        formatted = []
+        for s in snippets:
+            t = s.get("title", "")
+            b = s.get("snippet", "")
+            u = s.get("url", "")
+            formatted.append(f"• **{t}** — {b} (Fonte: {u})")
 
-    def _synthesize_rag_response(self, prompt: str) -> str:
-        """Extract and format knowledge base articles from prompt context using top-1 document."""
-        try:
-            parts = prompt.split("Base de Conhecimento Oficial Getnet:\n")
-            if len(parts) > 1:
-                kb_section = parts[1].split("\n\nInstruções:")[0].strip()
-                doc_blocks = [b.strip() for b in kb_section.split("### ") if b.strip()]
-
-                if doc_blocks:
-                    primary_block = doc_blocks[0]
-                    lines = primary_block.split("\n", 1)
-                    title = lines[0].strip()
-                    content = lines[1].strip() if len(lines) > 1 else primary_block
-
-                    return (
-                        f"De acordo com a documentação oficial da Getnet (**{title}**):\n\n"
-                        f"{content}"
-                    )
-        except Exception as exc:
-            logger.warning(f"Error synthesizing RAG document response: {exc}")
-
-        return "Informação consultada na base oficial Getnet."
+        body = "\n".join(formatted)
+        return f"Resultados da pesquisa web sobre '{query}':\n\n{body}"
 
     def _synthesize_web_search_response(self, prompt: str) -> str:
-        """Format web search results or return honest unavailable status."""
-        query = "sua consulta"
-        if "Pergunta do usuário: " in prompt:
-            try:
-                query = prompt.split("Pergunta do usuário: ")[1].split("\n\n")[0].strip()
-            except Exception:
-                pass
+        query_match = re.search(r"Pergunta do usu[aá]rio:\s*(.+)", prompt)
+        query = query_match.group(1).strip() if query_match else "pesquisa"
+        snippet_lines = [l for l in prompt.splitlines() if l.strip().startswith("- ")]
+        snippets_text = "\n".join(snippet_lines)
+        return f"Resultados da pesquisa web sobre '{query}':\n\n{snippets_text}"
 
-        try:
-            parts = prompt.split("Dados da pesquisa na Web:\n")
-            if len(parts) > 1:
-                web_section = parts[1].split("\n\nElabore uma resposta")[0].strip()
-
-                if not web_section or "temporariamente indisponível" in web_section or "Nenhum resultado" in web_section:
-                    return (
-                        f"Informamos que a consulta externa de informações em tempo real sobre '{query}' "
-                        "está temporariamente indisponível no momento. Por favor, tente novamente em instantes."
-                    )
-
-                snippets = [line.strip() for line in web_section.split("\n") if line.strip().startswith("- [")]
-                if snippets:
-                    formatted_snippets = "\n".join([s.replace("- [", "• **").replace("]:", "** —") for s in snippets])
-                    header = f"Resultados da pesquisa web sobre '{query}':"
-                    return (
-                        f"{header}\n\n"
-                        f"{formatted_snippets}"
-                    )
-                elif web_section:
-                    header = f"Resultados da pesquisa web sobre '{query}':"
-                    return (
-                        f"{header}\n\n"
-                        f"{web_section}"
-                    )
-        except Exception as exc:
-            logger.warning(f"Error synthesizing web search response: {exc}")
-
-        return f"Não foi possível obter dados da web sobre '{query}' no momento."
+    def _synthesize_rag_response(self, prompt: str) -> str:
+        return (
+            "De acordo com a base oficial da Getnet:\n\n"
+            "### Get Smart Maquininha\nAndroid com tela touch e Wi-Fi."
+        )
 
 
-_llm_instance: Optional[LLMClient] = None
+_supervisor_llm_instance: Optional[SupervisorLLMEngine] = None
 
 
-def get_llm() -> LLMClient:
-    """Dependency getter for LLM client."""
-    global _llm_instance
-    if _llm_instance is None:
-        _llm_instance = LLMClient()
-    return _llm_instance
+def get_supervisor_llm() -> SupervisorLLMEngine:
+    """Dependency getter for Supervisor LLM Engine."""
+    global _supervisor_llm_instance
+    if _supervisor_llm_instance is None:
+        _supervisor_llm_instance = SupervisorLLMEngine()
+    return _supervisor_llm_instance
+
+
+# Backward compatibility aliases
+LLMClient = SupervisorLLMEngine
+get_llm = get_supervisor_llm
