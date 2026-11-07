@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +18,7 @@ from src.core.llm import (
     LLMNotConfiguredError,
     LLMUnavailableError,
 )
+from src.core.tickets_db import TicketTransitionError, get_tickets_repository
 
 
 class ChatRequest(BaseModel):
@@ -74,10 +75,17 @@ class HealthResponse(BaseModel):
     auth_mode: str
 
 
+class TicketUpdate(BaseModel):
+    """Payload for operator updating ticket status and reply."""
+    status: str | None = Field(default=None, description="New ticket status (in_progress, answered, closed)")
+    reply: str | None = Field(default=None, min_length=1, max_length=4000, description="Operator response message")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_auth_config()
     get_orchestrator()
+    get_tickets_repository()
     yield
 
 
@@ -106,7 +114,7 @@ async def root():
     return {
         "service": "Getnet Multi-Agent Support System",
         "version": "2.0.0",
-        "architecture": f"Supervisor ReAct with Tool Calling & SqliteSaver ({settings.CHECKPOINT_DB_PATH}, thread user_id:session_id)",
+        "architecture": "Supervisor ReAct with Tool Calling & SqliteSaver (thread user_id:session_id)",
         "status": "online",
         "documentation": "/docs",
         "health": "/health",
@@ -147,7 +155,7 @@ async def list_agents():
         "orchestrator": {
             "name": "SupervisorAgent",
             "model_reference": "Google Gemini Flash (Function Calling)",
-            "checkpointer": f"SqliteSaver at {settings.CHECKPOINT_DB_PATH} (thread user_id:session_id)",
+            "checkpointer": "SqliteSaver (thread user_id:session_id)",
             "safety": "GuardrailAgent (PII sanitization & prompt injection defense)",
         },
         "agents": [
@@ -203,11 +211,56 @@ async def list_agents():
             {
                 "name": "escalate_to_human",
                 "specialist": "HumanOversightSpecialist",
-                "description": "Geração e persistência de ticket em SQLite (tickets.db)",
-                "schema": "escalate_to_human(reason: str)",
+                "description": "Geração e persistência de ticket de suporte relacional",
+                "schema": "escalate_to_human(reason: str, priority: Literal['standard', 'high'] = 'standard')",
             },
         ],
     }
+
+
+@app.patch("/tickets/{ticket_id}", tags=["Tickets"])
+async def patch_ticket_endpoint(
+    ticket_id: str,
+    payload: TicketUpdate,
+    principal: Annotated[Principal, Depends(authenticate)],
+):
+    """Update ticket status or record operator reply. Operator role only."""
+    if principal.role != "operator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only operators can update tickets.",
+        )
+
+    if payload.status is None and payload.reply is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Either status or reply must be provided.",
+        )
+
+    try:
+        repo = get_tickets_repository()
+        updated = repo.update_ticket(
+            ticket_id,
+            status=payload.status,
+            reply=payload.reply,
+            operator_id=principal.user_id,
+        )
+        if updated is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
+            )
+        return updated
+    except TicketTransitionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
 @app.get("/tickets/{ticket_id}", tags=["Tickets"])
@@ -216,7 +269,6 @@ async def get_ticket_endpoint(
     principal: Annotated[Principal, Depends(authenticate)],
 ):
     """Retrieve details for a persisted support ticket by ticket ID."""
-    from src.core.tickets_db import get_tickets_repository
     repo = get_tickets_repository()
     ticket = repo.get_ticket(ticket_id)
     if not ticket:
@@ -235,11 +287,11 @@ async def get_ticket_endpoint(
 @app.get("/tickets", tags=["Tickets"])
 async def list_tickets_endpoint(
     user_id: str | None = None,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
     limit: int = 50,
     principal: Annotated[Principal, Depends(authenticate)] = None,  # type: ignore[assignment]
 ):
-    """List recent persisted human escalation tickets from SQLite tickets.db."""
-    from src.core.tickets_db import get_tickets_repository
+    """List recent persisted human escalation tickets."""
     if principal.role == "customer":
         if user_id is not None and user_id != principal.user_id:
             raise HTTPException(
@@ -251,7 +303,7 @@ async def list_tickets_endpoint(
         filter_user = user_id
 
     repo = get_tickets_repository()
-    tickets = repo.list_tickets(user_id=filter_user, limit=limit)
+    tickets = repo.list_tickets(user_id=filter_user, status=status_filter, limit=limit)
     return {"count": len(tickets), "tickets": tickets}
 
 

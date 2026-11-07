@@ -30,6 +30,7 @@ services:
       - API_KEYS=${API_KEYS:-}
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
       - CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-data/checkpoints.db}
+      - TICKETS_DB_PATH=${TICKETS_DB_PATH:-data/tickets.db}
     volumes:
       - tickets_data:/app/data
     healthcheck:

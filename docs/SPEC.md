@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `0e3ef87` (phase 4A, CI green) plus
-this SPEC/prompt update for 4B. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `e84765f` (phase 4B, CI green) plus
+this SPEC/prompt update for 5A. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -49,6 +49,12 @@ this SPEC/prompt update for 4B. CI (lint, tests, docker build + /health smoke) r
   `user_id:session_id`, tickets by owner, per-key rate limit. Review notes: a malformed `API_KEYS` turned every
   authenticated request into a 500 while `/health` said `configured` (fixed in 4B); the rate limit is per
   process and unlocked (state it in the README claims table, Phase 8).
+- 4B `SqliteSaver` at `CHECKPOINT_DB_PATH` (memory survives restarts), fail-fast startup on malformed
+  `API_KEYS` or unusable database path, 503 instead of 500 for keys broken at runtime. Lock regenerated in
+  Codespaces: +7 lines only (`langgraph-checkpoint-sqlite` 3.1.3, `aiosqlite`, `sqlite-vec`). Review notes: the
+  README headline claimed token cost, a routing-accuracy evaluation and an untested multi-turn example (fixed
+  in 5A); `/` and `/agents` exposed the database path (fixed in 5A); an existing read-only database file is only
+  detected on the first write.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -83,9 +89,12 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 4B (SQLite checkpointer, restart survival, fail-fast configuration)**, prompt
-`docs/phase-prompts/4B.md`, verifier `scripts/verify_phase4b.py` (details in Phase 4). The phase starts with a
-dependency-only commit; the user regenerates the lock in Codespaces before the implementation, so CI stays green.
+**Current phase: 5A (ticket lifecycle, transcript snapshot, operator reply API, honest persistence)**, prompt
+`docs/phase-prompts/5A.md`, verifier `scripts/verify_phase5a.py`, supervisor prompt updated (details in Phase 5).
+Found while planning: when `escalate_to_human` failed, the graph stored `{"error": ...}` as the ticket and the
+API answered `escalate_to_human: true` with no ticket created; `tickets_db.py` silently moved the database to
+`/tmp` and looked tickets up in a second database. 5B (pause with `interrupt()`, deliver the operator reply on
+the next turn, auto-escalation on repeated abstention) follows.
 
 **Backlog:**
 - Phase 6 (from 3D): real-model abstention on the 10 `uncovered` queries through the Knowledge Agent as a
@@ -388,6 +397,33 @@ without network. Topics with no official coverage must be answered with abstenti
 - AC4.5 Basic rate limit per key (test).
 
 ### Phase 5 — Human escalation with handoff and resume
+**Split:**
+- 5A (checked by `scripts/verify_phase5a.py`): `src/core/tickets_db.py` rewritten without fallbacks:
+  `TicketsRepository(db_path)` creates the parent directory, creates the table if missing and adds the new
+  columns to an existing pre-5A table (`session_id`, `transcript` JSON default `[]`, `operator_reply`,
+  `operator_id`, `answered_at`); any failure raises (no `/tmp`, no `chmod`, no second database).
+  `create_ticket(user_id, reason, priority="standard", session_id=None, transcript=None)` validates priority
+  (`standard|high`, else ValueError), strips the reason and keeps the current return shape (`status: "success"`,
+  `ticket_id`, `ticket_status`, ..., `message` with the id and no time promise). `get_ticket` returns every
+  column with `transcript` decoded; `list_tickets(user_id=None, status=None, limit=50)` clamps limit to 1..200;
+  `update_ticket(ticket_id, *, status=None, reply=None, operator_id)` returns None for unknown ids; a reply sets
+  status `answered`, `operator_reply`, `operator_id`, `answered_at`; allowed transitions open→{in_progress,
+  answered, closed}, in_progress→{answered, closed}, answered→{closed}, closed→{} (else `TicketTransitionError`,
+  a ValueError); unknown status or `answered` without reply → ValueError. `transcript_snapshot(messages, limit=20,
+  max_chars=2000)`: user and assistant text only (no tool messages, no tool-call-only AI messages), last 20,
+  each truncated; messages are already PII-masked by the guardrail. `get_tickets_repository()` reads
+  `settings.TICKETS_DB_PATH` (default `data/tickets.db`, env wins); `reset_tickets_repository()` for tests.
+  `escalate_to_human(reason, priority)` is the only model-visible signature; `user_id`, `session_id` and
+  `transcript` come from the run config set by the graph (also in the forced escalation); a persistence error
+  returns `{"status": "error", "error": "ticket_persistence_failed"}` without exception text, and the graph keeps
+  `ticket` only when the result has a `ticket_id`. API: `PATCH /tickets/{id}` (operators only; body `status`
+  and/or `reply`; 401/403/404, 409 for an invalid transition, 422 for an empty body, unknown status or
+  `answered` without reply); `GET /tickets?status=` filter; customers see `operator_reply` on their own tickets.
+  The lifespan also opens the tickets database. `/` and `/agents` expose no database paths.
+- 5B: after a ticket is created the graph pauses the thread with `interrupt()`; the next user turn returns the
+  operator reply once the ticket is `answered` (marking it delivered) or a fixed status message without any time
+  promise while it is not; `closed` without reply resumes normal service; auto-escalation after repeated
+  abstention in the same session.
 **Acceptance:**
 - AC5.1 Ticket stores reason, priority, transcript snapshot, status (`open|in_progress|answered|closed`).
 - AC5.2 Graph uses `interrupt()`; operator `PATCH /tickets/{id}` with reply; next user turn returns the operator reply (test).

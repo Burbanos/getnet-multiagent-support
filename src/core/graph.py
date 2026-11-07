@@ -25,6 +25,7 @@ from src.core.llm import (
     invoke_model_with_fallback,
 )
 from src.core.state import AgentRole, AgentState, SupervisorState
+from src.core.tickets_db import transcript_snapshot
 from src.tools.agent_tools import (
     TOOLS_BY_NAME,
     diagnose_declined_transaction,
@@ -279,7 +280,13 @@ class OrchestrationGraph:
         try:
             escalate_res = escalate_tool.invoke(
                 {"reason": "automatic escalation: supervisor step limit reached"},
-                config={"configurable": {"user_id": user_id}},
+                config={
+                    "configurable": {
+                        "user_id": user_id,
+                        "session_id": state["session_id"],
+                        "transcript": transcript_snapshot(state["messages"]),
+                    }
+                },
             )
             parsed = json.loads(escalate_res) if isinstance(escalate_res, str) else escalate_res
             if isinstance(parsed, dict) and parsed.get("ticket_id"):
@@ -421,11 +428,17 @@ class OrchestrationGraph:
                     try:
                         result_str = escalate_fn.invoke(
                             tool_args,
-                            config={"configurable": {"user_id": user_id}},
+                            config={
+                                "configurable": {
+                                    "user_id": user_id,
+                                    "session_id": state["session_id"],
+                                    "transcript": transcript_snapshot(state["messages"]),
+                                }
+                            },
                         )
                     except Exception as e:  # noqa: BLE001
                         logger.error(f"Error executing escalate_to_human: {e}")
-                        result_str = json.dumps({"error": f"Falha na execução de escalate_to_human: {e}"})
+                        result_str = json.dumps({"status": "error", "error": "ticket_persistence_failed"})
 
                     tools_used.append("escalate_to_human")
                     t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
@@ -434,7 +447,8 @@ class OrchestrationGraph:
                     try:
                         parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
                         if isinstance(parsed, dict):
-                            ticket = parsed
+                            if parsed.get("ticket_id"):
+                                ticket = parsed
                             tool_results.append(parsed)
                     except (json.JSONDecodeError, TypeError):
                         pass

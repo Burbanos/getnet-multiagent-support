@@ -4,6 +4,80 @@
 
 ---
 
+### Fase 5A: Ciclo de Vida do Ticket, Histórico, Resposta do Operador e Persistência Honesta
+
+#### Verificação Fase 5A (`python scripts/verify_phase5a.py`):
+```text
+PASS S1.no_silent_fallback
+PASS S2.config_documented
+PASS S3.readme_claims
+PASS S3.readme_tickets
+PASS S4.supervisor_prompt
+PASS R0.api
+PASS R0.settings
+PASS R1.create_and_get
+PASS R1.message_no_promises
+PASS R2.priority_validated
+PASS R2.list_filters
+PASS R3.lifecycle
+PASS R3.invalid_transitions
+PASS R3.missing_ticket
+PASS R4.migrates_old_schema
+PASS R5.fails_loudly
+PASS R6.transcript_snapshot
+PASS R7.tool_schema
+PASS R8.graph_ticket
+PASS R9.persistence_failure_surfaces
+PASS R10.forced_escalation
+PASS A1.patch_operator_only
+PASS A2.patch_validation
+PASS A3.patch_lifecycle
+PASS A4.customer_sees_reply
+PASS A5.list_by_status
+PASS A6.no_internal_paths
+PASS A7.startup_opens_tickets_db
+PASS Q0.ticket_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 148 passed, 1 warning in 15.10s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 44/44 passed
+```
+
+#### Commit Base da Fase 5A (`git rev-parse HEAD`):
+```text
+e84765fd17a9a08afdb0ee386d1ef7cbeed7b94b
+```
+
+#### Testes Criados na Fase 5A:
+`tests/test_tickets.py` (9 novos testes unitários):
+- `test_create_ticket_with_session_and_transcript`: valida persistência de `session_id`, `priority`, `reason` sanitizado, `transcript` estruturado e mensagem sem promessas enganosas de tempo ou fila.
+- `test_create_ticket_invalid_priority_raises`: valida rejeição de prioridades fora de `("standard", "high")` levantando `ValueError`.
+- `test_tickets_repository_migrates_old_schema`: valida migração via `ALTER TABLE` de schemas legados (adicionando `session_id`, `transcript`, `operator_reply`, `operator_id`, `answered_at`) sem perda de dados.
+- `test_tickets_repository_unusable_path_raises`: valida fail-fast ruidoso quando o caminho do banco for inacessível (sem fallback para `/tmp` ou memória).
+- `test_ticket_lifecycle_transitions`: valida ciclo estrito `open -> in_progress -> answered -> closed` e rejeição de transições ilegais (`TicketTransitionError`) ou parâmetros inválidos (`ValueError`).
+- `test_transcript_snapshot_extraction_and_clamping`: valida extração de mensagens `user` e `assistant`, exclusão de `ToolMessage` e `AIMessage` vazias, truncamento de mensagens a 2000 caracteres e limitação às 20 mais recentes.
+- `test_graph_escalation_flow_masked_transcript`: valida fluxo completo no orquestrador registrando ticket com prioridade alta e transcript auditável com cartões de crédito mascarados pelo guardrail.
+- `test_graph_persistence_failure_handled`: valida que falhas de banco de dados na ferramenta `escalate_to_human` não geram ticket fantasma no estado (`ticket=None`, `escalate_to_human=False`) e retornam status de erro padronizado.
+- `test_patch_tickets_api_and_customer_view`: valida `PATCH /tickets/{id}` com controle estrito por perfil (`operator`), validações 403/422/404/409 e consulta da resposta do operador pelo cliente autenticado via `GET /tickets/{id}`.
+
+#### Testes Ajustados na Fase 5A:
+Nenhum teste existente precisou ser alterado (`git diff tests/` vazio).
+
+---
+
 ### Fase 4B: Memória Persistente em SQLite e Configuração que Falha Cedo
 
 #### Verificação Fase 4B (`python scripts/verify_phase4b.py`):
@@ -417,12 +491,13 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 5
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 5B
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final foi regenerado com sucesso em ambiente Linux (Python 3.11 no Codespaces) contendo as novas dependências `langgraph-checkpoint-sqlite==3.1.3`, `aiosqlite==0.22.1` e `sqlite-vec==0.1.9`.
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
 3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) entre consultas respondíveis e consultas fora de domínio (*off-topic*).
 4. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção caberá ao prompt do Knowledge Agent ("não encontrado nas fontes oficiais") na Fase 6.
-5. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas agora sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
+5. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
 6. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
-7. **Próxima Fase (Fase 5: Transbordo Humano com Handoff e Resume)**: Registro detalhado de tickets (`reason`, `priority`, `transcript snapshot`, `status open|in_progress|answered|closed`), uso de `interrupt()` do LangGraph para pausar a execução aguardando resposta humana via `PATCH /tickets/{id}` e retomada da conversa no próximo turno com a resposta do operador, sem promessas falsas de tempo de espera/fila.
+7. **Transbordo Humano e Ciclo de Vida de Tickets (Fase 5A)**: Concluída com sucesso na Fase 5A. Os chamados agora persistem com `session_id`, `priority` (`standard|high`), snapshot mascarado das últimas 20 mensagens em `transcript`, ciclo estrito de status `open -> in_progress -> answered -> closed` e endpoint `PATCH /tickets/{id}` para operadores.
+8. **Próxima Fase (Fase 5B: Handoff e Resume com `interrupt()`)**: Integração da primitiva `interrupt()` do LangGraph para pausar a execução do grafo aguardando a resposta humana e entregar a resposta do operador no turno seguinte do chat quando a conversa for retomada.

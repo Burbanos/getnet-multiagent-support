@@ -1,7 +1,7 @@
 """Typed agent tools with Pydantic schemas for the LangGraph Supervisor."""
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -118,22 +118,44 @@ def search_web(query: str) -> str:
 
 
 @tool
-def escalate_to_human(reason: str, config: RunnableConfig) -> str:
+def escalate_to_human(
+    reason: str,
+    priority: Literal["standard", "high"] = "standard",
+    config: RunnableConfig = None,
+) -> str:
     """
     Registra um chamado formal de transbordo e atendimento humano no banco de dados do sistema.
     Use quando:
     - O usuário solicitar expressamente falar com atendente, pessoa, especialista ou operador humano
-    - Houver reclamação formal em ouvidoria, Procon ou ação regulatória
+    - Houver reclamação formal em ouvidoria, Procon ou ação regulatória (use priority='high')
     - A solicitação do usuário não puder ser resolvida por nenhuma das ferramentas disponíveis
 
     Args:
         reason: Motivo detalhado do encaminhamento ao time humano de atendimento.
+        priority: Prioridade do atendimento humano ('standard' ou 'high'). Use 'high' para Procon, ouvidoria ou urgências críticas.
     """
-    user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: escalate_to_human] user_id={user_id}, reason='{reason}'")
-    repo = get_tickets_repository()
-    ticket = repo.create_ticket(user_id=user_id, reason=reason)
-    return json.dumps(ticket, ensure_ascii=False, indent=2)
+    cfg = config.get("configurable", {}) if config else {}
+    user_id = cfg.get("user_id", "")
+    session_id = cfg.get("session_id")
+    transcript = cfg.get("transcript")
+
+    logger.info(
+        f"[Tool: escalate_to_human] user_id={user_id}, session_id={session_id}, "
+        f"priority={priority}, reason='{reason}'"
+    )
+    try:
+        repo = get_tickets_repository()
+        ticket = repo.create_ticket(
+            user_id=user_id,
+            reason=reason,
+            priority=priority,
+            session_id=session_id,
+            transcript=transcript,
+        )
+        return json.dumps(ticket, ensure_ascii=False, indent=2)
+    except Exception:
+        logger.exception(f"Failed to persist escalation ticket for user {user_id}")
+        return json.dumps({"status": "error", "error": "ticket_persistence_failed"}, ensure_ascii=False)
 
 
 ALL_TOOLS: list[Any] = [

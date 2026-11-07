@@ -8,7 +8,7 @@
 [![Auth](https://img.shields.io/badge/auth-X--API--Key-blue.svg)]()
 [![Security](https://img.shields.io/badge/security-PII%20Luhn%20%2B%20non--root-success.svg)]()
 
-Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com declaração de ferramentas**, persistência conversacional multi-turn em banco SQLite via **LangGraph SqliteSaver**, base de conhecimento vetorial **índice de embeddings com limiar de relevância**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e cálculo de custo por tokens**, avaliação de acurácia de roteamento e persistência de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
+Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com declaração de ferramentas**, persistência conversacional multi-turn em banco SQLite via **LangGraph SqliteSaver**, base de conhecimento vetorial **índice de embeddings com limiar de relevância**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e contagem de tokens**, e persistência e ciclo de vida de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
 
 ---
 
@@ -150,7 +150,7 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 ### Memória Persistente Multi-Turn (LangGraph SqliteSaver)
 * O workflow compila o grafo utilizando o checkpointer relacional `SqliteSaver` de `langgraph.checkpoint.sqlite`, persistido no caminho definido por `CHECKPOINT_DB_PATH` (padrão: `data/checkpoints.db`).
 * As sessões são indexadas por `thread_id` composto no formato `f"{user_id}:{session_id}"`, assegurando isolamento estrito entre usuários distintos mesmo que compartilhem o mesmo `session_id`.
-* O estado conversacional persiste em disco e sobrevive a reinicializações completas do serviço. O assistente mantém contexto entre turnos de diálogo: uma pergunta de acompanhamento (ex: *"E qual delas tem tela touch com Android?"*) reaproveita o contexto histórico do turno anterior sem exigir que o lojista repita os modelos.
+* O estado conversacional persiste em disco e sobrevive a reinicializações completas do serviço. O assistente mantém contexto entre turnos de diálogo: perguntas de acompanhamento reaproveitam o contexto histórico do turno anterior sem exigir que o lojista repita os dados já informados.
 
 ### RAG Vetorial e Pipeline de Conhecimento (Fase 3C)
 * **Knowledge Agent Conectado ao Índice Real**:
@@ -195,13 +195,35 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   python -m src.rag.ingest
   ```
 
-### Transbordo Humano Real com SQLite (tickets.db)
-* **Zero Falsas Promessas**: Eliminação de frases enganosas como *"Tempo estimado de espera: Menos de 5 minutos"* ou *"Fila prioritária"*.
-* **Persistência Relacional**: A ferramenta `escalate_to_human` grava o chamado na tabela `tickets` do banco SQLite local (`data/tickets.db`) contendo `ticket_id` único no formato `GET-TKT-YYYYMMDD-XXXX`, `user_id`, `reason`, `status='open'` e `created_at`.
-* **Rastreabilidade Transparente**: Disponibilização dos endpoints HTTP:
-  * `GET /tickets/{ticket_id}`: Consulta os dados auditáveis do chamado persistido.
-  * `GET /tickets`: Lista os chamados registrados no banco.
-  * Na interface `/demo`, o protocolo exibido é um link clicável direto para a API.
+### Transbordo Humano Real com SQLite e Ciclo de Vida de Tickets (Fase 5A)
+* **Zero Falsas Promessas**: Eliminação de frases enganosas ou previsões não verificadas (sem promessas de tempo de espera, fila ou prazos como "em breve" ou "em menos de 5 minutos").
+* **Estrutura e Dados Persistidos**: A ferramenta `escalate_to_human` grava o chamado no banco SQLite configurado em `TICKETS_DB_PATH` (padrão: `data/tickets.db`, persistido em volume Docker). Cada registro armazena:
+  * `ticket_id`: Identificador único no formato `GET-TKT-YYYYMMDD-XXXX`.
+  * `user_id`: Identificador do lojista autenticado.
+  * `session_id`: Identificador da sessão em que o transbordo foi acionado.
+  * `reason`: Motivo detalhado do encaminhamento ao operador.
+  * `priority`: Nível de prioridade (`standard` ou `high` para órgãos regulatórios como Procon ou ouvidoria).
+  * `transcript`: Snapshot estruturado das últimas 20 mensagens da conversa contendo papéis `user` e `assistant` com dados sensíveis previamente sanitizados pelo guardrail (números de cartão e CPF mascarados).
+  * `status`: Estado atual no ciclo de vida do chamado.
+  * `operator_reply`, `operator_id`, `answered_at`: Resposta registrada pelo operador humano.
+* **Ciclo de Vida de Status**:
+  * Transições permitidas:
+    * `open` $\rightarrow$ `in_progress`, `answered`, `closed`
+    * `in_progress` $\rightarrow$ `answered`, `closed`
+    * `answered` $\rightarrow$ `closed`
+    * `closed` (estado terminal; não aceita reabertura nem novas respostas)
+* **Atualização por Operadores (`PATCH /tickets/{ticket_id}`)**:
+  * Exclusivo para credenciais com papel `operator` (requisições de clientes recebem HTTP 403 Forbidden).
+  * Permite atualizar o status ou registrar uma resposta (`reply`), o que transiciona o ticket para `answered` e registra o horário de resposta (`answered_at`) e o `operator_id`.
+  * Exemplo com `curl`:
+    ```bash
+    curl -X PATCH http://localhost:8000/tickets/GET-TKT-20261107-ABCD \
+      -H "X-API-Key: sua-chave-de-operador" \
+      -H "Content-Type: application/json" \
+      -d '{"reply": "Sua solicitação de alteração cadastral foi processada com sucesso."}'
+    ```
+* **Consulta pelo Cliente (`GET /tickets/{ticket_id}`)**:
+  * O lojista dono do chamado pode consultar o protocolo a qualquer momento e visualizar o `status`, o histórico enviado e a `operator_reply` fornecida pelo operador. A entrega automática da resposta do operador dentro do fluxo de chat será implementada na Fase 5B.
 
 ### Segurança, Autenticação, Isolamento & Sanitização de Dados Sensíveis (PII)
 * **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
