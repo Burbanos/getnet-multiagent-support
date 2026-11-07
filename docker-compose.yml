@@ -28,10 +28,8 @@ services:
       - DDGS_TIMEOUT=${DDGS_TIMEOUT:-8}
       - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
       - CONFIDENCE_THRESHOLD_ESCALATION=${CONFIDENCE_THRESHOLD_ESCALATION:-0.45}
-      - CHROMA_PERSIST_DIR=/app/chroma_db
     volumes:
       - tickets_data:/app/data
-      - chroma_data:/app/chroma_db
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\" || exit 1"]
       interval: 15s
@@ -42,5 +40,3 @@ services:
 volumes:
   tickets_data:
     name: getnet_tickets_data
-  chroma_data:
-    name: getnet_chroma_data

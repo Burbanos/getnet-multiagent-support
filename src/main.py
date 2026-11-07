@@ -47,7 +47,7 @@ class AgentMetadata(BaseModel):
     tool_calls: list[dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
     execution_time_ms: float = Field(..., description="Total execution latency in milliseconds")
     sources: list[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
-    retrieved_docs: list[dict[str, Any]] = Field(default_factory=list, description="ChromaDB vector retrieval results with cosine similarity")
+    retrieved_docs: list[dict[str, Any]] = Field(default_factory=list, description="Vector retrieval results with cosine similarity")
     ticket: dict[str, Any] | None = Field(default=None, description="Persisted support ticket if escalation occurred")
     llm_model: str | None = Field(default=None, description="Model identifier that produced the final response")
     tokens: dict[str, int] | None = Field(default=None, description="Token usage estimation")
@@ -203,7 +203,7 @@ async def list_agents():
             {
                 "name": "search_knowledge_base",
                 "specialist": "KnowledgeSpecialist",
-                "description": "RAG semântico ChromaDB (artigos Getnet)",
+                "description": "RAG vetorial semântico (páginas oficiais Getnet)",
                 "schema": "search_knowledge_base(query: str)",
             },
             {

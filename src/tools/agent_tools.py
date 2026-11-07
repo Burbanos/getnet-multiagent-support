@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from src.agents.knowledge import get_retriever
+import src.rag.retriever as rag_retriever
 from src.core.tickets_db import get_tickets_repository
 from src.tools.balance_tools import (
     get_declined_transaction_details,
@@ -74,51 +74,30 @@ def diagnose_terminal(serial_number: str | None = None, config: RunnableConfig =
 @tool
 def search_knowledge_base(query: str) -> str:
     """
-    Busca semântica vetorial na base de conhecimento oficial de manuais e produtos da Getnet.
-    Possui limiar de similaridade: se a dúvida não pertencer aos produtos Getnet, retorna abstenção.
-    Use sempre para tirar dúvidas sobre:
-    - Modelos de maquininhas Getnet (diferença entre Get Clássica e Get Smart, Get Mini, POS Digital)
-    - Recebimento de vendas via Pix e necessidade de conta bancária
-    - Como funciona a antecipação de recebíveis (automática vs avulsa)
-    - Vendas no crediário e parcelamento em até 36x
-    - Venda pelo WhatsApp com Link de Pagamento Getnet
-    - Taxas, bobinas, cancelamento e estorno
+    Busca trechos das páginas oficiais da Getnet com URL e data de coleta.
+    Retorna status 'success' com documentos relevantes, 'abstain' caso não encontre
+    informações suficientes acima do limiar de relevância, ou 'unavailable' caso o serviço esteja indisponível.
 
     Args:
-        query: Pergunta ou termos de busca sobre soluções e produtos Getnet.
+        query: Pergunta ou termos de busca sobre produtos, serviços e políticas Getnet.
     """
     logger.info(f"[Tool: search_knowledge_base] query='{query}'")
-    retriever = get_retriever()
-    docs = retriever.retrieve(query=query, top_k=3, threshold=0.20)
-
-    if not docs:
-        return json.dumps({
-            "status": "abstain",
-            "found": False,
-            "query": query,
-            "message": "Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet.",
-            "documents": []
-        }, ensure_ascii=False, indent=2)
-
-    return json.dumps({
-        "status": "success",
-        "found": True,
-        "query": query,
-        "count": len(docs),
-        "documents": [
+    try:
+        retriever = rag_retriever.get_knowledge_retriever()
+        result = retriever.search(query)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"[Tool: search_knowledge_base] Error querying knowledge retriever: {exc}")
+        return json.dumps(
             {
-                "id": d.get("id"),
-                "title": d.get("title"),
-                "category": d.get("category"),
-                "url": d.get("url"),
-                "content": d.get("content"),
-                "similarity": d.get("similarity", 0.0),
-                "distance": d.get("distance", 0.0),
-                "score": d.get("score", 0.0)
-            }
-            for d in docs
-        ]
-    }, ensure_ascii=False, indent=2)
+                "status": "unavailable",
+                "query": query,
+                "documents": [],
+                "error": type(exc).__name__,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
 
 @tool

@@ -35,6 +35,7 @@ def build_chunks(
     records: list[dict[str, Any]],
     max_chars: int = 900,
     boilerplate_min_pages: int = 4,
+    min_chars: int = 0,
 ) -> list[dict[str, Any]]:
     """
     Split clean 'ok' records into deterministic, verbatim text chunks.
@@ -42,6 +43,8 @@ def build_chunks(
     Filters boilerplate lines appearing in boilerplate_min_pages or more pages,
     empty lines, and lines without any alphanumeric character (e.g. '—').
     Groups remaining lines verbatim into chunks capped at max_chars characters.
+    If min_chars > 0, pages with less than min_chars of retained text are dropped,
+    and a trailing chunk smaller than min_chars is merged into the previous chunk.
     """
     ok_records = [r for r in records if r.get("status") == "ok"]
 
@@ -78,7 +81,13 @@ def build_chunks(
                 continue
             filtered_lines.append(line)
 
+        # Check min_chars requirement for the whole page
+        page_text_len = sum(len(line) for line in filtered_lines) + max(0, len(filtered_lines) - 1)
+        if min_chars > 0 and page_text_len < min_chars:
+            continue
+
         # Pack lines into chunks of up to max_chars characters
+        page_chunks: list[dict[str, Any]] = []
         chunk_idx = 0
         current_lines: list[str] = []
         current_len = 0
@@ -96,7 +105,7 @@ def build_chunks(
                     current_lines.append(line)
                     current_len = new_len
                 else:
-                    chunks.append(
+                    page_chunks.append(
                         _make_chunk(
                             current_lines,
                             chunk_idx,
@@ -112,7 +121,7 @@ def build_chunks(
                     current_len = line_len
 
         if current_lines:
-            chunks.append(
+            page_chunks.append(
                 _make_chunk(
                     current_lines,
                     chunk_idx,
@@ -123,5 +132,13 @@ def build_chunks(
                     fetched_at,
                 )
             )
+
+        # Merge trailing chunk shorter than min_chars into the previous chunk of the same page
+        if min_chars > 0 and len(page_chunks) > 1 and len(page_chunks[-1]["text"]) < min_chars:
+            short_tail = page_chunks.pop()
+            prev_chunk = page_chunks[-1]
+            prev_chunk["text"] = prev_chunk["text"] + "\n" + short_tail["text"]
+
+        chunks.extend(page_chunks)
 
     return chunks

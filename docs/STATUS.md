@@ -4,67 +4,63 @@
 
 ---
 
-### Fase 3B: Fragmentação, Índice de Embeddings e Retriever (Biblioteca)
+### Fase 3C: Ligação do RAG Real ao Knowledge Agent e Remoção da Base Antiga
 
-#### Verificação Fase 3B (`python scripts/verify_phase3b.py`):
+#### Verificação Fase 3C (`python scripts/verify_phase3c.py`):
 ```text
-PASS L1.settings
-PASS L2.get_embedder
-PASS L2.get_embedder_requires_key
-PASS L3.boilerplate_removed
-PASS L3.dash_lines_removed
-PASS L3.non_ok_ignored
-PASS L3.max_chars
-PASS L3.verbatim_lines
-PASS L3.deterministic_ids
-PASS L3.fields
-PASS L4.build_index
-PASS L4.load_rejects_mismatch
-PASS L4.search_sorted
-PASS L5.retriever_success
-PASS L5.retriever_abstain
-PASS L5.top_k
-PASS I1.index_files
-PASS I2.meta
-PASS I3.embeddings_shape
-PASS I4.chunk_fields
-PASS I5.chunk_provenance
-PASS I5.chunk_verbatim
-PASS I5.chunk_size
-PASS I6.no_boilerplate
-PASS I6.page_coverage
-PASS I7.embeddings_are_semantic :: intra=0.806 inter=0.685
+PASS S1.old_kb_removed
+PASS S2.legacy_removed
+PASS S3.requirements
+PASS S4.knowledge_prompt
+PASS S5.readme
+PASS R1.min_chunk_setting
+PASS R2.default_keeps_3b_behaviour
+PASS R2.tiny_page_dropped
+PASS R2.tail_merged
+PASS R3.committed_index_regenerated
+PASS R4.tool_description_has_no_facts
+PASS R4.tool_uses_retriever
+PASS R4.tool_abstains
+PASS K6.knowledge_flow_real_index
+PASS R5.tool_unavailable_without_key
+PASS R6.real_retriever_requires_key
+PASS R6.real_retriever_wiring
 PASS Q0.verify_phase2a
 PASS Q0.verify_phase2b
 PASS Q0.verify_phase2c
 PASS Q0.verify_phase2d
 PASS Q0.verify_phase2e
 PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 111 passed in 15.85s
+PASS Q2.pytest_offline_no_key :: 117 passed in 11.64s
 PASS Q3.tree_unchanged
 
-SUMMARY: 35/35 passed
+SUMMARY: 27/27 passed
 ```
 
-#### Commit Base da Fase 3B:
+#### Commit Base da Fase 3C:
 ```text
-fb0923f148e96a79c8b34ff55540966c445a88ea
+d89d2cbb90d04787552083501d82f66de0005ed6
 ```
 
-#### Testes Alterados e Criados na Fase 3B:
-1. `tests/test_rag_index.py` (novo, 11 testes unitários determinísticos e 100% offline com `FakeKeywordEmbedder`):
-   - `test_boilerplate_removal_and_dash_lines`: remoção de linhas de rodapé/boilerplate presentes em $\ge 4$ páginas e de linhas compostas apenas por traços/pontuação (ex.: "—").
-   - `test_non_ok_records_ignored`: registros com status diferente de "ok" ignorados na fragmentação.
-   - `test_chunk_size_capped_at_max_chars`: chunks respeitando o limite máximo de caracteres (900 chars).
-   - `test_chunk_lines_are_verbatim`: preservação estrita e verbatim das linhas originais da página fonte nos chunks.
-   - `test_chunk_id_deterministic_and_unique`: identificadores de chunk reproduzíveis e determinísticos (`{doc_sha256[:12]}-{idx:03d}`).
-   - `test_chunk_fields_completeness`: presença de todos os campos (`chunk_id`, `doc_url`, `title`, `market`, `fetched_at`, `doc_sha256`, `text`).
-   - `test_build_index_artifacts_and_normalization`: geração de `embeddings.npy` em float32 normalizado (norma L2 = 1.0), `chunks.jsonl` e `index_meta.json`.
-   - `test_vector_index_load_valid_and_mismatches`: carregamento do índice com validação de modelo e dimensões esperadas (levantando `ValueError` em caso de incompatibilidade).
-   - `test_vector_index_search_cosine_ordering`: ordenação decrescente por similaridade de cosseno nas buscas do índice.
-   - `test_retriever_success_abstain_and_top_k`: retorno formatado com documentos relevantes em caso de score $\ge min\_score$, abstenção explícita (`status: "abstain"`) quando abaixo do limiar e respeito a `top_k`.
-   - `test_get_embedder_configuration`: `get_embedder` levanta `LLMNotConfiguredError` se `GEMINI_API_KEY` não estiver definida, e constrói `GoogleGenerativeAIEmbeddings` com modelo, dimensão e task type corretos quando configurada.
+#### Testes Alterados, Reescritos e Criados na Fase 3C:
+1. `tests/test_knowledge_rag.py` (novo, 7 testes):
+   - `test_search_knowledge_base_success`: ferramenta retorna status "success" com documentos oficiais e todos os campos (`url`, `title`, `fetched_at`, `market`, `chunk_id`, `score`, `text`).
+   - `test_search_knowledge_base_abstain`: ferramenta retorna status "abstain" com lista vazia de documentos quando o score está abaixo de `min_score`.
+   - `test_search_knowledge_base_unavailable_on_retriever_exception`: conversão de qualquer exceção interna (ex.: `LLMNotConfiguredError`) em status `"unavailable"` sem quebrar o grafo.
+   - `test_supervisor_knowledge_flow_extracts_source_url`: fluxo integrado Supervisor -> KnowledgeAgent -> search_knowledge_base preenchendo `state.sources` com a URL oficial da página.
+   - `test_build_chunks_with_min_chars`: validação do parâmetro `min_chars=120`, descartando páginas curtas (<120 chars) e mesclando caudas curtas ao trecho anterior da mesma página.
+   - `test_get_knowledge_retriever_without_key_raises_error`: `get_knowledge_retriever()` levanta `LLMNotConfiguredError` se `GEMINI_API_KEY` não estiver definida.
+   - `test_get_knowledge_retriever_loads_committed_index`: com chave configurada, instancia singleton com as configurações ativas (`RAG_MIN_SCORE`, `RAG_TOP_K`, `task_type="RETRIEVAL_QUERY"`).
+2. `tests/test_unit.py` (reescritos):
+   - `test_retriever_loads_documents`: reescrito para verificar o carregamento de trechos pelo `get_knowledge_retriever()` da biblioteca.
+   - `test_retriever_matches_pix_bank_account`, `test_retriever_matches_antecipacao`, `test_retriever_matches_crediario`, `test_retriever_matches_wifi`: reescritos para consultar o retriever novo e validar a presença das URLs oficiais em `documents`.
+   - `test_retriever_matches_classica_smart` e `test_retriever_matches_payment_link`: substituídos pela validação de modelos e link pelo retriever novo.
+   - `test_rag_abstention_out_of_domain`: reescrito para testar abstenção vetorial com o novo contrato de retorno (`status: "abstain"`, `documents: []`).
+3. `tests/conftest.py` (atualizado):
+   - Removida a importação legada `from src.agents.knowledge import get_retriever` e a fixture `retriever`.
+   - Criada a fixture autouse `mock_knowledge_retriever` que indexa trechos oficiais de teste em diretório temporário com `KeywordFakeEmbedder` e intercepta `src.rag.retriever.get_knowledge_retriever`.
 
 ---
 
@@ -125,12 +121,13 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ---
 
-### 7. Higienização e Refatoração de Testes (Fases 1A a 3B)
+### 7. Higienização e Refatoração de Testes (Fases 1A a 3C)
 
-**Total atual de testes**: 111 testes aprovados e 100% offline (`verify_nonet`).
+**Total atual de testes**: 117 testes aprovados e 100% offline (`verify_nonet`).
 
-- **Fase 3B**: 11 novos testes em `tests/test_rag_index.py` cobrindo fragmentação com remoção de boilerplate, filtro de linhas de pontuação, normalização L2 e persistência do índice vetorial (`embeddings.npy`, `chunks.jsonl`, `index_meta.json`), busca por cosseno e abstenção formal do retriever.
-- **Fase 3A**: 12 novos testes em `tests/test_ingest.py` cobrindo conformidade ética de robots.txt, RFC 9309 (404 permitido, 5xx restrito), rate limiting por host, isolamento de domínios na allowlist, extração e limpeza de tags HTML e persistência do corpus.
+- **Fase 3C**: 7 novos testes em `tests/test_knowledge_rag.py` cobrindo o fluxo integrado do Knowledge Agent com o novo retriever, extração de URL e metadados, abstenção e indisponibilidade sem interrupção do grafo, além da refatoração completa dos testes unitários legados de `test_unit.py` e remoção da base legada ChromaDB.
+- **Fase 3B**: 11 novos testes em `tests/test_rag_index.py`.
+- **Fase 3A**: 12 novos testes em `tests/test_ingest.py`.
 - **Fase 2E**: 9 novos testes em `tests/test_tokens_and_tools.py`.
 - **Fase 2D**: 10 novos testes em `tests/test_specialists.py` e adaptação do fluxo hierárquico nos testes de integração.
 - **Fase 2C**: 9 testes de integração de provedores em `tests/test_providers.py`.
@@ -143,50 +140,42 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ### 8. Verificação e Saídas Oficiais
 
-#### Verificação Fase 3B (`python scripts/verify_phase3b.py`):
+#### Verificação Fase 3C (`python scripts/verify_phase3c.py`):
 ```text
-PASS L1.settings
-PASS L2.get_embedder
-PASS L2.get_embedder_requires_key
-PASS L3.boilerplate_removed
-PASS L3.dash_lines_removed
-PASS L3.non_ok_ignored
-PASS L3.max_chars
-PASS L3.verbatim_lines
-PASS L3.deterministic_ids
-PASS L3.fields
-PASS L4.build_index
-PASS L4.load_rejects_mismatch
-PASS L4.search_sorted
-PASS L5.retriever_success
-PASS L5.retriever_abstain
-PASS L5.top_k
-PASS I1.index_files
-PASS I2.meta
-PASS I3.embeddings_shape
-PASS I4.chunk_fields
-PASS I5.chunk_provenance
-PASS I5.chunk_verbatim
-PASS I5.chunk_size
-PASS I6.no_boilerplate
-PASS I6.page_coverage
-PASS I7.embeddings_are_semantic :: intra=0.806 inter=0.685
+PASS S1.old_kb_removed
+PASS S2.legacy_removed
+PASS S3.requirements
+PASS S4.knowledge_prompt
+PASS S5.readme
+PASS R1.min_chunk_setting
+PASS R2.default_keeps_3b_behaviour
+PASS R2.tiny_page_dropped
+PASS R2.tail_merged
+PASS R3.committed_index_regenerated
+PASS R4.tool_description_has_no_facts
+PASS R4.tool_uses_retriever
+PASS R4.tool_abstains
+PASS K6.knowledge_flow_real_index
+PASS R5.tool_unavailable_without_key
+PASS R6.real_retriever_requires_key
+PASS R6.real_retriever_wiring
 PASS Q0.verify_phase2a
 PASS Q0.verify_phase2b
 PASS Q0.verify_phase2c
 PASS Q0.verify_phase2d
 PASS Q0.verify_phase2e
 PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 111 passed in 15.85s
+PASS Q2.pytest_offline_no_key :: 117 passed in 11.64s
 PASS Q3.tree_unchanged
 
-SUMMARY: 35/35 passed
+SUMMARY: 27/27 passed
 ```
 
 #### Execução da Suíte Pytest (`python -m pytest -q`):
 ```text
-111 passed in 15.85s
+117 passed in 11.64s
 ```
 
 #### Linting (`python -m ruff check .`):
@@ -196,9 +185,10 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3C
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3D
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final permanece delegado para ser gerado em ambiente Linux/container pelo usuário para compatibilidade com bibliotecas dependentes de SO (`uvloop`).
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
-3. **Índice Commitado de Embeddings**: O índice oficial gerado com `gemini-embedding-2` contém 94 chunks a partir das 30 páginas oficiais, com discriminação semântica confirmada (`intra=0.806` vs `inter=0.685`). Os arquivos `data/index/{chunks.jsonl, embeddings.npy, index_meta.json}` encontram-se commitados e versionados.
-4. **Próxima Fase (Fase 3C: Integração do Retriever aos Agentes)**: Conectar o novo `Retriever` da biblioteca ao `KnowledgeAgent` (`src/agents/knowledge.py` e `src/tools/agent_tools.py`), aposentando a base estática legada `data/getnet_kb.json` e o ChromaDB provisório.
+3. **Índice Commitado Regenerado**: O índice foi reconstruído com `RAG_MIN_CHUNK_CHARS = 120`, consolidando 92 chunks a partir das 30 páginas oficiais, sem nenhum trecho menor que 120 caracteres (`chunks.jsonl`, `embeddings.npy`, `index_meta.json`).
+4. **Descontinuação Completa do ChromaDB**: Todo o código legado em `src/agents/knowledge.py`, `data/getnet_kb.json`, dependência `chromadb` em `requirements.txt`, volume e variáveis no `docker-compose.yml` foram integralmente expurgados do repositório.
+5. **Próxima Fase (Fase 3D: Avaliação e Calibração Paramétrica do RAG)**: Criação de dataset rotulado com $\ge 30$ queries (in- e out-of-domain, PT e EN), calibração empírica do limiar `RAG_MIN_SCORE` e geração de relatórios de métricas (hit@k, MRR, precision/recall de abstenção) em `reports/`.

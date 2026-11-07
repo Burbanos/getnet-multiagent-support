@@ -147,7 +147,12 @@ def main() -> None:
     ok_pages = [p for p in pages if p.get("status") == "ok"]
 
     corpus_sha = hashlib.sha256("".join(p["sha256"] for p in ok_pages).encode("utf-8")).hexdigest()
-    chunks = build_chunks(ok_pages, max_chars=900, boilerplate_min_pages=4)
+    chunks = build_chunks(
+        ok_pages,
+        max_chars=900,
+        boilerplate_min_pages=4,
+        min_chars=settings.RAG_MIN_CHUNK_CHARS,
+    )
 
     embedder = get_embedder("RETRIEVAL_DOCUMENT")
     meta = build_index(

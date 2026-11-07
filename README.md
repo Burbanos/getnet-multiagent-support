@@ -3,13 +3,12 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.2%2B-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5%2B-purple.svg)](https://www.trychroma.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-tickets.db-blue.svg)](https://www.sqlite.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Supervisor%20ReAct-blueviolet.svg)]()
 [![Auth](https://img.shields.io/badge/auth-X--API--Key-blue.svg)]()
 [![Security](https://img.shields.io/badge/security-PII%20Luhn%20%2B%20non--root-success.svg)]()
 
-Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com declaração de ferramentas**, persistência conversacional multi-turn via **LangGraph MemorySaver**, base de conhecimento vetorial **ChromaDB com limiar de relevância**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e cálculo de custo por tokens**, avaliação de acurácia de roteamento e persistência de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
+Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com declaração de ferramentas**, persistência conversacional multi-turn via **LangGraph MemorySaver**, base de conhecimento vetorial **índice de embeddings com limiar de relevância**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e cálculo de custo por tokens**, avaliação de acurácia de roteamento e persistência de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
 
 ---
 
@@ -33,7 +32,7 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
   * **Consumo Estimado de Tokens** dividido em `Prompt`, `Completion` e `Total`.
   * **Custo Financeiro Estimado em USD** baseado na tabela oficial de tokens.
   * **Latência em milissegundos** (`execution_time_ms`) com alta performance.
-  * **Confiança Dinâmica** por similaridade do ChromaDB ou execução de tool.
+  * **Confiança Dinâmica** por similaridade de embeddings ou execução de tool.
   * **Auditoria de Guardrails** (`is_safe`, detecção de PII mascarada e injeção de prompt).
   * **Rastreabilidade de Chamados SQLite** com link direto para o endpoint `GET /tickets/{ticket_id}`.
   * **Payload JSON Integral** colapsável para inspeção por avaliadores técnicos.
@@ -134,7 +133,7 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 | `ask_knowledge_agent` | Supervisor | Delega perguntas sobre produtos Getnet ou dados públicos em tempo real ao KnowledgeAgent |
 | `ask_support_agent` | Supervisor | Delega solicitações de conta de lojista ao Customer Support Agent |
 | `escalate_to_human` | Supervisor | Cria chamado humano persistido em `tickets.db` |
-| `search_knowledge_base` | KnowledgeAgent | Busca vetorial semântica no ChromaDB (`data/getnet_kb.json`) com limiar |
+| `search_knowledge_base` | KnowledgeAgent | Busca vetorial semântica no índice oficial (gemini-embedding-2) com limiar |
 | `search_web` | KnowledgeAgent | Busca pública em tempo real (DuckDuckGo) |
 | `get_settlement_status` | SupportAgent | Consulta extrato e valores com mascaramento bancário de conta de destino |
 | `diagnose_declined_transaction` | SupportAgent | Diagnóstico de transações negadas pelo emissor |
@@ -145,7 +144,7 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 ## 2. Pilares de Engenharia e Diferenciais
 
 ### Orquestração Agêntica ReAct
-* **Métrica de Confiança**: A métrica de confiança exibida na telemetria reflete o score calculado pelo ChromaDB sobre os vetores de contexto recuperados ou a precisão da ferramenta especializada acionada.
+* **Métrica de Confiança**: A métrica de confiança exibida na telemetria reflete o score calculado sobre os vetores de contexto recuperados ou a precisão da ferramenta especializada acionada.
 * **Ciclo ReAct Estruturado**: O Supervisor emite chamadas estruturadas de ferramentas no estado do grafo, o ToolNode executa a ferramenta populando ToolMessage e retorna ao Supervisor para observação e síntese.
 
 ### Memória Persistente Multi-Turn (LangGraph MemorySaver)
@@ -153,14 +152,17 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 * As sessões são indexadas por `thread_id` (correspondente ao `session_id` da requisição HTTP).
 * O assistente mantém contexto entre turnos de diálogo: uma pergunta de acompanhamento (ex: *"E qual delas tem tela touch com Android?"*) reaproveita o contexto histórico do turno anterior sem exigir que o lojista repita os modelos.
 
-### RAG Vetorial e Pipeline de Conhecimento (Fase 3B)
+### RAG Vetorial e Pipeline de Conhecimento (Fase 3C)
+* **Knowledge Agent Conectado ao Índice Real**:
+  O `KnowledgeAgent` agora realiza consultas semânticas reais diretamente sobre o índice vetorial em `data/index`, gerado pelo modelo `gemini-embedding-2` (768 dimensões). Cada fato respondido referencia a URL da fonte oficial e a data de coleta (`fetched_at`). Quando não há trechos suficientes que superem o limiar de relevância, o retriever abstém-se formalmente (`status: "abstain"`), prevenindo respostas especulativas.
+* **Por que trocamos a base**:
+  A base antiga era um arquivo JSON escrito à mão (`getnet_kb.json`) que continha informações desatualizadas ou imprecisas. Um exemplo verificável: a base antiga afirmava que o parcelamento no crediário era em até 36x, enquanto a documentação oficial na página https://site.getnet.com.br/crediario/ estabelece parcelamento em até 48x (com a ressalva de que as condições variam conforme o emissor do cartão). Com a ingestão automatizada e o novo índice vetorial, o assistente passa a responder estritamente embasado nos documentos oficiais coletados.
 * **Pipeline Oficial de RAG**:
   1. **Ingestão (`src/rag/ingest.py`)**: Coleta ética de fontes oficiais (`data/sources.yaml`), respeitando `robots.txt` e gerando o corpus em `data/corpus/pages.jsonl`.
-  2. **Fragmentação (`src/rag/chunking.py`)**: Filtra linhas de boilerplate (repetidas em $\ge 4$ páginas), linhas sem caracteres alfanuméricos e agrupa as linhas restantes na ordem original (verbatim) em chunks limitados a 900 caracteres.
-  3. **Geração de Embeddings (`src/core/llm.py`)**: Utiliza o modelo `gemini-embedding-2` com 768 dimensões, configurando a tarefa adequada para cada contexto: `RETRIEVAL_DOCUMENT` para indexação de chunks e `RETRIEVAL_QUERY` para consultas em tempo de execução.
+  2. **Fragmentação (`src/rag/chunking.py`)**: Filtra linhas de boilerplate (repetidas em $\ge 4$ páginas), linhas sem caracteres alfanuméricos, descarta páginas com menos de 120 caracteres de conteúdo retido e agrupa as linhas restantes na ordem original (verbatim) em chunks de até 900 caracteres, anexando caudas curtas (< 120 chars) ao trecho anterior.
+  3. **Geração de Embeddings (`src/core/llm.py`)**: Utiliza o modelo `gemini-embedding-2` com 768 dimensões, configurando `RETRIEVAL_DOCUMENT` para indexação de chunks e `RETRIEVAL_QUERY` para consultas em tempo de execução.
   4. **Índice Vetorial Commitado (`src/rag/index.py`)**: Vetores com normalização L2 persistidos em `data/index/embeddings.npy` (float32), metadados em `data/index/index_meta.json` e chunks em `data/index/chunks.jsonl`.
-  5. **Retriever e Abstenção (`src/rag/retriever.py`)**: Busca por similaridade de cosseno com limiar de corte (`RAG_MIN_SCORE = 0.60`). Se a melhor pontuação for inferior ao limiar ou não houver resultados, o retriever abstém-se formalmente (`status: "abstain"` com lista vazia de documentos), prevenindo alucinações.
-* **Transição e Próximos Passos**: O limiar atual de `0.60` é provisório até a calibração empírica da Fase 3D. A integração completa deste novo retriever ao `KnowledgeAgent` será implementada na Fase 3C (atualmente o agente segue usando `data/getnet_kb.json`).
+  5. **Retriever e Abstenção (`src/rag/retriever.py`)**: Busca por similaridade de cosseno com limiar de corte (`RAG_MIN_SCORE = 0.60`). O limiar atual de `0.60` continua provisório até a calibração empírica da Fase 3D.
 
 ### Fontes de Dados e Corpus Oficial (Fase 3A)
 * **Política de Fontes Oficiais**:
@@ -173,7 +175,6 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
   ```bash
   python -m src.rag.ingest
   ```
-* **Transição Gradual**: O retriever em produção continua consultando `data/getnet_kb.json` até a implementação da nova indexação vetorial e chunking na Fase 3B.
 
 ### Transbordo Humano Real com SQLite (tickets.db)
 * **Zero Falsas Promessas**: Eliminação de frases enganosas como *"Tempo estimado de espera: Menos de 5 minutos"* ou *"Fila prioritária"*.
@@ -310,7 +311,7 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 
 | ID | Pergunta de Avaliação | Ferramenta Acionada (ReAct) | Fonte / Evidência | Status |
 | :-: | :--- | :--- | :--- | :-: |
-| 1 | *"What's the difference between the Get Clássica and the Get Smart?"* | `search_knowledge_base` | Artigo `kb_get_classica_vs_smart` (ChromaDB) | Aprovado |
+| 1 | *"What's the difference between the Get Clássica and the Get Smart?"* | `search_knowledge_base` | Índice oficial `site.getnet.com.br` | Aprovado |
 | 2 | *"What's the weather forecast in Porto Alegre tomorrow?"* | `search_web` | DuckDuckGo Real-Time Search | Aprovado |
 | 3 | *"When will the money from yesterday's sales be deposited?"* | `get_settlement_status` | R$ 3.367,20 líquido, depósito Hoje Santander D+1 | Aprovado |
 | 4 | *"Do I need a bank account to receive my sales via Pix?"* | `search_knowledge_base` | Artigo `kb_pix_getnet` (QR Code Dinâmico) | Aprovado |
@@ -318,7 +319,7 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 | 6 | *"How does receivables advance (antecipação) work with Getnet?"* | `search_knowledge_base` | Artigo `kb_antecipacao_recebiveis` (Automática vs Avulsa) | Aprovado |
 | 7 | *"What's the euro exchange rate today?"* | `search_web` | DuckDuckGo Real-Time Search | Aprovado |
 | 8 | *"My card machine is showing a transaction decline error."* | `diagnose_declined_transaction` | Código 51 (Saldo Insuficiente) no emissor | Aprovado |
-| 9 | *"How many installments can I split a sale into with the crediário?"* | `search_knowledge_base` | Artigo `kb_crediario` (Parcelamento 24x e 36x) | Aprovado |
+| 9 | *"How many installments can I split a sale into with the crediário?"* | `search_knowledge_base` | Índice oficial (Parcelamento em até 48x) | Aprovado |
 | 10 | *"Can I sell through WhatsApp using the Payment Link?"* | `search_knowledge_base` | Artigo `kb_link_pagamento_whatsapp` (App Getnet) | Aprovado |
 
 ---
@@ -326,13 +327,13 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 ## 6. Glossário de Defesa Técnica (Perguntas de Entrevista)
 
 ### 1. "A UI mostra uma confiança na resposta. Como esse número é calculado?"
-> **Defesa**: *"A métrica de confiança exibida no inspetor de telemetria reflete o score calculado pelo ChromaDB sobre os vetores de contexto recuperados. Quando o lojista faz uma pergunta operacional atendida por ferramentas transacionais (como liquidação financeira ou diagnóstico do POS), a confiança reflete 100% de precisão determinística oriunda do banco de dados oficial."*
+> **Defesa**: *"A métrica de confiança exibida no inspetor de telemetria reflete o score calculado sobre os vetores de contexto recuperados. Quando o lojista faz uma pergunta operacional atendida por ferramentas transacionais (como liquidação financeira ou diagnóstico do POS), a confiança reflete 100% de precisão determinística oriunda do banco de dados oficial."*
 
 ### 2. "O que o modelo/Supervisor decide no sistema, além de sintetizar a resposta?"
 > **Defesa**: *"O Supervisor é o tomador de decisão do loop ReAct. Ele consome o histórico da conversa e os schemas tipados das ferramentas, decide qual ferramenta invocar com quais argumentos, avalia a observação retornada no estado do grafo e decide se necessita de novos passos ou se já possui evidências suficientes para emitir a resposta final."*
 
 ### 3. "De onde veio a base de conhecimento e como é garantido que ela não inventa dados fora de domínio?"
-> **Defesa**: *"A base em `data/getnet_kb.json` reúne manuais e documentações da Getnet com metadados de categoria e URLs de referência. Implementamos um limiar de abstenção paramétrico no ChromaDB: se a pergunta for fora de domínio, o agente abstém-se explicitamente de opinar, indicando os canais oficiais."*
+> **Defesa**: *"O corpus em `data/corpus/` reúne páginas oficiais da Getnet coletadas eticamente com conformidade estrita de robots.txt, fragmentadas em chunks e indexadas com embeddings normalizados em `data/index/`. Implementamos um limiar de abstenção paramétrico: se a pergunta for fora de domínio ou a melhor pontuação não atingir o limiar, o retriever e o agente abstêm-se explicitamente de opinar."*
 
 ### 4. "O que acontece quando o usuário pede atendimento humano? Onde o caso é gravado e quem o recebe?"
 > **Defesa**: *"Não prometemos filas fictícias nem tempos de espera irreais de 'menos de 5 minutos'. A ferramenta `escalate_to_human` grava um registro real no banco SQLite `data/tickets.db` com protocolo estruturado `GET-TKT-YYYYMMDD-XXXX`, status aberto, motivo e timestamp. Qualquer operador ou sistema de atendimento pode auditar e consumir o ticket em tempo real via endpoint `GET /tickets/{ticket_id}`."*
@@ -350,14 +351,19 @@ getnet-multiagent-support/
 │   └── workflows/
 │       └── ci.yml                 # Pipeline de Integração Contínua (GitHub Actions)
 ├── data/
-│   ├── getnet_kb.json             # Base de conhecimento provisória de artigos Getnet
-│   └── eval_dataset.json          # Dataset de avaliação com 12 pares rotulados
+│   ├── corpus/                # Páginas oficiais Getnet e manifest.json
+│   ├── index/                 # Índice de embeddings (chunks.jsonl, embeddings.npy, index_meta.json)
+│   └── eval_dataset.json      # Dataset de avaliação com 12 pares rotulados
 ├── src/
-│   ├── main.py                    # Servidor FastAPI com endpoints /chat, /tickets e lifecycles
-│   ├── config.py                  # Pydantic Settings e configuração de log estruturado JSON
+│   ├── main.py                # Servidor FastAPI com endpoints /chat, /tickets e lifecycles
+│   ├── config.py              # Pydantic Settings e configuração de log estruturado JSON
 │   ├── agents/
-│   │   ├── guardrails.py          # Sanitização PII (Luhn PAN + CPF) e bloqueio de injeções
-│   │   └── knowledge.py           # RAG vetorial ChromaDB com limiar explícito de abstenção
+│   │   └── guardrails.py      # Sanitização PII (Luhn PAN + CPF) e bloqueio de injeções
+│   ├── rag/
+│   │   ├── ingest.py          # Coleta ética de fontes com robots.txt
+│   │   ├── chunking.py        # Fragmentação com remoção de boilerplate e caudas
+│   │   ├── index.py           # Vetorização e persistência de embeddings
+│   │   └── retriever.py       # Busca vetorial com abstenção formal
 │   ├── core/
 │   │   ├── graph.py               # Grafo LangGraph Supervisor ReAct com MemorySaver
 │   │   ├── llm.py                 # Provedor do modelo ChatGoogleGenerativeAI e tratamento de erros

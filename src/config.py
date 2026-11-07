@@ -34,13 +34,11 @@ class Settings(BaseSettings):
     WEB_SEARCH_ENABLED: bool = True
     WEB_SEARCH_MAX_RESULTS: int = 3
     DDGS_TIMEOUT: int = 8
-    KB_DATA_PATH: str = "data/getnet_kb.json"
-    CHROMA_PERSIST_DIR: str = ""
-
     EMBEDDING_MODEL: str = "gemini-embedding-2"
     EMBEDDING_DIM: int = 768
     RAG_TOP_K: int = 4
     RAG_MIN_SCORE: float = 0.60
+    RAG_MIN_CHUNK_CHARS: int = 120
     INDEX_DIR: str = "data/index"
 
     ENABLE_GUARDRAILS: bool = True

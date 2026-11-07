@@ -25,3 +25,20 @@ class ScriptedChatModel(BaseChatModel):
     @property
     def _llm_type(self) -> str:
         return "scripted-fake"
+
+
+class KeywordFakeEmbedder:
+    """Deterministic keyword count fake embedder for testing."""
+
+    def __init__(self, keywords: list[str]) -> None:
+        self.keywords = keywords
+
+    def _vec(self, text: str) -> list[float]:
+        t = text.lower()
+        return [float(t.count(k)) for k in self.keywords] + [0.01]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._vec(t) for t in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._vec(text)

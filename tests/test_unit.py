@@ -5,7 +5,6 @@ from langchain_core.messages import AIMessage
 
 import src.core.graph as graph_mod
 from src.agents.guardrails import GuardrailAgent
-from src.agents.knowledge import get_retriever
 from src.core.graph import OrchestrationGraph
 from src.core.state import AgentRole, AgentState
 from src.tools.balance_tools import (
@@ -141,46 +140,45 @@ def test_web_search_tool():
 
 
 def test_retriever_loads_documents():
-    retriever = get_retriever()
-    assert len(retriever.documents) >= 5
-
-
-def test_retriever_matches_classica_smart():
-    retriever = get_retriever()
-    docs = retriever.retrieve("What's the difference between the Get Clássica and the Get Smart?", top_k=2)
-    assert len(docs) >= 1
-    top_doc = docs[0]
-    assert "kb_get_classica_vs_smart" == top_doc["id"]
-    assert "Clássica" in top_doc["title"]
-    assert "Smart" in top_doc["title"]
+    from src.rag.retriever import get_knowledge_retriever
+    retriever = get_knowledge_retriever()
+    assert len(retriever.index.chunks) >= 4
 
 
 def test_retriever_matches_pix_bank_account():
-    retriever = get_retriever()
-    docs = retriever.retrieve("Do I need a bank account to receive my sales via Pix?", top_k=2)
-    assert len(docs) >= 1
-    assert "kb_pix_getnet" == docs[0]["id"]
+    from src.rag.retriever import get_knowledge_retriever
+    retriever = get_knowledge_retriever()
+    res = retriever.search("Venda com Pix na maquininha")
+    assert res["status"] == "success"
+    assert len(res["documents"]) >= 1
+    assert "/pix/" in res["documents"][0]["url"]
 
 
 def test_retriever_matches_antecipacao():
-    retriever = get_retriever()
-    docs = retriever.retrieve("How does receivables advance antecipação work with Getnet?", top_k=2)
-    assert len(docs) >= 1
-    assert "kb_antecipacao_recebiveis" == docs[0]["id"]
+    from src.rag.retriever import get_knowledge_retriever
+    retriever = get_knowledge_retriever()
+    res = retriever.search("Como funciona a antecipação de recebíveis com a Getnet?")
+    assert res["status"] == "success"
+    assert len(res["documents"]) >= 1
+    assert "antecipacao" in res["documents"][0]["url"]
 
 
 def test_retriever_matches_crediario():
-    retriever = get_retriever()
-    docs = retriever.retrieve("How many installments can I split a sale into with the crediário?", top_k=2)
-    assert len(docs) >= 1
-    assert "kb_crediario" == docs[0]["id"]
+    from src.rag.retriever import get_knowledge_retriever
+    retriever = get_knowledge_retriever()
+    res = retriever.search("Em quantas parcelas posso vender no crediário?")
+    assert res["status"] == "success"
+    assert len(res["documents"]) >= 1
+    assert "crediario" in res["documents"][0]["url"]
 
 
-def test_retriever_matches_payment_link():
-    retriever = get_retriever()
-    docs = retriever.retrieve("Can I sell through WhatsApp using the Payment Link?", top_k=2)
-    assert len(docs) >= 1
-    assert "kb_link_pagamento_whatsapp" == docs[0]["id"]
+def test_retriever_matches_wifi():
+    from src.rag.retriever import get_knowledge_retriever
+    retriever = get_knowledge_retriever()
+    res = retriever.search("Como configurar a rede Wi-Fi da maquininha?")
+    assert res["status"] == "success"
+    assert len(res["documents"]) >= 1
+    assert "wi-fi" in res["documents"][0]["url"]
 
 
 @pytest.mark.asyncio
@@ -227,34 +225,43 @@ def test_terminal_troubleshooting_steps_no_numeric_prefix():
 
 
 def test_rag_abstention_out_of_domain():
-    """Verify that out-of-domain queries properly trigger mathematical vector abstention (<0.35 similarity)."""
+    """Verify that out-of-domain queries properly trigger retriever abstention."""
     import json
 
-    from src.agents.knowledge import get_retriever
+    from src.rag.retriever import get_knowledge_retriever
     from src.tools.agent_tools import search_knowledge_base
 
-    retriever = get_retriever()
+    retriever = get_knowledge_retriever()
     # 1. Query: tractor motor
     out_of_domain = "Como consertar o motor diesel de uma colheitadeira John Deere?"
-    docs = retriever.retrieve(out_of_domain, top_k=3, threshold=0.20)
-    assert len(docs) == 0, f"Expected 0 documents due to threshold abstention, got {len(docs)}"
+    res1 = retriever.search(out_of_domain)
+    assert res1["status"] == "abstain"
+    assert len(res1["documents"]) == 0
 
-    # 2. Query: chocolate cake (stopwords 'como' and 'de' must not match kb_pix_getnet)
+    # 2. Query: chocolate cake
     cake_query = "Como fazer um bolo de chocolate fofinho?"
-    cake_docs = retriever.retrieve(cake_query, top_k=3, threshold=0.20)
-    assert len(cake_docs) == 0, f"Expected 0 documents for cake recipe, got {len(cake_docs)}"
+    res2 = retriever.search(cake_query)
+    assert res2["status"] == "abstain"
+    assert len(res2["documents"]) == 0
 
     # Tool invocation verification
     raw_tool_result = search_knowledge_base.invoke({"query": cake_query})
     parsed = json.loads(raw_tool_result)
     assert parsed["status"] == "abstain"
-    assert parsed["found"] is False
-    assert "Não foram encontradas informações oficiais" in parsed["message"]
+    assert parsed["documents"] == []
 
     # End-to-end Supervisor synthesis verification with ScriptedChatModel
     fake = ScriptedChatModel(
         responses=[
-            AIMessage(content="", tool_calls=[{"name": "search_knowledge_base", "args": {"query": cake_query}, "id": "cake-call"}]),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "ask_knowledge_agent", "args": {"question": cake_query}, "id": "ask-k"}],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "search_knowledge_base", "args": {"query": cake_query}, "id": "cake-call"}],
+            ),
+            AIMessage(content="Informação não encontrada nas fontes oficiais da Getnet."),
             AIMessage(content="Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."),
         ]
     )
