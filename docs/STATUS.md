@@ -4,6 +4,78 @@
 
 ---
 
+### Fase 5B: Portão de Transbordo (Handoff Gate) e Entrega de Resposta no Chat
+
+#### Verificação Fase 5B (`python scripts/verify_phase5b.py`):
+```text
+PASS S1.readme
+PASS S2.supervisor_prompt
+PASS S3.no_interrupt_left_half_done
+PASS R0.api
+PASS R0.fixed_messages_no_promises
+PASS T1.ticket_id_entropy
+PASS T2.owner_required
+PASS T3.conditional_update
+PASS T4.mark_delivered_once
+PASS F1.pending_set
+PASS F2.pending_turn_no_llm
+PASS F2.message_masked_and_kept
+PASS F3.reply_delivered_once
+PASS F4.normal_service_after_delivery
+PASS F5.closed_without_reply_resumes
+PASS F6.reply_then_closed_still_delivered
+PASS F7.pending_is_per_user
+PASS F8.forced_escalation_sets_pending
+PASS F9.failed_ticket_no_pending
+PASS F10.guardrail_runs_before_gate
+PASS F11.pending_survives_restart
+PASS A1.api_handoff_metadata
+PASS Q0.handoff_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 160 passed in 17.01s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 39/39 passed
+```
+
+#### Commit Base da Fase 5B (`git rev-parse HEAD`):
+```text
+31a18ece1de77d52a4ad1821691afa13558ca5c7
+```
+
+#### Testes Criados na Fase 5B:
+`tests/test_handoff.py` (12 novos testes unitários):
+- `test_ticket_creates_pending_ticket_id`: valida que a criação de ticket define `pending_ticket_id` no estado conversacional do checkpointer.
+- `test_pending_turn_returns_fixed_message_without_llm_and_masks_pii`: valida que mensagem com ticket aberto devolve mensagem fixa sem chamar o LLM (`llm_model: None`, `tokens: None`), atribuindo `agent_type = "HumanHandoff"`, e mascara dados sensíveis (PII de cartão) gravando na memória.
+- `test_operator_reply_delivered_once_and_marks_delivered`: valida entrega única da resposta do operador com prefixo padronizado, gravação de `delivered_at` no SQLite, limpeza de `pending_ticket_id` e status `delivered`.
+- `test_normal_service_resumes_after_delivery`: valida retorno automático ao fluxo padrão do assistente nos turnos seguintes à entrega da resposta humana (`handoff: None`, chamada normal ao LLM).
+- `test_closed_without_reply_resumes_normal_service`: valida que fechamento do ticket sem resposta pelo operador limpa a pendência, define `handoff: {"status": "resumed"}` e roteia no mesmo turno para o supervisor do bot.
+- `test_reply_then_closed_before_delivery_still_delivered`: valida que ticket respondido e posteriormente fechado antes da visualização pelo cliente ainda entrega a resposta humana (`status: "delivered"`).
+- `test_pending_ticket_isolated_per_user`: valida que `pending_ticket_id` permanece estritamente isolado por usuário mesmo compartilhando o mesmo `session_id`.
+- `test_forced_escalation_sets_pending_ticket_id`: valida que o escalonamento forçado por excesso de passos (`MAX_SUPERVISOR_STEPS`) também define `pending_ticket_id`.
+- `test_failed_ticket_creation_does_not_set_pending`: valida que falhas de persistência na criação de chamados não definem `pending_ticket_id` no estado.
+- `test_guardrail_blocks_before_handoff_gate`: valida que o nó do guardrail executa antes do portão de transbordo e bloqueia injeções de prompt imediatamente sem acionar o portão.
+- `test_pending_ticket_survives_restart_with_sqlite_checkpointer`: valida que a pendência do chamado sobrevive a reinicializações completas do serviço através do checkpointer `SqliteSaver`.
+- `test_ticket_fixes_entropy_validation_and_concurrency`: valida entropia do sufixo de 10 hexadecimais maiúsculos, recusa de `user_id` vazio, `mark_delivered` retornando `True` apenas na primeira chamada e recusa de leituras desatualizadas em `update_ticket` (`TicketTransitionError`).
+
+#### Testes Ajustados na Fase 5B:
+Nenhum teste existente precisou ser alterado (`git diff tests/` afeta apenas o novo arquivo `tests/test_handoff.py`).
+
+---
+
 ### Fase 5A: Ciclo de Vida do Ticket, Histórico, Resposta do Operador e Persistência Honesta
 
 #### Verificação Fase 5A (`python scripts/verify_phase5a.py`):
@@ -491,7 +563,7 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 5B
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 5C
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final foi regenerado com sucesso em ambiente Linux (Python 3.11 no Codespaces) contendo as novas dependências `langgraph-checkpoint-sqlite==3.1.3`, `aiosqlite==0.22.1` e `sqlite-vec==0.1.9`.
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
@@ -500,4 +572,5 @@ All checks passed!
 5. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
 6. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
 7. **Transbordo Humano e Ciclo de Vida de Tickets (Fase 5A)**: Concluída com sucesso na Fase 5A. Os chamados agora persistem com `session_id`, `priority` (`standard|high`), snapshot mascarado das últimas 20 mensagens em `transcript`, ciclo estrito de status `open -> in_progress -> answered -> closed` e endpoint `PATCH /tickets/{id}` para operadores.
-8. **Próxima Fase (Fase 5B: Handoff e Resume com `interrupt()`)**: Integração da primitiva `interrupt()` do LangGraph para pausar a execução do grafo aguardando a resposta humana e entregar a resposta do operador no turno seguinte do chat quando a conversa for retomada.
+8. **Decisão de Design do Transbordo Humano (Fase 5B)**: Conforme nota de design do revisor, não utilizamos a primitiva `interrupt()` do LangGraph porque o resume é desencadeado de forma assíncrona por um terceiro (operador via `PATCH /tickets/{id}`) e o cliente pode continuar enviando mensagens durante a espera. Implementou-se o `handoff_gate` logo após o guardrail com estado persistido `pending_ticket_id`, garantindo mascaramento contínuo de PII, retenção na memória e entrega única da resposta do operador com `delivered_at`.
+9. **Próxima Fase (Fase 5C: Escalonamento Automático por Abstenção Repetida)**: Implementação do trigger automático de escalonamento para atendimento humano quando houver abstenções repetidas na mesma sessão conversacional (AC5.4).

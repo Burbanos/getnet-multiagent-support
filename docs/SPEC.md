@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `e84765f` (phase 4B, CI green) plus
-this SPEC/prompt update for 5A. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `31a18ec` (phase 5A, CI green) plus
+this SPEC/prompt update for 5B. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -55,6 +55,10 @@ this SPEC/prompt update for 5A. CI (lint, tests, docker build + /health smoke) r
   README headline claimed token cost, a routing-accuracy evaluation and an untested multi-turn example (fixed
   in 5A); `/` and `/agents` exposed the database path (fixed in 5A); an existing read-only database file is only
   detected on the first write.
+- 5A ticket lifecycle (`open → in_progress → answered → closed`), masked transcript, session and priority on
+  the ticket, `PATCH /tickets/{id}` for operators, no `/tmp` fallback, failed escalation no longer reported as a
+  ticket. Review notes (fixed in 5B): 4-hex ticket suffix (collision ≈50% at ~300 tickets/day), the tool
+  accepted a missing `user_id`, check-then-act race in `update_ticket`, FastAPI 422 deprecation warning.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -89,12 +93,13 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 5A (ticket lifecycle, transcript snapshot, operator reply API, honest persistence)**, prompt
-`docs/phase-prompts/5A.md`, verifier `scripts/verify_phase5a.py`, supervisor prompt updated (details in Phase 5).
-Found while planning: when `escalate_to_human` failed, the graph stored `{"error": ...}` as the ticket and the
-API answered `escalate_to_human: true` with no ticket created; `tickets_db.py` silently moved the database to
-`/tmp` and looked tickets up in a second database. 5B (pause with `interrupt()`, deliver the operator reply on
-the next turn, auto-escalation on repeated abstention) follows.
+**Current phase: 5B (handoff gate: the human owns the thread until the reply is delivered)**, prompt
+`docs/phase-prompts/5B.md`, verifier `scripts/verify_phase5b.py`, supervisor prompt updated (details in Phase 5).
+**Design change (2026-11-07, reviewer):** AC5.2 asked for `interrupt()`. `interrupt()` pauses a task until the
+same caller resumes it; here the resume comes from a third party (the operator's `PATCH`) and the customer may
+keep writing meanwhile, so with `interrupt()` those messages would bypass the guardrail and the memory. 5B uses a
+persisted `pending_ticket_id` plus a `handoff_gate` node after the guardrail instead. AC5.2 is reworded below;
+the user can ask to revert to the literal `interrupt()` version.
 
 **Backlog:**
 - Phase 6 (from 3D): real-model abstention on the 10 `uncovered` queries through the Knowledge Agent as a
@@ -134,8 +139,8 @@ Knowledge Agent (LLM + tools): search_knowledge_base(query) → chunks w/ score,
                                abstains when best score < calibrated threshold
 Support Agent   (LLM + tools): get_settlement_status, get_declined_transactions,
                                diagnose_terminal  (user_id injected from auth context)
-Escalation: ticket row + transcript snapshot; graph pauses via interrupt();
-            operator replies via PATCH /tickets/{id}; next user turn resumes with the reply.
+Escalation: ticket row + transcript snapshot; pending_ticket_id hands the thread to the human
+            (handoff_gate); operator replies via PATCH /tickets/{id}; next user turn delivers the reply.
 ```
 
 Key decisions:
@@ -420,13 +425,25 @@ without network. Topics with no official coverage must be answered with abstenti
   and/or `reply`; 401/403/404, 409 for an invalid transition, 422 for an empty body, unknown status or
   `answered` without reply); `GET /tickets?status=` filter; customers see `operator_reply` on their own tickets.
   The lifespan also opens the tickets database. `/` and `/agents` expose no database paths.
-- 5B: after a ticket is created the graph pauses the thread with `interrupt()`; the next user turn returns the
-  operator reply once the ticket is `answered` (marking it delivered) or a fixed status message without any time
-  promise while it is not; `closed` without reply resumes normal service; auto-escalation after repeated
-  abstention in the same session.
+- 5B (checked by `scripts/verify_phase5b.py`): `SupervisorState` gains `pending_ticket_id` (persisted by the
+  checkpointer; never part of the per-turn input, so it survives turns and restarts) and `handoff` (per-turn,
+  reset by the input). Creating a ticket (tool or forced escalation) sets `pending_ticket_id`; a failed one does
+  not. Graph: START → guardrail → (blocked → END) → `handoff_gate` → supervisor | END. The gate, with a pending
+  ticket: unknown ticket → clear and continue; `operator_reply` present and `delivered_at` empty (answered, or
+  answered then closed) → answer `HANDOFF_REPLY_PREFIX + reply`, `mark_delivered`, clear, END; closed without
+  reply → clear, `handoff.status = "resumed"`, continue to the supervisor; otherwise → `HANDOFF_PENDING_MESSAGE`
+  (fixed, bilingual, ticket id, no time words), END. Gate turns call no LLM (`llm_model` and `tokens` null),
+  `agents_used = ["HumanHandoff"]`; the customer's message is still masked by the guardrail and kept in memory.
+  API metadata gains `handoff` (`{ticket_id, status}` or null) and `agent_type = "HumanHandoff"` on gate turns.
+  Tickets: `delivered_at` column (migrated), `mark_delivered(ticket_id) -> bool` (only the first call returns
+  True), ticket suffix of 10 hex chars, `create_ticket` rejects an empty `user_id` (the tool then answers
+  `status: error`), `update_ticket` uses `UPDATE ... WHERE ticket_id = ? AND status = ?` and raises
+  `TicketTransitionError` when no row changed. 422 responses use `HTTP_422_UNPROCESSABLE_CONTENT`; the suite runs
+  without warnings.
+- 5C: auto-escalation after repeated abstention in the same session (AC5.4).
 **Acceptance:**
 - AC5.1 Ticket stores reason, priority, transcript snapshot, status (`open|in_progress|answered|closed`).
-- AC5.2 Graph uses `interrupt()`; operator `PATCH /tickets/{id}` with reply; next user turn returns the operator reply (test).
+- AC5.2 While a ticket is pending the thread is handled by the `handoff_gate` (no LLM, fixed status message); operator `PATCH /tickets/{id}` with reply; the next user turn returns the operator reply exactly once, then normal service resumes (tests). (Reworded 2026-11-07: originally `interrupt()`.)
 - AC5.3 Customer-facing escalation message contains no ETA/queue promise (test asserts on forbidden phrases).
 - AC5.4 Auto-escalation triggers: explicit request, max steps, repeated abstention (tests).
 - AC5.5 Persistence failure surfaces an error to the user; no silent `/tmp` fallback.

@@ -36,6 +36,8 @@ class SupervisorState(TypedDict):
     sources: list[str]
     retrieved_docs: list[dict[str, Any]]
     ticket: dict[str, Any] | None
+    pending_ticket_id: str | None
+    handoff: dict[str, Any] | None
     final_response: str
     supervisor_steps: int
     llm_model: str | None
@@ -69,6 +71,7 @@ class AgentState(BaseModel):
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
     ticket: dict[str, Any] | None = None
+    handoff: dict[str, Any] | None = None
     llm_model: str | None = None
 
     agent_response: str | None = None
@@ -98,6 +101,8 @@ class ChatRequest(BaseModel):
 class AgentMetadata(BaseModel):
     """Operational telemetry and execution audit trail."""
     agent: str = "SupervisorAgent"
+    agent_type: str = "SupervisorAgent"
+    routed_by: str = "SupervisorAgent"
     session_id: str
     user_id: str
     trace_id: str = ""
@@ -107,6 +112,7 @@ class AgentMetadata(BaseModel):
     sources: list[str] = Field(default_factory=list)
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
     ticket: dict[str, Any] | None = None
+    handoff: dict[str, Any] | None = None
     llm_model: str | None = None
     is_safe: bool = True
     safety_violations: list[str] = Field(default_factory=list)
@@ -114,10 +120,20 @@ class AgentMetadata(BaseModel):
     tokens: dict[str, int] | None = None
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
+    debug_details: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {
+        "extra": "allow",
+    }
 
 
 class ChatResponse(BaseModel):
     """Unified API response schema."""
     response: str
     agent: str = "SupervisorAgent"
+    user_id: str | None = None
     metadata: AgentMetadata
+
+    model_config = {
+        "extra": "allow",
+    }

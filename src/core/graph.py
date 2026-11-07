@@ -25,7 +25,7 @@ from src.core.llm import (
     invoke_model_with_fallback,
 )
 from src.core.state import AgentRole, AgentState, SupervisorState
-from src.core.tickets_db import transcript_snapshot
+from src.core.tickets_db import get_tickets_repository, transcript_snapshot
 from src.tools.agent_tools import (
     TOOLS_BY_NAME,
     diagnose_declined_transaction,
@@ -37,6 +37,12 @@ from src.tools.agent_tools import (
 from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
 logger = logging.getLogger("multiagent.orchestrator")
+
+HANDOFF_PENDING_MESSAGE = (
+    "Seu chamado {ticket_id} está com a equipe de atendimento humano. A resposta aparecerá nesta conversa quando for registrada. / "
+    "Your request {ticket_id} is with our human support team. The reply will appear in this conversation when it is recorded."
+)
+HANDOFF_REPLY_PREFIX = "Resposta da equipe de atendimento humano (chamado {ticket_id}) / Reply from our human support team (request {ticket_id}):\n\n"
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
 
@@ -109,6 +115,7 @@ class OrchestrationGraph:
 
         # 1. Register Graph Nodes
         builder.add_node("guardrail", self._guardrail_node)
+        builder.add_node("handoff_gate", self._handoff_gate_node)
         builder.add_node("supervisor", self._supervisor_node)
         builder.add_node("tools", self._tools_node)
         builder.add_node("force_escalation", self._force_escalation_node)
@@ -120,8 +127,17 @@ class OrchestrationGraph:
             "guardrail",
             self._guardrail_condition,
             {
-                "continue": "supervisor",
+                "continue": "handoff_gate",
                 "stop": END,
+            },
+        )
+
+        builder.add_conditional_edges(
+            "handoff_gate",
+            self._handoff_gate_condition,
+            {
+                "continue": "supervisor",
+                "end": END,
             },
         )
 
@@ -174,8 +190,72 @@ class OrchestrationGraph:
         }
 
     def _guardrail_condition(self, state: SupervisorState) -> str:
-        """Route to supervisor if safe, else stop immediately."""
+        """Route to handoff_gate if safe, else stop immediately."""
         return "continue" if state.get("is_safe", True) else "stop"
+
+    def _handoff_gate_node(self, state: SupervisorState) -> dict[str, Any]:
+        """
+        Human handoff gate node: checks if the thread is held by an active human escalation ticket.
+        If a ticket is pending, either delivers the operator reply or outputs a fixed waiting notice
+        without invoking any LLM.
+        """
+        pending_id = state.get("pending_ticket_id")
+        if not pending_id:
+            return {"handoff": None}
+
+        repo = get_tickets_repository()
+        ticket = repo.get_ticket(pending_id)
+
+        # 1. Ticket does not exist in DB: clear pending_ticket_id and continue to supervisor
+        if not ticket:
+            return {
+                "pending_ticket_id": None,
+                "handoff": None,
+            }
+
+        operator_reply = ticket.get("operator_reply")
+        delivered_at = ticket.get("delivered_at")
+
+        # 2. Operator replied and reply not yet delivered in chat:
+        # (answered, or answered and subsequently closed before delivery)
+        if operator_reply and not delivered_at:
+            reply_text = HANDOFF_REPLY_PREFIX.format(ticket_id=pending_id) + operator_reply
+            repo.mark_delivered(pending_id)
+            return {
+                "messages": [AIMessage(content=reply_text)],
+                "final_response": reply_text,
+                "pending_ticket_id": None,
+                "handoff": {"ticket_id": pending_id, "status": "delivered"},
+                "agents_used": ["HumanHandoff"],
+                "llm_model": None,
+                "tokens": None,
+            }
+
+        # 3. Closed without reply: resume normal bot assistance
+        if ticket.get("status") == "closed":
+            return {
+                "pending_ticket_id": None,
+                "handoff": {"ticket_id": pending_id, "status": "resumed"},
+            }
+
+        # 4. Otherwise (status 'open' or 'in_progress'): keep waiting notice
+        pending_text = HANDOFF_PENDING_MESSAGE.format(ticket_id=pending_id)
+        return {
+            "messages": [AIMessage(content=pending_text)],
+            "final_response": pending_text,
+            "handoff": {"ticket_id": pending_id, "status": "pending"},
+            "agents_used": ["HumanHandoff"],
+            "llm_model": None,
+            "tokens": None,
+        }
+
+    def _handoff_gate_condition(self, state: SupervisorState) -> str:
+        """Route to END if handoff produced a terminal response, else proceed to supervisor."""
+        handoff = state.get("handoff")
+        status = handoff.get("status") if handoff else None
+        if status in ("pending", "delivered"):
+            return "end"
+        return "continue"
 
     def _supervisor_node(self, state: SupervisorState) -> dict[str, Any]:
         """
@@ -314,12 +394,15 @@ class OrchestrationGraph:
         tools_used = list(state.get("tools_used", []))
         tools_used.append("escalate_to_human")
 
-        return {
+        ret: dict[str, Any] = {
             "messages": tool_messages,
             "ticket": ticket_obj,
             "final_response": final_text,
             "tools_used": tools_used,
         }
+        if ticket_obj and ticket_obj.get("ticket_id"):
+            ret["pending_ticket_id"] = ticket_obj["ticket_id"]
+        return ret
 
     def _tools_node(self, state: SupervisorState) -> dict[str, Any]:
         """
@@ -467,7 +550,7 @@ class OrchestrationGraph:
                 "total_tokens": sum(v["total_tokens"] for v in tba.values()),
             }
 
-        return {
+        ret: dict[str, Any] = {
             "messages": tool_messages,
             "agents_used": agents_used,
             "tools_used": tools_used,
@@ -478,6 +561,9 @@ class OrchestrationGraph:
             "tokens_by_agent": tba,
             "tokens": tokens,
         }
+        if ticket and ticket.get("ticket_id"):
+            ret["pending_ticket_id"] = ticket["ticket_id"]
+        return ret
 
     def run_sync(
         self,
@@ -510,6 +596,7 @@ class OrchestrationGraph:
             "sources": [],
             "retrieved_docs": [],
             "ticket": None,
+            "handoff": None,
             "final_response": "",
             "supervisor_steps": 0,
             "llm_model": None,
@@ -563,6 +650,7 @@ class OrchestrationGraph:
             retrieved_docs=result.get("retrieved_docs", []),
             context_docs=result.get("retrieved_docs", []),
             ticket=result.get("ticket"),
+            handoff=result.get("handoff"),
             llm_model=result.get("llm_model"),
             agent_response=final_text,
             final_agent=AgentRole.SUPERVISOR,

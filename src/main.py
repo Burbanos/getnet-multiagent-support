@@ -50,6 +50,7 @@ class AgentMetadata(BaseModel):
     sources: list[str] = Field(default_factory=list, description="Referenced URLs or knowledge base documents")
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list, description="Vector retrieval results with cosine similarity")
     ticket: dict[str, Any] | None = Field(default=None, description="Persisted support ticket if escalation occurred")
+    handoff: dict[str, Any] | None = Field(default=None, description="Human escalation handoff status")
     llm_model: str | None = Field(default=None, description="Model identifier that produced the final response")
     tokens: dict[str, int] | None = Field(default=None, description="Token usage estimation")
     tokens_by_agent: dict[str, dict[str, int]] | None = Field(default=None, description="Token usage broken down by agent")
@@ -233,7 +234,7 @@ async def patch_ticket_endpoint(
 
     if payload.status is None and payload.reply is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Either status or reply must be provided.",
         )
 
@@ -258,7 +259,7 @@ async def patch_ticket_endpoint(
         ) from exc
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
 
@@ -333,8 +334,13 @@ def chat_endpoint(
             trace_id=trace_id,
         )
 
+        handoff_data = getattr(state, "handoff", None)
+        handoff_status = (handoff_data or {}).get("status")
+        agent_type = "HumanHandoff" if handoff_status in ("pending", "delivered") else "SupervisorAgent"
+
         metadata = AgentMetadata(
-            agent_type="SupervisorAgent",
+            agent=agent_type,
+            agent_type=agent_type,
             routed_by="SupervisorAgent",
             session_id=state.session_id or active_session,
             trace_id=trace_id,
@@ -346,6 +352,7 @@ def chat_endpoint(
             sources=state.sources,
             retrieved_docs=state.retrieved_docs,
             ticket=state.ticket,
+            handoff=handoff_data,
             tokens=getattr(state, "tokens", None),
             tokens_by_agent=getattr(state, "tokens_by_agent", None),
             estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
@@ -357,12 +364,13 @@ def chat_endpoint(
                 "escalate_to_human": state.escalate_to_human,
                 "ticket_id": state.escalation_ticket_id,
                 "tools_used": state.tools_used,
+                "handoff": handoff_data,
             },
         )
 
         return ChatResponse(
             response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
-            agent="SupervisorAgent",
+            agent=agent_type,
             user_id=principal.user_id,
             metadata=metadata,
         )

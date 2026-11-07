@@ -113,7 +113,8 @@ class TicketsRepository:
                     operator_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    answered_at TEXT
+                    answered_at TEXT,
+                    delivered_at TEXT
                 )
             """)
             cursor = conn.cursor()
@@ -128,6 +129,8 @@ class TicketsRepository:
                 cursor.execute("ALTER TABLE tickets ADD COLUMN operator_id TEXT")
             if "answered_at" not in existing_cols:
                 cursor.execute("ALTER TABLE tickets ADD COLUMN answered_at TEXT")
+            if "delivered_at" not in existing_cols:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN delivered_at TEXT")
             conn.commit()
             logger.info(f"Tickets database initialized at: {self.db_path}")
 
@@ -140,6 +143,10 @@ class TicketsRepository:
         transcript: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Create and persist a new customer support escalation ticket."""
+        if not user_id or not str(user_id).strip():
+            raise ValueError("user_id cannot be empty")
+        clean_user_id = str(user_id).strip()
+
         if priority not in VALID_PRIORITIES:
             raise ValueError(f"Invalid priority '{priority}': must be one of {VALID_PRIORITIES}")
 
@@ -147,7 +154,7 @@ class TicketsRepository:
         transcript_json = json.dumps(transcript or [], ensure_ascii=False)
         now = datetime.now(UTC).isoformat()
         date_str = datetime.now(UTC).strftime("%Y%m%d")
-        suffix = uuid.uuid4().hex[:4].upper()
+        suffix = uuid.uuid4().hex[:10].upper()
         ticket_id = f"GET-TKT-{date_str}-{suffix}"
 
         with self._get_connection() as conn:
@@ -156,10 +163,10 @@ class TicketsRepository:
                     ticket_id, user_id, session_id, reason, status, priority,
                     channel, transcript, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, 'open', ?, 'ai_chat', ?, ?, ?)
-            """, (ticket_id, user_id, session_id, clean_reason, priority, transcript_json, now, now))
+            """, (ticket_id, clean_user_id, session_id, clean_reason, priority, transcript_json, now, now))
             conn.commit()
 
-        logger.info(f"Persisted escalation ticket {ticket_id} for user {user_id}")
+        logger.info(f"Persisted escalation ticket {ticket_id} for user {clean_user_id}")
 
         message = (
             f"Chamado registrado com sucesso sob o protocolo **{ticket_id}**. "
@@ -169,7 +176,7 @@ class TicketsRepository:
         return {
             "status": "success",
             "ticket_id": ticket_id,
-            "user_id": user_id,
+            "user_id": clean_user_id,
             "session_id": session_id,
             "ticket_status": "open",
             "priority": priority,
@@ -271,20 +278,35 @@ class TicketsRepository:
         now = datetime.now(UTC).isoformat()
         with self._get_connection() as conn:
             if clean_reply is not None:
-                conn.execute("""
+                cursor = conn.execute("""
                     UPDATE tickets
                     SET status = ?, operator_reply = ?, operator_id = ?, answered_at = ?, updated_at = ?
-                    WHERE ticket_id = ?
-                """, (new_status, clean_reply, operator_id, now, now, ticket_id))
+                    WHERE ticket_id = ? AND status = ?
+                """, (new_status, clean_reply, operator_id, now, now, ticket_id, curr_status))
             else:
-                conn.execute("""
+                cursor = conn.execute("""
                     UPDATE tickets
                     SET status = ?, operator_id = ?, updated_at = ?
-                    WHERE ticket_id = ?
-                """, (new_status, operator_id, now, ticket_id))
+                    WHERE ticket_id = ? AND status = ?
+                """, (new_status, operator_id, now, ticket_id, curr_status))
+            if cursor.rowcount == 0:
+                raise TicketTransitionError(
+                    f"Ticket {ticket_id} status changed concurrently (expected '{curr_status}')"
+                )
             conn.commit()
 
         return self.get_ticket(ticket_id)
+
+    def mark_delivered(self, ticket_id: str) -> bool:
+        """Mark ticket as delivered to the user in the chat session. Returns True only if marked now."""
+        now = datetime.now(UTC).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE tickets SET delivered_at = ? WHERE ticket_id = ? AND delivered_at IS NULL",
+                (now, ticket_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
 
 
 _tickets_repo: TicketsRepository | None = None

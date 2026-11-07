@@ -223,7 +223,16 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
       -d '{"reply": "Sua solicitação de alteração cadastral foi processada com sucesso."}'
     ```
 * **Consulta pelo Cliente (`GET /tickets/{ticket_id}`)**:
-  * O lojista dono do chamado pode consultar o protocolo a qualquer momento e visualizar o `status`, o histórico enviado e a `operator_reply` fornecida pelo operador. A entrega automática da resposta do operador dentro do fluxo de chat será implementada na Fase 5B.
+  * O lojista dono do chamado pode consultar o protocolo a qualquer momento e visualizar o `status`, o histórico enviado e a `operator_reply` fornecida pelo operador.
+
+### Portão de Transbordo Humano e Entrega de Resposta no Chat (Fase 5B)
+* **Controle de Estado com `pending_ticket_id`**: Ao registrar um chamado com sucesso, o grafo grava o identificador do ticket no campo persistido `pending_ticket_id` do estado conversacional, mantido pelo `SqliteSaver` entre turnos e reinicializações.
+* **Nó `handoff_gate` após o Guardrail**: O fluxo de atendimento posiciona o nó `handoff_gate` imediatamente após o `guardrail`. Isso garante que todas as mensagens enviadas pelo cliente enquanto o chamado aguarda resposta tenham seus dados sensíveis (PII) mascarados e fiquem salvas no histórico de mensagens.
+* **Mensagem Fixa Sem Chamada ao LLM**: Enquanto o chamado estiver em aberto ou em atendimento (`open` ou `in_progress`), o `handoff_gate` responde com uma mensagem de espera padronizada e bilíngue informando o número do protocolo, sem invocar o LLM (`llm_model: None`, `tokens: None`) e sem fazer qualquer promessa enganosa de tempo ou fila.
+* **Entrega Única da Resposta do Operador (`delivered_at`)**: Quando o operador responde ao chamado via `PATCH /tickets/{id}`, o próximo turno do cliente entrega a resposta humana com o prefixo oficial, grava a data de entrega no banco (`delivered_at`), limpa o `pending_ticket_id` e marca o evento com `handoff: {"status": "delivered"}`. Turnos seguintes retornam automaticamente ao atendimento convencional pelo supervisor.
+* **Retomada de Atendimento (`resumed`)**: Se o chamado for fechado pelo operador sem resposta (`status: "closed"`), o portão limpa a pendência, define `handoff: {"status": "resumed"}` e direciona a mensagem no mesmo turno para o supervisor do bot.
+* **Metadados da API (`metadata.handoff`)**: Nos turnos em que o portão intercepta a conversa (`pending` ou `delivered`), a resposta expõe `agent_type = "HumanHandoff"` e o objeto `handoff` com o `ticket_id` e seu respectivo status.
+* **Por que não usamos `interrupt()` do LangGraph**: Optamos por não usar `interrupt()` porque a retomada do atendimento depende de uma ação assíncrona de terceiros (o operador) e o lojista pode continuar enviando mensagens durante a espera; com o portão `handoff_gate`, as mensagens intermediárias do cliente passam pelo guardrail e são preservadas na memória conversacional sem bloquear a execução do grafo.
 
 ### Segurança, Autenticação, Isolamento & Sanitização de Dados Sensíveis (PII)
 * **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
