@@ -4,6 +4,79 @@
 
 ---
 
+### Fase 6B: Executor com Modelo Real, Juiz LLM e Métricas do Juiz
+
+#### Verificação Fase 6B (`python scripts/verify_phase6b.py`):
+```text
+PASS R0.api
+PASS R0.settings
+PASS R0.no_regex_no_tests_import
+PASS R1.observe_turn
+PASS R2.run_case_multi_turn
+PASS R2.run_case_error
+PASS R3.resume_and_last_wins
+PASS R3.tickets_in_temp_db
+PASS R4.stops_on_repeated_quota_errors
+PASS R4.no_key_aborts
+PASS R4.max_cases_and_only
+PASS J0.judge_prompt_is_reviewers
+PASS J1.judge_never_sees_expectations
+PASS J2.parse_judgment
+PASS J3.judge_case
+PASS J3.unparseable
+PASS J4.should_judge
+PASS J4.run_judge_resume_and_skip
+PASS M1.judge_metrics_match_reference
+PASS M1.no_judgments_is_null
+PASS M2.report_with_judge
+PASS S1.readme_fixes
+PASS S2.readme_run_docs
+PASS Q0.runner_judge_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 188 passed in 19.13s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q5.cli_report
+PASS Q6.cli_run_without_key
+
+SUMMARY: 45/45 passed
+```
+
+#### Commit Base da Fase 6B (`git rev-parse HEAD`):
+```text
+4778cce9e55bb563a0d0dc24c9ec647760d4b52e
+```
+
+#### Testes Criados e Alterados na Fase 6B:
+- **Criados**:
+  - `tests/test_eval_runner_judge.py` (9 testes unitários):
+    - `test_observe_turn_truncation_and_fields`: valida conjunto estrito de 14 chaves retornadas por `observe_turn`, truncamento de textos recuperados a 600 caracteres e extração de prioridade de chamados.
+    - `test_run_case_multi_turn_and_sanitized_errors`: valida que execuções multi-turno preservam o mesmo `session_id` e que mensagens/textos brutos de exceções nunca vazam no payload de resultado.
+    - `test_run_eval_resumption_and_temp_tickets_db`: valida que `run_eval` pula casos já avaliados com status `ok`, regera casos com erro, adota a regra de que a última linha prevalece e isola o banco `tickets.db` em pasta temporária fora de `data/`.
+    - `test_run_eval_stops_on_three_consecutive_quota_errors`: valida que 3 erros consecutivos de cota (`LLMUnavailableError`) interrompem preventivamente a execução (`stopped_early: True`).
+    - `test_run_eval_reraises_llm_not_configured_error`: valida que a ausência de chave (`LLMNotConfiguredError`) não é mascarada e sobe imediatamente na execução.
+    - `test_build_judge_input_isolation`: valida que o payload enviado ao juiz contém apenas as mensagens do lojista, resposta final e evidências do último turno, sem vazar IDs de teste, categorias ou rótulos esperados (`expect`).
+    - `test_parse_judgment_markdown_blocks_and_invalid_formats`: valida parsing de JSON envolto em blocos markdown, e rejeição estrita (via `ValueError`) para tipos inválidos (ex.: booleano onde se espera inteiro de 1 a 5).
+    - `test_judge_case_and_run_judge_flow`: valida execução do juiz com modelo de teste, retorno de `unparseable` para saídas não estruturadas, filtro `should_judge` (exclusão de erros, handoff pendente e categoria safety) e retomada incremental em `run_judge`.
+    - `test_judge_metrics_abstention_and_disagreements`: valida cálculo estatístico de precisão/recall de abstenção, lista de erros de abstenção e detecção de discordâncias entre o juiz e as checagens determinísticas de fatos.
+
+---
+
 ### Fase 6A: Harness de Avaliação, Checagens Determinísticas e Subconjunto Offline no CI
 
 #### Verificação Fase 6A (`python scripts/verify_phase6a.py`):
@@ -709,4 +782,5 @@ All checks passed!
 6. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
 7. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
 8. **Transbordo Humano Completo (Fases 5A, 5B e 5C)**: O ciclo de vida do ticket (`open -> in_progress -> answered -> closed`), o portão de atendimento `handoff_gate` (com mensagens de espera padronizadas, sem prazo, sem chamadas ao LLM e entrega única da resposta do operador com `delivered_at`) e o escalonamento automático por abstenções repetidas (`consecutive_abstentions >= ESCALATE_AFTER_ABSTENTIONS`) estão plenamente validados.
-9. **Próxima Fase (Fase 6B: Avaliação com Modelo Real e Juiz LLM)**: Execução de benchmark completo sobre todos os casos de `data/eval/cases.jsonl` com modelo Gemini real (`GEMINI_API_KEY`), avaliação de fidelidade/relevância via juiz LLM, e emissão de relatórios consolidados em `reports/`.
+9. **Fase 6B Concluída (Executor com Modelo Real e Juiz LLM)**: O harness e o executor com modelo real (`run`), juiz LLM (`judge`) e gerador de relatórios (`report`) estão plenamente validados via mocks e testes offline, prontos para execução incremental com a chave de API pelo usuário.
+10. **Próxima Fase (Fase 6C: Execução e Relatório Final de Benchmark)**: Execução real dos comandos `run`, `judge` e `report` com a chave no ambiente do usuário e publicação dos relatórios consolidados em `reports/`.

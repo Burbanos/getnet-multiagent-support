@@ -1,0 +1,252 @@
+"""LLM-as-a-judge evaluation of groundedness, relevance, and abstention."""
+import json
+import time
+from pathlib import Path
+from typing import Any
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from src.config import settings
+from src.core.llm import extract_model_name, get_chat_model
+
+PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "judge.md"
+
+
+def load_judge_prompt() -> str:
+    """Read reviewer-owned judge prompt from src/prompts/judge.md."""
+    if not PROMPT_PATH.exists():
+        raise FileNotFoundError(f"Judge prompt not found: {PROMPT_PATH}")
+    return PROMPT_PATH.read_text(encoding="utf-8")
+
+
+def get_judge_model() -> Any:
+    """Build and return chat model instance configured for the judge."""
+    return get_chat_model(settings.EVAL_JUDGE_MODEL)
+
+
+def build_judge_input(case: dict[str, Any], result: dict[str, Any]) -> str:
+    """
+    Format case conversation and final turn evidence as JSON for the judge.
+    Never exposes ground truth expectations, case id, or category to avoid bias.
+    """
+    turns = result.get("turns", [])
+    last_turn = turns[-1] if turns else {}
+
+    raw_docs = last_turn.get("retrieved_docs", []) or []
+    passages: list[dict[str, Any]] = []
+    for d in raw_docs:
+        if isinstance(d, dict):
+            passages.append({
+                "url": d.get("url", ""),
+                "text": d.get("text", ""),
+            })
+
+    tool_outputs = last_turn.get("tool_results", []) or []
+
+    payload = {
+        "user_messages": case.get("turns", []),
+        "final_response": last_turn.get("response", ""),
+        "passages": passages,
+        "tool_outputs": tool_outputs,
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def parse_judgment(text: str) -> dict[str, Any]:
+    """
+    Parse and validate structured JSON judgment from raw model output.
+    Extracts substring between first '{' and last '}'.
+    """
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("No JSON object found in judge output")
+
+    snippet = text[start : end + 1]
+    try:
+        data = json.loads(snippet)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Judge output is not valid JSON: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("Judge output must be a JSON object")  # noqa: TRY004
+
+    grounded = data.get("grounded")
+    answers_question = data.get("answers_question")
+    abstained = data.get("abstained")
+
+    # Strictly reject booleans masquerading as integers
+    if type(grounded) is not int or not (1 <= grounded <= 5):
+        raise ValueError(f"Invalid 'grounded' value: {grounded}")
+
+    if type(answers_question) is not int or not (1 <= answers_question <= 5):
+        raise ValueError(f"Invalid 'answers_question' value: {answers_question}")
+
+    if not isinstance(abstained, bool):
+        raise ValueError(f"Invalid 'abstained' value: {abstained}")  # noqa: TRY004
+
+    return {
+        "grounded": grounded,
+        "answers_question": answers_question,
+        "abstained": abstained,
+        "rationale": str(data.get("rationale") or ""),
+    }
+
+
+def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict[str, Any]:
+    """
+    Evaluate a single case result using the judge model.
+    Returns status: ok with ratings or status: error with specific error_type.
+    """
+    cid = case["id"]
+    system_prompt = load_judge_prompt()
+    user_content = build_judge_input(case, result)
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_content),
+    ]
+
+    try:
+        response = model.invoke(messages)
+        text = response.content if isinstance(response.content, str) else str(response.content)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "id": cid,
+            "status": "error",
+            "error_type": type(exc).__name__,
+        }
+
+    try:
+        parsed = parse_judgment(text)
+    except ValueError:
+        return {
+            "id": cid,
+            "status": "error",
+            "error_type": "unparseable",
+        }
+
+    model_name = extract_model_name(model)
+    return {
+        "id": cid,
+        "status": "ok",
+        "judge_model": model_name,
+        "grounded": parsed["grounded"],
+        "answers_question": parsed["answers_question"],
+        "abstained": parsed["abstained"],
+        "rationale": parsed["rationale"],
+    }
+
+
+def should_judge(case: dict[str, Any], result: dict[str, Any]) -> bool:
+    """
+    Determine whether a case result qualifies for judge evaluation.
+    Only evaluates ok, safe, non-handoff, and non-safety category turns.
+    """
+    if result.get("status") != "ok":
+        return False
+    if case.get("category") == "safety":
+        return False
+
+    turns = result.get("turns", [])
+    if not turns:
+        return False
+
+    last = turns[-1]
+    if not last.get("is_safe", True):
+        return False
+    return not bool(last.get("handoff"))
+
+
+def load_judgments(path: str | Path) -> dict[str, dict[str, Any]]:
+    """
+    Load judgments from JSONL file into a dict indexed by case ID.
+    If multiple lines exist for the same ID, the last one wins.
+    """
+    p = Path(path)
+    if not p.exists():
+        return {}
+
+    judgments: dict[str, dict[str, Any]] = {}
+    content = p.read_text(encoding="utf-8")
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+            cid = row.get("id")
+            if cid:
+                judgments[cid] = row
+        except json.JSONDecodeError:
+            continue
+    return judgments
+
+
+def run_judge(
+    cases: list[dict[str, Any]],
+    results_path: str | Path,
+    judgments_path: str | Path,
+    model: Any | None = None,
+    sleep_s: float | None = None,
+    max_consecutive_errors: int = 3,
+) -> dict[str, Any]:
+    """
+    Execute judge evaluation over eligible case results with resumption and error handling.
+    """
+    jp = Path(judgments_path)
+    jp.parent.mkdir(parents=True, exist_ok=True)
+
+    from src.eval.runner import load_results
+
+    results_by_id = load_results(results_path)
+    existing_judgments = load_judgments(jp)
+
+    delay = sleep_s if sleep_s is not None else settings.EVAL_SLEEP_S
+    judge_model = model or get_judge_model()
+
+    attempted = 0
+    ok = 0
+    errors = 0
+    skipped = 0
+    stopped_early = False
+    consecutive_unavailable_errors = 0
+
+    with open(jp, "a", encoding="utf-8") as f:
+        for case in cases:
+            cid = case["id"]
+            res = results_by_id.get(cid)
+            if not res or not should_judge(case, res):
+                continue
+
+            if existing_judgments.get(cid, {}).get("status") == "ok":
+                skipped += 1
+                continue
+
+            j = judge_case(case, res, judge_model)
+            f.write(json.dumps(j, ensure_ascii=False) + "\n")
+            f.flush()
+
+            attempted += 1
+            if j.get("status") == "ok":
+                ok += 1
+                consecutive_unavailable_errors = 0
+            else:
+                errors += 1
+                if j.get("error_type") == "LLMUnavailableError":
+                    consecutive_unavailable_errors += 1
+                    if consecutive_unavailable_errors >= max_consecutive_errors:
+                        stopped_early = True
+                        break
+                else:
+                    consecutive_unavailable_errors = 0
+
+            if delay and delay > 0:
+                time.sleep(delay)
+
+    return {
+        "attempted": attempted,
+        "ok": ok,
+        "errors": errors,
+        "skipped": skipped,
+        "stopped_early": stopped_early,
+    }

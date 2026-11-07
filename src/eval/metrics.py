@@ -1,4 +1,4 @@
-"""Aggregate metric calculation over evaluated cases."""
+"""Aggregate metric calculation over evaluated cases and judge assessments."""
 import math
 from typing import Any
 
@@ -21,11 +21,18 @@ def pct(xs: list[float | int], p: float) -> float | int | None:
     return s[max(0, math.ceil(p * len(s)) - 1)]
 
 
+def _mean(xs: list[int | float]) -> float | None:
+    """Calculate arithmetic mean, returning None if empty."""
+    return (sum(xs) / len(xs)) if xs else None
+
+
 def aggregate(
-    cases: list[dict[str, Any]], results: list[dict[str, Any]]
+    cases: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+    judgments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
-    Aggregate evaluation results into summary metrics, per-slice metrics, and per-case records.
+    Aggregate evaluation results and optional judge assessments into summary metrics.
     Cases without a corresponding result are ignored.
     """
     by_id = {r["id"]: r for r in results}
@@ -91,6 +98,58 @@ def aggregate(
         for c, r, ev in rows
     ]
 
+    answer_models = sorted(
+        {t["llm_model"] for _, r, _ in ok for t in r.get("turns", []) if t.get("llm_model")}
+    )
+
+    judge_section: dict[str, Any] | None = None
+    if judgments is not None:
+        by_r = {r["id"]: r for r in results}
+        by_j = {j["id"]: j for j in judgments}
+        j_rows = [
+            (c, by_r[c["id"]], by_j.get(c["id"]))
+            for c in cases
+            if c["id"] in by_r and by_r[c["id"]].get("status") == "ok"
+        ]
+        judged = [(c, r, j) for c, r, j in j_rows if j and j.get("status") == "ok"]
+        n_err = sum(1 for _, _, j in j_rows if j and j.get("status") != "ok")
+
+        ab = [
+            (c["expect"]["abstain"], j["abstained"])
+            for c, _, j in judged
+            if c["expect"]["abstain"] is not None
+        ]
+        tp_ab = sum(1 for e, p in ab if e and p)
+        pred_ab = sum(1 for _, p in ab if p)
+        pos_ab = sum(1 for e, _ in ab if e)
+
+        dis: list[str] = []
+        for c, r, j in judged:
+            ev = evaluate_case(c, r)
+            f = ev["checks"]["facts_ok"]
+            if (f is True and j["grounded"] <= 2) or (
+                f is False and j["grounded"] >= 4 and j["answers_question"] >= 4
+            ):
+                dis.append(c["id"])
+
+        judge_section = {
+            "n_judged": len(judged),
+            "n_judge_errors": n_err,
+            "grounded_mean": _mean([j["grounded"] for _, _, j in judged]),
+            "answers_mean": _mean([j["answers_question"] for _, _, j in judged]),
+            "abstention_precision": tp_ab / pred_ab if pred_ab else None,
+            "abstention_recall": tp_ab / pos_ab if pos_ab else None,
+            "abstention_errors": sorted(
+                c["id"]
+                for c, _, j in judged
+                if c["expect"]["abstain"] is not None and j["abstained"] != c["expect"]["abstain"]
+            ),
+            "disagreements": sorted(dis),
+            "judge_models": sorted(
+                {j.get("judge_model") for _, _, j in judged if j.get("judge_model")}
+            ),
+        }
+
     return {
         "n_cases": len(cases),
         "n_evaluated": len(ok),
@@ -101,5 +160,7 @@ def aggregate(
         "by_lang": groups["lang"],
         "official": {"n": len(off), "pass_rate": rate(off)},
         "per_case": per_case,
+        "answer_models": answer_models,
+        "judge": judge_section,
         "cost_note": "Token pricing arrives in Phase 7; cost calculation is not active yet.",
     }

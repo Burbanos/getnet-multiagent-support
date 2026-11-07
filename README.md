@@ -393,7 +393,7 @@ O conjunto reúne **69 casos de teste** cobrindo fluxos reais de suporte a lojis
   - `multi_intent`: 2 casos (mensagens compostas com múltiplas intenções simultâneas)
 - **Distribuição por Idioma**: 41 casos em Português (`pt`) e 28 casos em Inglês (`en`).
 - **Cenários Oficiais**: Inclui integralmente os 10 cenários oficiais de referência do desafio Getnet (`official: true`).
-- **Origem dos Rótulos e Fatos**: Todos os rótulos de expectativa (`expect`) e fatos esperados (`facts_any`, `facts_none`, `gold_urls`) foram redigidos e conferidos diretamente contra o corpus oficial de conhecimento (`data/knowledge/corpus.jsonl`) e o comportamento do grafo de orquestração.
+- **Origem dos Rótulos e Fatos**: Todos os rótulos de expectativa (`expect`) foram redigidos pelo revisor externo independente, e os fatos esperados (`facts_any`, `facts_none`, `gold_urls`) foram conferidos diretamente contra o texto literal do corpus oficial de conhecimento em `data/corpus/pages.jsonl` (com trechos em `data/index/chunks.jsonl`).
 
 ### Checagens Determinísticas
 Cada caso de teste avaliado é submetido a uma bateria de 9 verificações determinísticas sobre o último turno da conversa:
@@ -416,8 +416,46 @@ python -m src.eval offline
 
 Esse comando executa o grafo com o modelo sentinela `ForbiddenChatModel` sobre o subconjunto de regressão offline (os 6 casos da categoria `safety`). O modelo sentinela intercepta qualquer tentativa acidental de geração via LLM e falha se houver vazamento. No CI, o teste `tests/test_eval_offline.py` garante que todos os casos offline passem com exatamente 0 chamadas a modelos.
 
-### Medições com Modelo Real (Fase 6B)
-A avaliação ponta a ponta com o modelo de linguagem real (Gemini 2.5 Flash), juiz LLM de fidelidade e relevância, análise de abstenção com groundedness e geração dos relatórios completos de benchmark (`reports/eval_*.json` e `reports/eval_*.md`) é executada na **Fase 6B**.
+### Execução da Avaliação com Modelo Real e Juiz LLM (Fase 6B)
+
+A avaliação completa do sistema sobre os 69 casos de teste utiliza o modelo real e é dividida em três etapas via CLI (`run`, `judge` e `report`).
+
+#### 1. Injeção Segura da Chave de API
+A chave de API do Google Gemini nunca deve ser gravada em arquivos de configuração ou histórico de comandos:
+```powershell
+$env:GEMINI_API_KEY = Read-Host "Gemini key" -MaskInput
+```
+
+#### 2. Execução das Respostas com o Modelo Avaliado (`run`)
+Executa os casos através do grafo de orquestração multiagente:
+```bash
+python -m src.eval run --run-id baseline-flash
+```
+- **Retomabilidade**: A execução é totalmente incremental e retomável. Casos já avaliados com `status: "ok"` no arquivo `reports/eval_runs/<run_id>.jsonl` são automaticamente pulados; caso a execução seja interrompida por limite de cota, basta rodar o comando novamente.
+- **Proteção de Cotas (`EVAL_SLEEP_S`)**: O parâmetro `EVAL_SLEEP_S` (padrão `6.0` segundos) define uma pausa entre casos para respeitar os limites de RPM/TPM configurados no **AI Studio**. O runner aborta preventivamente caso ocorram 3 erros consecutivos de cota (`LLMUnavailableError`).
+- **Alternativa de Modelo para Limite Diário**: Os limites de cota do projeto podem ser consultados no **AI Studio**. Se o modelo padrão (`gemini-3.5-flash`) atingir a cota diária de requisições, a avaliação pode ser executada com o modelo Flash-Lite definindo `LLM_MODEL=gemini-3.5-flash-lite`. O modelo efetivamente acionado em cada turno é registrado transparentemente no relatório no campo `answer_models`.
+
+#### 3. Avaliação Qualitativa via Juiz LLM (`judge`)
+Executa o juiz LLM sobre os resultados obtidos:
+```bash
+python -m src.eval judge --run-id baseline-flash
+```
+- **Modelo do Juiz (`EVAL_JUDGE_MODEL`)**: O juiz é executado com um modelo distinto do avaliado, configurado em `EVAL_JUDGE_MODEL` (padrão `gemini-3.5-flash-lite`).
+- **Isolamento de Expectativas**: O prompt do juiz (`src/prompts/judge.md`) nunca recebe o identificador do caso, categoria nem as expectativas (`expect`); ele avalia cegamente a fidelidade das passagens (`grounded`), a resposta à dúvida (`answers_question`) e se houve abstenção (`abstained`).
+- **Retomabilidade**: Salva em `reports/eval_runs/<run_id>.judge.jsonl`, pulando casos já julgados com sucesso.
+
+#### 4. Geração do Relatório Consolidado (`report`)
+Gera os relatórios estruturados em JSON e Markdown:
+```bash
+python -m src.eval report --run-id baseline-flash
+```
+Gera os arquivos `reports/eval_baseline-flash.json` e `reports/eval_baseline-flash.md` consolidando métricas determinísticas, taxas de acerto, tempos de resposta, métricas do juiz e a lista de discordâncias.
+
+#### 5. Limpeza da Sessão
+Após a execução, remova a chave de API da memória:
+```powershell
+Remove-Item Env:GEMINI_API_KEY
+```
 
 ---
 

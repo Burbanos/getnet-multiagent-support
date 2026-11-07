@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
     TICKETS_DB_PATH: str = "data/tickets.db"
     ESCALATE_AFTER_ABSTENTIONS: int = 2
+    EVAL_JUDGE_MODEL: str = "gemini-3.5-flash-lite"
+    EVAL_SLEEP_S: float = 6.0
 
 
 settings = Settings()

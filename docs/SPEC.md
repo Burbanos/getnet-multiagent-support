@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `3c09da8` (phase 5C, CI green) plus
-this SPEC/prompt update for 6A. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `4778cce` (phase 6A, CI green) plus
+this SPEC/prompt update for 6B. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -66,6 +66,10 @@ this SPEC/prompt update for 6A. CI (lint, tests, docker build + /health smoke) r
 - 5C auto-escalation after 2 consecutive knowledge abstentions (no sources), follow-ups appended to the ticket,
   single delivery. Review notes: README says forced escalation resets the counter (it does not: that path skips
   `abstention_check`); `append_customer_message` is read-modify-write without a lock; the transcript has no cap.
+- 6A evaluation harness: 69 reviewer-written cases, deterministic checks and metrics (match the reviewer's reference
+  on randomized runs), offline safety subset in CI with zero model calls. Review notes (fixed in 6B): README cited a
+  non-existent corpus path, claimed the labels were checked against the graph's behaviour (they were not: that
+  would be circular) and did not say the reviewer wrote them.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -100,9 +104,14 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 6A (evaluation harness, deterministic checks, offline subset in CI)**, prompt
-`docs/phase-prompts/6A.md`, verifier `scripts/verify_phase6a.py`, labeled set `data/eval/cases.jsonl` written by the
-reviewer (details in Phase 6). 6B (LLM judge, resumable real-model run by the user, committed report) follows.
+**Current phase: 6B (real-model runner, LLM judge, judge metrics; no real call inside the phase)**, prompt
+`docs/phase-prompts/6B.md`, verifier `scripts/verify_phase6b.py`, judge prompt `src/prompts/judge.md` (reviewer).
+After 6B the user runs `python -m src.eval run` / `judge` with the key (possibly over several sessions because of
+the free-tier quota) and 6C commits the raw runs and the report. Free-tier limits are per project and shown in AI
+Studio; Google's rate-limit page publishes no numbers. A third-party page (scriptbyai.com, updated 2026-10-19)
+reports that `gemini-3.5-flash` was deprecated on 2026-10-08 and now runs on `gemini-3.6-flash` with 5 RPM / 20 RPD,
+and Flash-Lite with 10 RPM / 500 RPD. Unverified; if true, the evaluation must run with `LLM_MODEL` set to the
+Flash-Lite model and the report must say so (it records the model of every turn).
 **Design change kept from 5B:** the handoff gate replaced `interrupt()` (see AC5.2); the user can still ask to revert.
 
 **Backlog:**
@@ -494,11 +503,33 @@ without network. Topics with no official coverage must be answered with abstenti
   `model_calls` per result); CLI `python -m src.eval offline` prints `offline: N/M passed` and fails unless every
   offline case passes with zero model calls; `tests/test_eval_offline.py` runs it in CI (AC6.4). The old
   `data/eval_dataset.json` (ground truth from the deleted KB) and its schema test are removed.
-- 6B: LLM judge (rubric: grounded in the evidence, answers the question, abstained) that never sees the expected
-  agents, tools or facts; `python -m src.eval run` (needs the key; one result line per case appended to
-  `reports/eval_runs/<run_id>.jsonl`, resumable, stops after repeated quota errors, tickets in a temporary database)
-  and `python -m src.eval report`; end-to-end abstention precision/recall on `uncovered`/`off_topic` vs answerable;
-  list of check/judge disagreements; committed report with model names and date.
+- 6B (checked by `scripts/verify_phase6b.py`): `src/eval/runner.py`: `observe_turn(state, message, latency_ms)`
+  (the 6A turn fields plus `tool_results`; retrieved docs reduced to `url`, `chunk_id`, `score`, `text[:600]`),
+  `run_case(case, orchestrator, run_id)` (user `cliente1988`, session `eval-<run_id>-<id>`, every turn in the same
+  session; any exception except `LLMNotConfiguredError` → status `error` with the class name only),
+  `load_results(path)` (JSONL, the last line per id wins), `run_eval(cases, results_path, run_id,
+  orchestrator_factory=None, sleep_s=None, max_cases=None, only=None, max_consecutive_errors=3)`: skips ids already
+  `ok`, keeps file order, `only` filters, `max_cases` caps this invocation, appends and flushes one line per case,
+  sleeps `EVAL_SLEEP_S` (default 6.0) between cases, stops after 3 consecutive `LLMUnavailableError` results
+  (`stopped_early`), lets `LLMNotConfiguredError` propagate, and points `TICKETS_DB_PATH` to a temporary file during
+  the run (restored afterwards). `src/eval/judge.py`: `load_judge_prompt()` (`src/prompts/judge.md`, reviewer-owned),
+  `get_judge_model()` (`get_chat_model(settings.EVAL_JUDGE_MODEL)`, default `gemini-3.5-flash-lite`, a different
+  model from the default answering model), `build_judge_input(case, result)` (merchant messages, final answer,
+  passages and tool outputs of the last turn; never the case id, category or anything from `expect`),
+  `parse_judgment(text)` (JSON between the first `{` and the last `}`; integers 1..5 for `grounded` and
+  `answers_question`, boolean `abstained`, else ValueError), `judge_case` (system = judge prompt; unparseable →
+  status `error`, `error_type: "unparseable"`), `should_judge` (ok, safe, no handoff, not `safety`), `run_judge`
+  (resumable like the runner) and `load_judgments`. `metrics.aggregate(cases, results, judgments=None)` adds
+  `answer_models` and `judge` (null without judgments): `n_judged`, `n_judge_errors`, `grounded_mean`,
+  `answers_mean`, end-to-end `abstention_precision`/`abstention_recall` (expected `abstain` vs judged `abstained`),
+  `abstention_errors`, `disagreements` (deterministic `facts_ok` true but `grounded` ≤ 2, or `facts_ok` false but
+  `grounded` and `answers_question` ≥ 4), `judge_models`. `write_report(..., judgments=None)` adds `complete`
+  (no errors and every case evaluated). CLI: `python -m src.eval run|judge|report --run-id ID [--runs-dir
+  reports/eval_runs] [--out-dir reports] [--sleep S] [--max-cases N] [--only a,b]`; no key → exit 2 with a message
+  naming `GEMINI_API_KEY`.
+- 6C: the user's real run (raw `reports/eval_runs/<run_id>.jsonl` and `.judge.jsonl` committed), report
+  `reports/eval_<run_id>.json` + `.md`, README numbers copied from the report with the models used; the reviewer
+  recomputes every number from the raw files.
 **Acceptance:**
 - AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold URLs and literal facts), abstention, multi-turn, safety, escalation, PT and EN.
 - AC6.2 `python -m src.eval run` executes against the real model and `report` outputs `reports/eval_<run_id>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost (null until Phase 7).

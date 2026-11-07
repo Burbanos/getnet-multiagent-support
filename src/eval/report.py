@@ -26,19 +26,22 @@ def write_report(
     out_json: str | Path,
     out_md: str | Path,
     run_id: str = "eval",
+    judgments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
     Compute aggregate metrics and write out evaluation report in both JSON and Markdown formats.
     Returns the report data dictionary.
     """
-    agg = aggregate(cases, results)
+    agg = aggregate(cases, results, judgments=judgments)
     sha = cases_sha256(cases)
     generated_at = datetime.now(UTC).isoformat()
+    complete = agg["n_errors"] == 0 and agg["n_evaluated"] == len(cases)
 
     report_data: dict[str, Any] = {
         "run_id": run_id,
         "generated_at": generated_at,
         "cases_sha256": sha,
+        "complete": complete,
         **agg,
     }
 
@@ -52,11 +55,15 @@ def write_report(
     # 2. Build Markdown report
     m = agg["metrics"]
     cost_note = agg.get("cost_note", "")
+    answer_models_str = ", ".join(agg.get("answer_models", [])) or "-"
+
     lines: list[str] = [
         f"# Relatório de Avaliação: {run_id}",
         "",
         f"- **Gerado em**: `{generated_at}`",
         f"- **Cases SHA256**: `{sha}`",
+        f"- **Status de Conclusão (`complete`)**: `{complete}`",
+        f"- **Modelos Avaliados (`answer_models`)**: `{answer_models_str}`",
         f"- **Total de Casos**: {agg['n_cases']}",
         f"- **Avaliados com Sucesso**: {agg['n_evaluated']}",
         f"- **Erros de Execução**: {agg['n_errors']}",
@@ -85,12 +92,42 @@ def write_report(
         "",
         f"> *Nota de Custo*: {cost_note}",
         "",
+    ]
+
+    # Judge Section if present
+    judge = agg.get("judge")
+    if judge:
+        g_mean = f"{judge.get('grounded_mean'):.2f}" if judge.get("grounded_mean") is not None else "-"
+        a_mean = f"{judge.get('answers_mean'):.2f}" if judge.get("answers_mean") is not None else "-"
+        ab_prec = _fmt_pct(judge.get("abstention_precision"))
+        ab_rec = _fmt_pct(judge.get("abstention_recall"))
+        judge_mods = ", ".join(judge.get("judge_models", [])) or "-"
+        ab_errors = ", ".join(judge.get("abstention_errors", [])) or "nenhum"
+        disagree = ", ".join(judge.get("disagreements", [])) or "nenhum"
+
+        lines.extend([
+            "## Avaliação do Juiz LLM",
+            "",
+            f"- **Casos Julgados**: {judge.get('n_judged', 0)} (Erros: {judge.get('n_judge_errors', 0)})",
+            f"- **Modelos do Juiz**: `{judge_mods}`",
+            f"- **Erros de Abstenção (`abstention_errors`)**: `{ab_errors}`",
+            f"- **Discordâncias entre Juiz e Fatos (`disagreements`)**: `{disagree}`",
+            "",
+            "| Métrica do Juiz | Valor |",
+            "| :--- | :--- |",
+            f"| `grounded_mean` | {g_mean} / 5.0 |",
+            f"| `answers_mean` | {a_mean} / 5.0 |",
+            f"| `abstention_precision` | {ab_prec} |",
+            f"| `abstention_recall` | {ab_rec} |",
+            "",
+        ])
+
+    lines.extend([
         "## Performance por Categoria",
         "",
         "| Categoria | Casos (n) | Pass Rate |",
         "| :--- | :--- | :--- |",
-    ]
-
+    ])
     for cat, data in agg.get("by_category", {}).items():
         lines.append(f"| `{cat}` | {data['n']} | {_fmt_pct(data['pass_rate'])} |")
 
