@@ -60,8 +60,13 @@ def test_chat_endpoint_valid_response(client: TestClient):
                 responses=[
                     AIMessage(
                         content="",
-                        tool_calls=[{"name": "search_knowledge_base", "args": {"query": "Get Classica Get Smart"}, "id": "call-1"}],
+                        tool_calls=[{"name": "ask_knowledge_agent", "args": {"question": "What is the difference between Get Classica and Get Smart?"}, "id": "call-sup-1"}],
                     ),
+                    AIMessage(
+                        content="",
+                        tool_calls=[{"name": "search_knowledge_base", "args": {"query": "Get Classica Get Smart"}, "id": "call-spec-1"}],
+                    ),
+                    AIMessage(content="A Get Clássica tem teclado físico e a Get Smart roda Android."),
                     AIMessage(content="A Get Clássica tem teclado físico e a Get Smart roda Android."),
                 ]
             )

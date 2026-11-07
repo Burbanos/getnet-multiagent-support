@@ -1,8 +1,20 @@
 """LLM model provider abstraction using LangChain Google GenAI."""
+import logging
+from typing import Any
+
+from langchain_core.exceptions import (
+    ModelAuthenticationError,
+    ModelInvalidRequestError,
+    ModelNotFoundError,
+    ModelPermissionDeniedError,
+)
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from src.config import settings
+
+logger = logging.getLogger("multiagent.llm")
 
 
 class LLMNotConfiguredError(Exception):
@@ -77,3 +89,72 @@ def get_fallback_model() -> BaseChatModel | None:
     if not fb_name:
         return None
     return _build_chat_model(fb_name)
+
+
+def extract_model_name(model: Any) -> str:
+    """Extract model identifier from ChatModel or RunnableBinding."""
+    target = getattr(model, "bound", model)
+    return (
+        getattr(target, "model_name", None)
+        or getattr(target, "model", None)
+        or getattr(target, "_llm_type", None)
+        or getattr(model, "model_name", None)
+        or getattr(model, "model", None)
+        or getattr(model, "_llm_type", "unknown")
+    )
+
+
+def invoke_model_with_fallback(
+    bound_model: Any,
+    bound_fallback: Any | None,
+    messages: list[BaseMessage],
+    trace_id: str = "",
+    caller_name: str = "Supervisor",
+) -> tuple[AIMessage, Any]:
+    """
+    Invoke bound primary model with automatic failover to bound fallback on transient errors.
+    Returns (ai_message, active_model).
+    """
+    try:
+        ai_message = bound_model.invoke(messages)
+        return ai_message, bound_model
+    except (LLMNotConfiguredError, LLMConfigurationError):
+        raise
+    except (
+        ModelNotFoundError,
+        ModelAuthenticationError,
+        ModelPermissionDeniedError,
+        ModelInvalidRequestError,
+    ) as exc:
+        logger.exception(f"{caller_name} primary model configuration error [trace_id={trace_id}]")
+        raise LLMConfigurationError(str(exc)) from exc
+    except Exception as exc:
+        primary_name = extract_model_name(bound_model)
+        if bound_fallback is not None:
+            logger.warning(
+                f"Primary model '{primary_name}' failed with {type(exc).__name__}: {exc}. "
+                f"Failing over to fallback [trace_id={trace_id}]."
+            )
+            try:
+                ai_message = bound_fallback.invoke(messages)
+                return ai_message, bound_fallback
+            except (LLMNotConfiguredError, LLMConfigurationError):
+                raise
+            except (
+                ModelNotFoundError,
+                ModelAuthenticationError,
+                ModelPermissionDeniedError,
+                ModelInvalidRequestError,
+            ) as fb_cfg_err:
+                logger.exception(f"{caller_name} fallback model configuration error [trace_id={trace_id}]")
+                raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
+            except Exception as fb_exc:
+                fb_name = extract_model_name(bound_fallback)
+                logger.exception(
+                    f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
+                    f"[trace_id={trace_id}]"
+                )
+                raise LLMUnavailableError(str(fb_exc)) from fb_exc
+        else:
+            logger.exception(f"{caller_name} primary model invocation failed [trace_id={trace_id}]")
+            raise LLMUnavailableError(str(exc)) from exc

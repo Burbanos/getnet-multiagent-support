@@ -91,14 +91,22 @@ SCENARIOS = [
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=[f"scenario-{s['id']}" for s in SCENARIOS])
 def test_evaluation_scenarios_plumbing(scenario):
-    """Verify tool execution and observation wiring for official benchmark scenarios."""
-    call_id = f"call-{scenario['id']}"
+    """Verify tool execution and observation wiring for official benchmark scenarios via specialists."""
+    if scenario["expected_tool"] in {"search_knowledge_base", "search_web"}:
+        sup_tool = "ask_knowledge_agent"
+        sup_args = {"question": scenario["message"]}
+    else:
+        sup_tool = "ask_support_agent"
+        sup_args = {"request": scenario["message"]}
+
+    call_sup_id = f"call-sup-{scenario['id']}"
+    call_tool_id = f"call-tool-{scenario['id']}"
+
     fake = ScriptedChatModel(
         responses=[
-            AIMessage(
-                content="",
-                tool_calls=[{"name": scenario["expected_tool"], "args": scenario["tool_args"], "id": call_id}],
-            ),
+            AIMessage(content="", tool_calls=[{"name": sup_tool, "args": sup_args, "id": call_sup_id}]),
+            AIMessage(content="", tool_calls=[{"name": scenario["expected_tool"], "args": scenario["tool_args"], "id": call_tool_id}]),
+            AIMessage(content=f"Specialist reply for scenario {scenario['id']}"),
             AIMessage(content=f"Final synthesized reply for scenario {scenario['id']}"),
         ]
     )
@@ -113,8 +121,9 @@ def test_evaluation_scenarios_plumbing(scenario):
     assert state.tools_used == [scenario["expected_tool"]]
     assert state.agent_response == f"Final synthesized reply for scenario {scenario['id']}"
 
-    assert len(fake.received) >= 2
-    step2_messages = fake.received[1]
+    assert len(fake.received) == 4
+    # Step 3 in fake.received (index 2) is the specialist receiving the ToolMessage from the executed tool
+    step2_messages = fake.received[2]
     tool_msgs = [m for m in step2_messages if isinstance(m, ToolMessage)]
     assert len(tool_msgs) == 1
     assert tool_msgs[0].name == scenario["expected_tool"]

@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_S: float = 30.0
     LLM_MAX_RETRIES: int = 2
     MAX_SUPERVISOR_STEPS: int = 6
+    MAX_SPECIALIST_STEPS: int = 4
 
     WEB_SEARCH_ENABLED: bool = True
     WEB_SEARCH_MAX_RESULTS: int = 3

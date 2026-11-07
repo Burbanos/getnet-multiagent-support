@@ -71,27 +71,25 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
 
 ## 1. Arquitetura do Sistema
 
-O fluxo implementa a arquitetura de orquestração: **Supervisor $\rightarrow$ Especialistas como Tools $\rightarrow$ Observação $\rightarrow$ Decisão $\rightarrow$ Humano $\rightarrow$ Retomada**.
+O fluxo implementa a arquitetura de orquestração com subagentes especialistas: **Supervisor $\rightarrow$ Especialistas (KnowledgeAgent / SupportAgent) ou Transbordo Humano $\rightarrow$ Observação $\rightarrow$ Decisão $\rightarrow$ Resposta Grounded**.
 
-### Padrão Supervisor ReAct
+### Padrão Supervisor ReAct com Subagentes Especialistas
+
+O `SupervisorAgent` não invoca ferramentas operacionais de baixo nível diretamente. Ele analisa o diálogo e delega para subagentes especialistas isolados (`KnowledgeAgent` e `SupportAgent`) ou efetua o transbordo humano direto (`escalate_to_human`):
 
 ```text
 Usuário (Turno N)
        ↓
 [Guardrail Node] (Sanitização PII Luhn + CPF & Defesa contra Injection)
        ↓
-[Supervisor Node] (Supervisor Engine com ferramentas registradas)
-       ↓ (decide tool_call ou resposta direta)
-       ├── search_knowledge_base  (ChromaDB Cosseno, limiar de abstenção < 0.20)
-       ├── get_settlement_status   (Consulta de liquidação D+1 Santander)
-       ├── diagnose_declined_txn   (Diagnóstico de recusas: Cód 51, 05, etc.)
-       ├── diagnose_terminal       (Conectividade Wi-Fi / Chip 3G/4G e reboot)
-       ├── search_web              (DuckDuckGo em tempo real para clima/câmbio)
-       └── escalate_to_human       (Criação de chamado persistido em SQLite)
+[Supervisor Node] (Supervisor ReAct com ferramentas de delegação)
+       ├── ask_knowledge_agent  → [KnowledgeAgent] (search_knowledge_base, search_web)
+       ├── ask_support_agent    → [SupportAgent]   (get_settlement_status, diagnose_declined_transaction, diagnose_terminal)
+       └── escalate_to_human    → Registro formal de transbordo no SQLite (tickets.db)
        ↓
-[Tool Execution Node] (Produz ToolMessage estruturada no State)
+[Tool Execution Node] (Executa especialista em contexto isolado ou chamado humano)
        ↓
-[Supervisor Node] (Observa saída da Tool, sintetiza resposta grounded)
+[Supervisor Node] (Observa saída ToolMessage estruturada e sintetiza resposta grounded)
        ↓
 Resposta ao Usuário + Gravação no MemorySaver (thread_id = session_id)
 ```
@@ -105,25 +103,42 @@ flowchart TD
     GuardrailNode -->|Violação / Prompt Injection| SafeExit([Interrupção Segura: Mensagem Bloqueada])
     GuardrailNode -->|Mensagem Segura| SupervisorNode[Nó: Supervisor ReAct\nTool Calling ReAct Engine]
 
-    SupervisorNode -->|Requer Tool Call| ToolsNode[Nó: ToolNode\nExecução de Especialista Tipado]
-    ToolsNode -->|Observação ToolMessage| SupervisorNode
+    SupervisorNode -->|ask_knowledge_agent| KnowledgeSpecialist[KnowledgeAgent Sub-Agent\nContexto Isolado: search_knowledge_base, search_web]
+    SupervisorNode -->|ask_support_agent| SupportSpecialist[SupportAgent Sub-Agent\nContexto Isolado: settlement, declined, terminal]
+    SupervisorNode -->|escalate_to_human| HumanEscalation[Transbordo Humano Direto\nSQLite tickets.db]
+
+    KnowledgeSpecialist -->|ToolMessage: agent, status, answer, sources| SupervisorNode
+    SupportSpecialist -->|ToolMessage: agent, status, answer, tools_used| SupervisorNode
+    HumanEscalation -->|ToolMessage: ticket_id, protocol| SupervisorNode
 
     SupervisorNode -->|Resposta Concluída| EndNode([Fim: Resposta Grounded + Telemetria])
     SafeExit --> EndNode
 ```
 
-### Especialistas Registrados como Tools
+### Isolamento de Contexto e Limite de Passos dos Especialistas
+
+* **Isolamento de Contexto**: Cada especialista (`KnowledgeAgent`, `SupportAgent`) é instanciado como `SpecialistAgent` e executa em um loop isolado com `[SystemMessage(prompt), HumanMessage(task)]`, sem acesso ao histórico completo da conversa do usuário, prevenindo vazamentos de contexto e alucinações cruzadas.
+* **Injeção de Identidade Segura**: O `user_id` autenticado é injetado programaticamente via `RunnableConfig` (`config={"configurable": {"user_id": user_id}}`) e nunca exposto aos parâmetros visíveis ao LLM.
+* **Limite de Passos dos Especialistas**: Cada especialista executa no máximo `MAX_SPECIALIST_STEPS` (padrão: 4) chamadas ao modelo. Se o limite for atingido, o especialista devolve status `"step_limit"` e o Supervisor trata o retorno graciosamente. O supervisor por sua vez possui o limite global `MAX_SUPERVISOR_STEPS` (padrão: 6).
+* **Ferramentas do Supervisor e dos Especialistas**:
+  * `ask_knowledge_agent`: delega dúvidas conceituais, produtos Getnet e dados públicos em tempo real ao `KnowledgeAgent`.
+  * `ask_support_agent`: delega consultas sobre a conta do lojista (extrato D+1, transações negadas, conectividade de terminal) ao `SupportAgent`.
+  * `escalate_to_human`: transbordo direto para especialista humano em casos de reclamações formais ou solicitação explícita.
+
+### Especialistas Registrados como Tools do Supervisor e dos Especialistas
 
 Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados com schemas Pydantic:
 
-| Ferramenta | Especialidade | Parâmetros | Fonte de Verdade |
-| :--- | :--- | :--- | :--- |
-| `search_knowledge_base` | Produtos Getnet, manuais, taxas, Pix, crediário, link de pagamento | `query: str` | ChromaDB (`data/getnet_kb.json`) com limiar |
-| `get_settlement_status` | Extrato de liquidação, vendas de ontem e previsão bancária D+1 | `user_id: str` | Tabela transacional financeira |
-| `diagnose_declined_transaction` | Diagnóstico de transações negadas pelo emissor (código 51, 05, etc.) | `user_id: str, error_code: Optional[str]` | Catálogo de recusas bancárias |
-| `diagnose_terminal` | Diagnóstico de conectividade, chip móvel e reinicialização do POS | `user_id: str, serial_number: Optional[str]` | Telemetria de hardware Get Smart/Clássica |
-| `search_web` | Informações públicas em tempo real (tempo, câmbio do Euro/Dólar) | `query: str` | DuckDuckGo Search (`ddgs`) |
-| `escalate_to_human` | Registro formal de transbordo humano | `user_id: str, reason: str` | Banco relacional SQLite (`data/tickets.db`) |
+| Ferramenta | Pertence a | Descrição |
+| :--- | :--- | :--- |
+| `ask_knowledge_agent` | Supervisor | Delega perguntas sobre produtos Getnet ou dados públicos em tempo real ao KnowledgeAgent |
+| `ask_support_agent` | Supervisor | Delega solicitações de conta de lojista ao Customer Support Agent |
+| `escalate_to_human` | Supervisor | Cria chamado humano persistido em `tickets.db` |
+| `search_knowledge_base` | KnowledgeAgent | Busca vetorial semântica no ChromaDB (`data/getnet_kb.json`) com limiar |
+| `search_web` | KnowledgeAgent | Busca pública em tempo real (DuckDuckGo) |
+| `get_settlement_status` | SupportAgent | Consulta extrato e valores com mascaramento bancário de conta de destino |
+| `diagnose_declined_transaction` | SupportAgent | Diagnóstico de transações negadas pelo emissor |
+| `diagnose_terminal` | SupportAgent | Diagnóstico de conectividade e hardware de maquininhas Get Smart/Clássica |
 
 ---
 

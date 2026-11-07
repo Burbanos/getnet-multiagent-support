@@ -29,6 +29,7 @@ class SupervisorState(TypedDict):
     trace_id: str
     is_safe: bool
     safety_violations: list[str]
+    agents_used: list[str]
     tools_used: list[str]
     tool_calls: list[dict[str, Any]]
     tool_results: list[dict[str, Any]]
@@ -62,6 +63,7 @@ class AgentState(BaseModel):
     context_docs: list[dict[str, Any]] = Field(default_factory=list)
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    agents_used: list[str] = Field(default_factory=lambda: ["SupervisorAgent"])
     tools_used: list[str] = Field(default_factory=list)
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
@@ -97,6 +99,7 @@ class AgentMetadata(BaseModel):
     session_id: str
     user_id: str
     trace_id: str = ""
+    agents_used: list[str] = Field(default_factory=lambda: ["SupervisorAgent"])
     tools_used: list[str] = Field(default_factory=list)
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)

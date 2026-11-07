@@ -42,6 +42,7 @@ class AgentMetadata(BaseModel):
     routed_by: str = Field(default="SupervisorAgent", description="Supervisor ReAct orchestration engine")
     session_id: str = Field(default="", description="Conversational session ID")
     trace_id: str = Field(default="", description="Unique UUID trace identifier for observability")
+    agents_used: list[str] = Field(default_factory=lambda: ["SupervisorAgent"], description="Specialist agents invoked during execution")
     tools_used: list[str] = Field(default_factory=list, description="Tools invoked during pipeline execution")
     tool_calls: list[dict[str, Any]] = Field(default_factory=list, description="Structured ReAct tool invocations")
     execution_time_ms: float = Field(..., description="Total execution latency in milliseconds")
@@ -264,6 +265,7 @@ def chat_endpoint(payload: ChatRequest, response: Response):
             session_id=active_session,
             trace_id=trace_id,
             llm_model=getattr(state, "llm_model", None),
+            agents_used=getattr(state, "agents_used", ["SupervisorAgent"]),
             tools_used=state.tools_used,
             tool_calls=state.tool_calls,
             execution_time_ms=state.execution_time_ms,

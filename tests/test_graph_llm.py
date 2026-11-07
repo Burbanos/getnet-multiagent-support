@@ -9,10 +9,12 @@ from tests.fakes import ScriptedChatModel
 
 
 def test_single_tool_execution():
-    """Verify single tool call execution flow via ScriptedChatModel."""
+    """Verify single tool call execution flow via Supervisor -> Specialist delegation."""
     fake = ScriptedChatModel(
         responses=[
-            AIMessage(content="", tool_calls=[{"name": "get_settlement_status", "args": {}, "id": "call-1"}]),
+            AIMessage(content="", tool_calls=[{"name": "ask_support_agent", "args": {"request": "Quando cai o dinheiro de ontem?"}, "id": "call-sup-1"}]),
+            AIMessage(content="", tool_calls=[{"name": "get_settlement_status", "args": {}, "id": "call-tool-1"}]),
+            AIMessage(content="Extrato consultado: depósito agendado para hoje."),
             AIMessage(content="Seu depósito de ontem está agendado para hoje."),
         ]
     )
@@ -21,19 +23,28 @@ def test_single_tool_execution():
 
     assert state.tools_used == ["get_settlement_status"]
     assert state.agent_response == "Seu depósito de ontem está agendado para hoje."
-    assert len(fake.received) == 2
-    # First message to model is supervisor system prompt
+    assert state.agents_used == ["SupervisorAgent", "SupportAgent"]
+    assert len(fake.received) == 4
+    # First message to supervisor model is supervisor system prompt
     assert isinstance(fake.received[0][0], SystemMessage)
-    # Observation sent to model in step 2 is ToolMessage
-    assert any(isinstance(m, ToolMessage) for m in fake.received[1])
+    # Specialist input has system prompt and isolated task
+    assert isinstance(fake.received[1][0], SystemMessage)
+    # Observation sent to specialist in step 2 is ToolMessage
+    assert any(isinstance(m, ToolMessage) for m in fake.received[2])
+    # Observation sent to supervisor in step 4 is ToolMessage
+    assert any(isinstance(m, ToolMessage) for m in fake.received[3])
 
 
 def test_two_tools_sequence():
-    """Verify sequential execution of two distinct tools before final response."""
+    """Verify sequential execution of two specialist agents before final supervisor response."""
     fake = ScriptedChatModel(
         responses=[
-            AIMessage(content="", tool_calls=[{"name": "get_settlement_status", "args": {}, "id": "call-seq-1"}]),
-            AIMessage(content="", tool_calls=[{"name": "search_knowledge_base", "args": {"query": "antecipação"}, "id": "call-seq-2"}]),
+            AIMessage(content="", tool_calls=[{"name": "ask_support_agent", "args": {"request": "Qual meu saldo de ontem?"}, "id": "call-seq-1"}]),
+            AIMessage(content="", tool_calls=[{"name": "get_settlement_status", "args": {}, "id": "call-seq-tool-1"}]),
+            AIMessage(content="Saldo apurado com sucesso."),
+            AIMessage(content="", tool_calls=[{"name": "ask_knowledge_agent", "args": {"question": "Como funciona antecipação?"}, "id": "call-seq-2"}]),
+            AIMessage(content="", tool_calls=[{"name": "search_knowledge_base", "args": {"query": "antecipação"}, "id": "call-seq-tool-2"}]),
+            AIMessage(content="Regras de antecipação verificadas."),
             AIMessage(content="Extrato consultado e regras de antecipação verificadas."),
         ]
     )
@@ -41,8 +52,9 @@ def test_two_tools_sequence():
     state = orch.run_sync(user_id="cliente1988", message="Qual meu saldo e como funciona antecipação?", session_id="test-seq-1")
 
     assert state.tools_used == ["get_settlement_status", "search_knowledge_base"]
+    assert state.agents_used == ["SupervisorAgent", "SupportAgent", "KnowledgeAgent"]
     assert state.agent_response == "Extrato consultado e regras de antecipação verificadas."
-    assert len(fake.received) == 3
+    assert len(fake.received) == 7
 
 
 def test_direct_response_without_tool():
@@ -61,7 +73,7 @@ def test_direct_response_without_tool():
 
 
 def test_tool_exception_returns_tool_message_error_to_model(monkeypatch):
-    """Verify tool errors are captured in ToolMessage and sent back to supervisor."""
+    """Verify tool errors are captured in ToolMessage and sent back to specialist."""
     def broken_settlement(*args, **kwargs):
         raise RuntimeError("Falha de conexão com o banco transacional")
 
@@ -72,7 +84,9 @@ def test_tool_exception_returns_tool_message_error_to_model(monkeypatch):
 
     fake = ScriptedChatModel(
         responses=[
+            AIMessage(content="", tool_calls=[{"name": "ask_support_agent", "args": {"request": "Ver extrato"}, "id": "call-err-sup"}]),
             AIMessage(content="", tool_calls=[{"name": "get_settlement_status", "args": {}, "id": "call-err-1"}]),
+            AIMessage(content="Identifiquei falha ao consultar o extrato."),
             AIMessage(content="Identifiquei uma instabilidade momentânea na consulta do extrato."),
         ]
     )
@@ -82,11 +96,10 @@ def test_tool_exception_returns_tool_message_error_to_model(monkeypatch):
     assert state.tools_used == ["get_settlement_status"]
     assert state.agent_response == "Identifiquei uma instabilidade momentânea na consulta do extrato."
 
-    # Verify ToolMessage carried the error description to the model
-    second_turn_msgs = fake.received[1]
-    tool_msgs = [m for m in second_turn_msgs if isinstance(m, ToolMessage)]
+    # Verify ToolMessage carried the error description to the specialist model
+    tool_msgs = [m for m in fake.received[2] if isinstance(m, ToolMessage)]
     assert len(tool_msgs) == 1
-    assert "Falha" in tool_msgs[0].content
+    assert "Falha" in tool_msgs[0].content or "failed" in tool_msgs[0].content.lower()
 
 
 def test_multi_turn_memory_same_session():

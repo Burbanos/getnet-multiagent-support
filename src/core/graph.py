@@ -6,28 +6,33 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from langchain_core.exceptions import (
-    ModelAuthenticationError,
-    ModelInvalidRequestError,
-    ModelNotFoundError,
-    ModelPermissionDeniedError,
-)
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.guardrails import GuardrailAgent
+from src.agents.specialists import SpecialistAgent
 from src.config import settings
 from src.core.llm import (
     LLMConfigurationError,
     LLMNotConfiguredError,
     LLMUnavailableError,
+    extract_model_name,
     get_chat_model,
     get_fallback_model,
+    invoke_model_with_fallback,
 )
 from src.core.state import AgentRole, AgentState, SupervisorState
-from src.tools.agent_tools import ALL_TOOLS, TOOLS_BY_NAME
+from src.tools.agent_tools import (
+    TOOLS_BY_NAME,
+    diagnose_declined_transaction,
+    diagnose_terminal,
+    get_settlement_status,
+    search_knowledge_base,
+    search_web,
+)
+from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
 logger = logging.getLogger("multiagent.orchestrator")
 
@@ -39,19 +44,6 @@ def load_supervisor_prompt() -> str:
     if PROMPT_PATH.exists():
         return PROMPT_PATH.read_text(encoding="utf-8")
     return "You are the support supervisor for Getnet merchants."
-
-
-def _extract_model_name(model: Any) -> str:
-    """Extract model identifier from ChatModel or RunnableBinding."""
-    target = getattr(model, "bound", model)
-    return (
-        getattr(target, "model_name", None)
-        or getattr(target, "model", None)
-        or getattr(target, "_llm_type", None)
-        or getattr(model, "model_name", None)
-        or getattr(model, "model", None)
-        or getattr(model, "_llm_type", "unknown")
-    )
 
 
 class OrchestrationGraph:
@@ -74,6 +66,22 @@ class OrchestrationGraph:
         self.fallback_model: BaseChatModel | None = fallback_model
         self._bound_model: Any = None
         self._bound_fallback: Any = None
+
+        self.knowledge_agent = SpecialistAgent(
+            name="KnowledgeAgent",
+            prompt_file="knowledge_agent.md",
+            tools=[search_knowledge_base, search_web],
+            chat_model=chat_model,
+            fallback_model=fallback_model,
+        )
+        self.support_agent = SpecialistAgent(
+            name="SupportAgent",
+            prompt_file="support_agent.md",
+            tools=[get_settlement_status, diagnose_declined_transaction, diagnose_terminal],
+            chat_model=chat_model,
+            fallback_model=fallback_model,
+        )
+
         self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
 
@@ -85,8 +93,8 @@ class OrchestrationGraph:
             else:
                 primary = get_chat_model()
                 fallback = get_fallback_model()
-            self._bound_model = primary.bind_tools(ALL_TOOLS)
-            self._bound_fallback = fallback.bind_tools(ALL_TOOLS) if fallback is not None else None
+            self._bound_model = primary.bind_tools(SUPERVISOR_TOOLS)
+            self._bound_fallback = fallback.bind_tools(SUPERVISOR_TOOLS) if fallback is not None else None
         return self._bound_model, self._bound_fallback
 
     def _get_bound_model(self) -> Any:
@@ -176,52 +184,15 @@ class OrchestrationGraph:
         full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
         trace_id = state.get("trace_id", "")
 
-        active_model = bound_model
+        ai_message, active_model = invoke_model_with_fallback(
+            bound_model,
+            bound_fallback,
+            full_messages,
+            trace_id=trace_id,
+            caller_name="Supervisor",
+        )
 
-        try:
-            ai_message = bound_model.invoke(full_messages)
-        except (LLMNotConfiguredError, LLMConfigurationError):
-            raise
-        except (
-            ModelNotFoundError,
-            ModelAuthenticationError,
-            ModelPermissionDeniedError,
-            ModelInvalidRequestError,
-        ) as exc:
-            logger.exception(f"Supervisor primary model configuration error [trace_id={trace_id}]")
-            raise LLMConfigurationError(str(exc)) from exc
-        except Exception as exc:
-            primary_name = _extract_model_name(bound_model)
-            if bound_fallback is not None:
-                logger.warning(
-                    f"Primary model '{primary_name}' failed with {type(exc).__name__}: {exc}. "
-                    f"Failing over to fallback [trace_id={trace_id}]."
-                )
-                try:
-                    ai_message = bound_fallback.invoke(full_messages)
-                    active_model = bound_fallback
-                except (LLMNotConfiguredError, LLMConfigurationError):
-                    raise
-                except (
-                    ModelNotFoundError,
-                    ModelAuthenticationError,
-                    ModelPermissionDeniedError,
-                    ModelInvalidRequestError,
-                ) as fb_cfg_err:
-                    logger.exception(f"Fallback model configuration error [trace_id={trace_id}]")
-                    raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
-                except Exception as fb_exc:
-                    fb_name = _extract_model_name(bound_fallback)
-                    logger.exception(
-                        f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
-                        f"[trace_id={trace_id}]"
-                    )
-                    raise LLMUnavailableError(str(fb_exc)) from fb_exc
-            else:
-                logger.exception(f"Supervisor primary model invocation failed [trace_id={trace_id}]")
-                raise LLMUnavailableError(str(exc)) from exc
-
-        model_used = _extract_model_name(active_model)
+        model_used = extract_model_name(active_model)
 
         response_text = str(ai_message.text) if hasattr(ai_message, "text") else (
             ai_message.content if isinstance(ai_message.content, str) else str(ai_message.content)
@@ -318,7 +289,8 @@ class OrchestrationGraph:
 
     def _tools_node(self, state: SupervisorState) -> dict[str, Any]:
         """
-        Tool Execution Node: executes requested tools and produces ToolMessage observations.
+        Tool Execution Node: delegates to specialists or executes supervisor tools.
+        Produces ToolMessage observations for the supervisor model.
         """
         messages = state.get("messages", [])
         if not messages:
@@ -333,63 +305,93 @@ class OrchestrationGraph:
         sources = list(state.get("sources", []))
         retrieved_docs = list(state.get("retrieved_docs", []))
         ticket = state.get("ticket")
+        agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
+
+        user_id = state.get("user_id", "cliente1988")
+        trace_id = state.get("trace_id", "")
 
         for call in tool_calls:
             tool_name = call.get("name")
             tool_args = call.get("args", {})
             call_id = call.get("id", str(uuid.uuid4()))
 
-            tool_fn = TOOLS_BY_NAME.get(tool_name)
-            if tool_fn:
-                logger.info(f"Executing tool '{tool_name}' with args {tool_args}")
-                try:
-                    result_str = tool_fn.invoke(
-                        tool_args,
-                        config={"configurable": {"user_id": state["user_id"]}},
-                    )
-                except Exception as e:  # noqa: BLE001 - Dynamic tool invocation must catch all errors
-                    logger.error(f"Error executing tool {tool_name}: {e}")
-                    result_str = json.dumps({"error": f"Falha na execução da ferramenta {tool_name}: {e}"})
+            if tool_name == "ask_knowledge_agent":
+                if "KnowledgeAgent" not in agents_used:
+                    agents_used.append("KnowledgeAgent")
+                question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
+                spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
 
-                tools_used.append(tool_name)
-
-                t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                payload = {
+                    "agent": spec_res["agent"],
+                    "status": spec_res["status"],
+                    "answer": spec_res["answer"],
+                    "tools_used": spec_res["tools_used"],
+                    "sources": spec_res["sources"],
+                }
+                payload_str = json.dumps(payload, ensure_ascii=False)
+                t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
                 tool_messages.append(t_msg)
+                tool_results.append(payload)
 
-                # Parse and track telemetry
-                try:
-                    parsed = json.loads(result_str)
-                    tool_results.append(parsed)
+                tools_used.extend(spec_res["tools_used"])
+                sources.extend(spec_res["sources"])
+                retrieved_docs.extend(spec_res["retrieved_docs"])
 
-                    if tool_name == "search_knowledge_base":
-                        docs = parsed.get("documents", [])
-                        for d in docs:
-                            retrieved_docs.append(d)
-                            if d.get("url"):
-                                sources.append(d.get("url"))
+            elif tool_name == "ask_support_agent":
+                if "SupportAgent" not in agents_used:
+                    agents_used.append("SupportAgent")
+                request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
+                spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
 
-                    elif tool_name == "search_web":
-                        results = parsed.get("results", [])
-                        for r in results:
-                            if r.get("url"):
-                                sources.append(r.get("url"))
+                payload = {
+                    "agent": spec_res["agent"],
+                    "status": spec_res["status"],
+                    "answer": spec_res["answer"],
+                    "tools_used": spec_res["tools_used"],
+                    "sources": spec_res["sources"],
+                }
+                payload_str = json.dumps(payload, ensure_ascii=False)
+                t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
+                tool_messages.append(t_msg)
+                tool_results.append(payload)
 
-                    elif tool_name == "escalate_to_human":
-                        ticket = parsed
+                tools_used.extend(spec_res["tools_used"])
+                sources.extend(spec_res["sources"])
+                retrieved_docs.extend(spec_res["retrieved_docs"])
 
-                except (json.JSONDecodeError, TypeError, KeyError) as e:
-                    logger.debug(f"Could not parse telemetry from tool '{tool_name}' result: {e}")
+            elif tool_name == "escalate_to_human":
+                escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
+                if escalate_fn:
+                    try:
+                        result_str = escalate_fn.invoke(
+                            tool_args,
+                            config={"configurable": {"user_id": user_id}},
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        logger.error(f"Error executing escalate_to_human: {e}")
+                        result_str = json.dumps({"error": f"Falha na execução de escalate_to_human: {e}"})
+
+                    tools_used.append("escalate_to_human")
+                    t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                    tool_messages.append(t_msg)
+
+                    try:
+                        parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
+                        if isinstance(parsed, dict):
+                            ticket = parsed
+                            tool_results.append(parsed)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
             else:
-                logger.warning(f"Tool '{tool_name}' not found in registry.")
-                t_msg = ToolMessage(
-                    content=json.dumps({"error": f"Ferramenta '{tool_name}' não encontrada."}),
-                    tool_call_id=call_id,
-                    name=tool_name,
-                )
+                logger.warning(f"Tool '{tool_name}' not available to SupervisorAgent.")
+                err_payload = json.dumps({"error": f"tool {tool_name} not available to SupervisorAgent"})
+                t_msg = ToolMessage(content=err_payload, tool_call_id=call_id, name=tool_name)
                 tool_messages.append(t_msg)
 
         return {
             "messages": tool_messages,
+            "agents_used": agents_used,
             "tools_used": tools_used,
             "tool_results": tool_results,
             "sources": sources,
@@ -419,6 +421,7 @@ class OrchestrationGraph:
             "trace_id": active_trace_id,
             "is_safe": True,
             "safety_violations": [],
+            "agents_used": ["SupervisorAgent"],
             "tools_used": [],
             "tool_calls": [],
             "tool_results": [],
@@ -473,6 +476,7 @@ class OrchestrationGraph:
             trace_id=active_trace_id,
             is_safe=result.get("is_safe", True),
             safety_violations=result.get("safety_violations", []),
+            agents_used=result.get("agents_used", ["SupervisorAgent"]),
             tools_used=result.get("tools_used", []),
             tool_calls=result.get("tool_calls", []),
             tool_results=result.get("tool_results", []),
