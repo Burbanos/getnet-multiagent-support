@@ -31,6 +31,55 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ---
 
+## Current state and next steps (handoff, 2026-11-06)
+
+**Read this first in a new planning conversation.** Repository HEAD at handoff: lock regenerated without
+chromadb (`b6a1bae`) plus this SPEC/prompt update. CI (lint, tests, docker build + /health smoke) green.
+
+**Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
+- Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
+- 2A LLM supervisor with function calling · 2B timeouts, error classes, step limit, `X-Trace-Id` · 2C
+  provider-agnostic factory, fallback model (`gemini-3.5-flash` → `gemini-3.5-flash-lite`), account masking ·
+  2D KnowledgeAgent and SupportAgent sub-agents · 2E real token usage, tools without invented values.
+- 3A ingestion of 33 official URLs (30 `ok`: 10 getnet.net/en, 20 site.getnet.com.br; santander.com.br
+  dropped, 403 on robots.txt) · 3B chunking, committed `gemini-embedding-2` index, retriever · 3C retriever
+  wired into `search_knowledge_base`, legacy KB and ChromaDB removed (index: 92 chunks, 28 pages).
+
+**Real-model smoke test after 3C (5 questions, all facts checked against the corpus):** crediário "até 48x"
+with the issuer caveat (literal on the official page; the old hand-written KB said 36x); Pix bank account →
+honest "official sources do not detail it" (no such text in the corpus); Get Clássica vs Get Smart → rents
+R$ 79,90 vs R$ 129,90 (literal); WhatsApp + payment link → yes, from the global online-payments page; cake
+recipe → polite refusal without search. Observed problems: EN questions answered in PT; collection dates not
+cited; global source not flagged (supervisor prompt fixed in this handoff commit, not yet re-measured);
+flattened tables can misattribute numbers ("isenção acima de R$ 10 mil" came from a price-band selector);
+latency 24–42 s per question.
+
+**Working agreements (also in the project instructions):** the reviewer writes only `scripts/verify_*.py`,
+`docs/SPEC.md`, `docs/phase-prompts/*.md` and `src/prompts/*.md`, between phases, after checking that the
+local folder equals GitHub HEAD; the user types `Execute docs/phase-prompts/<phase>.md` in Antigravity, which
+commits the reviewer files unchanged; the reviewer monitors GitHub and verifies independently. Each verifier
+reruns earlier ones with `VERIFY_NESTED=1` (skips their suites) and lists superseded checks in `PRIOR`
+(2A: R2.single_tool_flow, R3.user_id_injected, R3.bound_tools, R4.two_tools_sequence; 2B:
+S1.default_model_config, S1.default_model_env_example, R2.model_name; 2D: R6.knowledge_flow). Anything that
+needs the API key (index builds, smoke tests, real-model evals) is run by the user in a terminal with
+`Read-Host -MaskInput`; Antigravity must stop and ask. Antigravity's sandbox hangs pytest/TestClient when run
+in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
+use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
+
+**Next phase: 3D (retrieval evaluation and threshold calibration).** Labeled set of ≥30 queries (PT and EN,
+in-domain with gold `doc_url`/chunk, out-of-domain), script that embeds queries with the real model (user
+runs it), reports hit@1/hit@3/MRR and abstention precision/recall per threshold, and sets `RAG_MIN_SCORE`
+from the curve (committed under `reports/`). Note: mean cosine between chunks of different pages is 0.685
+(min 0.488), so 0.60 is probably too low. Include the language rule (EN question → EN answer) and date
+citation as real-model checks when Phase 6 starts.
+
+**Backlog after 3D:** replace `data/eval_dataset.json` (ground truth still from the old KB) in Phase 6;
+cadastro pop-up text ("Como deseja continuar?", in <4 pages) survives the boilerplate filter; WhatsApp payment
+link has only the global page as source; Phase 4 auth + persistent per-user memory; Phase 5 escalation
+handoff/resume; Phase 6 real-model evaluation; Phase 7 observability (per-node logs, latency per agent,
+circuit breaker so the failing primary model is skipped for a while, cost); Phase 8 README claims table and
+`demo.html` review.
+
 ## 1. Target architecture
 
 ```text
