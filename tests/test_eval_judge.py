@@ -49,24 +49,24 @@ def test_x_api_key_security_header(client: TestClient):
         res_valid = client.post(
             "/chat",
             headers={"X-API-Key": "getnet-dev-key"},
-            json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"},
+            json={"message": "Qual a diferença entre Get Clássica e Get Smart?"},
         )
         assert res_valid.status_code == 200
 
-        # 2. Omitted header
+        # 2. Omitted header returns 401
         res_omitted = client.post(
             "/chat",
-            json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"},
+            json={"message": "Qual a diferença entre Get Clássica e Get Smart?"},
         )
-        assert res_omitted.status_code == 200
+        assert res_omitted.status_code == 401
 
         # 3. Unauthorized key
         res_invalid = client.post(
             "/chat",
             headers={"X-API-Key": "malicious-hacker-key-999"},
-            json={"message": "Qual a diferença entre Get Clássica e Get Smart?", "user_id": "sec_test"},
+            json={"message": "Qual a diferença entre Get Clássica e Get Smart?"},
         )
         assert res_invalid.status_code == 401
-        assert "inválida" in res_invalid.json()["detail"].lower()
+        assert "invalid" in res_invalid.json()["detail"].lower()
     finally:
         graph_mod._orchestrator_instance = saved

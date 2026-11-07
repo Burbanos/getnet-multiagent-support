@@ -44,10 +44,10 @@ def test_agents_introspection_endpoint(client: TestClient):
 
 
 def test_chat_invalid_payload(client: TestClient):
-    response = client.post("/chat", json={"message": ""})
+    response = client.post("/chat", json={"message": ""}, headers={"X-API-Key": "getnet-dev-key"})
     assert response.status_code == 422
 
-    response2 = client.post("/chat", json={"user_id": "cliente1988"})
+    response2 = client.post("/chat", json={"user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
     assert response2.status_code == 422
 
 
@@ -74,7 +74,7 @@ def test_chat_endpoint_valid_response(client: TestClient):
             "message": "What's the difference between the Get Clássica and the Get Smart?",
             "user_id": "cliente1988",
         }
-        response = client.post("/chat", json=payload)
+        response = client.post("/chat", json=payload, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 200
         data = response.json()
 
@@ -318,7 +318,7 @@ def test_ticket_persistence_sqlite_and_endpoints(client: TestClient):
             "user_id": "cliente1988",
             "session_id": "session-escalation-verify",
         }
-        response = client.post("/chat", json=payload)
+        response = client.post("/chat", json=payload, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 200
         data = response.json()
 
@@ -329,7 +329,7 @@ def test_ticket_persistence_sqlite_and_endpoints(client: TestClient):
         assert ticket_id.startswith("GET-TKT-")
 
         # Verify GET /tickets/{ticket_id}
-        res_ticket = client.get(f"/tickets/{ticket_id}")
+        res_ticket = client.get(f"/tickets/{ticket_id}", headers={"X-API-Key": "getnet-dev-key"})
         assert res_ticket.status_code == 200
         ticket_data = res_ticket.json()
         assert ticket_data["ticket_id"] == ticket_id
@@ -337,7 +337,7 @@ def test_ticket_persistence_sqlite_and_endpoints(client: TestClient):
         assert ticket_data["status"] == "open"
 
         # Verify GET /tickets list endpoint
-        res_list = client.get("/tickets")
+        res_list = client.get("/tickets", headers={"X-API-Key": "getnet-dev-key"})
         assert res_list.status_code == 200
         list_data = res_list.json()
         assert list_data["count"] >= 1

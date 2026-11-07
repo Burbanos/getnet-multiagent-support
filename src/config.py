@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     INDEX_DIR: str = "data/index"
 
     ENABLE_GUARDRAILS: bool = True
-    CONFIDENCE_THRESHOLD_ESCALATION: float = 0.45
+    API_KEYS: str = ""
+    RATE_LIMIT_PER_MINUTE: int = 30
 
 
 settings = Settings()

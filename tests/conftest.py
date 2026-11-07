@@ -160,3 +160,16 @@ def mock_web_search(monkeypatch):
 
     monkeypatch.setattr(web_search, "web_search_tool", fake_web_search)
     monkeypatch.setattr(agent_tools, "web_search_tool", fake_web_search)
+
+
+@pytest.fixture(autouse=True)
+def reset_auth_settings(monkeypatch):
+    """Ensure consistent authentication and rate limiting state across all tests."""
+    from src.config import settings
+    from src.core.auth import reset_rate_limiter
+
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    monkeypatch.setattr(settings, "API_KEYS", "")
+    reset_rate_limiter()
+    yield
+    reset_rate_limiter()

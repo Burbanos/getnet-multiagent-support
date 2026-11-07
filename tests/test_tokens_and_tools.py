@@ -77,7 +77,7 @@ def test_chat_endpoint_reports_tokens_in_metadata():
     fake = ScriptedChatModel(responses=[_ai("tudo certo", u=_usage(15, 5))])
     with patch.object(graph_mod, "_orchestrator_instance", OrchestrationGraph(chat_model=fake)):
         client = TestClient(app)
-        res = client.post("/chat", json={"message": "ola", "user_id": "cliente1988"})
+        res = client.post("/chat", json={"message": "ola", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert res.status_code == 200
         meta = res.json().get("metadata", {})
         assert meta.get("tokens") == {"input_tokens": 15, "output_tokens": 5, "total_tokens": 20}

@@ -148,7 +148,7 @@ class OrchestrationGraph:
                 orig_id = getattr(last_msg, "id", None)
                 raw_msg = last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
 
-        agent_state = AgentState(user_id=state.get("user_id", "cliente1988"), message=raw_msg)
+        agent_state = AgentState(user_id=state["user_id"], message=raw_msg)
         evaluated = self.guardrail_agent.evaluate_sync(agent_state)
 
         if not evaluated.is_safe:
@@ -269,7 +269,7 @@ class OrchestrationGraph:
             )
             tool_messages.append(t_msg)
 
-        user_id = state.get("user_id", "cliente1988")
+        user_id = state["user_id"]
         trace_id = state.get("trace_id", "")
         escalate_tool = TOOLS_BY_NAME["escalate_to_human"]
 
@@ -332,7 +332,7 @@ class OrchestrationGraph:
         ticket = state.get("ticket")
         agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
 
-        user_id = state.get("user_id", "cliente1988")
+        user_id = state["user_id"]
         trace_id = state.get("trace_id", "")
         tba = state.get("tokens_by_agent")
 
@@ -473,6 +473,8 @@ class OrchestrationGraph:
         """
         Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
         """
+        if not user_id or not user_id.strip():
+            raise ValueError("user_id is required")
         start_time = time.perf_counter()
         active_session_id = session_id or str(uuid.uuid4())
         active_trace_id = trace_id or f"trc-{uuid.uuid4().hex[:12]}"
@@ -502,7 +504,7 @@ class OrchestrationGraph:
         }
 
         # Checkpointer thread configuration
-        config = {"configurable": {"thread_id": active_session_id}}
+        config = {"configurable": {"thread_id": f"{user_id}:{active_session_id}"}}
 
         logger.info(
             f"Invoking Supervisor ReAct workflow for user '{user_id}' [Session: {active_session_id}]: '{message[:60]}...'"

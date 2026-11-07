@@ -4,6 +4,89 @@
 
 ---
 
+### Fase 4A: Identidade pela Credencial, Isolamento por Usuário, Tickets por Dono e Rate Limit
+
+#### Verificação Fase 4A (`python scripts/verify_phase4a.py`):
+```text
+PASS S1.no_default_user
+PASS S2.no_plaintext_key_in_main
+PASS S3.dead_confidence_setting_removed
+PASS S4.config_documented
+PASS S4.env_example_has_no_key
+PASS S5.readme
+PASS S6.demo_sends_key
+PASS R0.api
+PASS R0.settings
+PASS A1.hash
+PASS A1.parse_valid
+PASS A2.parse_rejects
+PASS A3.missing_or_invalid_401
+PASS A3.dev_key_in_development
+PASS A3.dev_operator_key
+PASS A3.health_public_and_auth_mode
+PASS A4.production_rejects_dev_keys
+PASS A4.configured_keys
+PASS A4.configured_keys_replace_dev_defaults
+PASS A5.body_user_id
+PASS I1.session_isolated_per_user
+PASS I2.thread_id_format
+PASS I3.session_id_generated_and_bounded
+PASS I4.run_sync_requires_user
+PASS T1.list_by_owner
+PASS T2.get_by_owner
+PASS T3.tickets_need_key
+PASS L1.rate_limit_per_key
+PASS L2.zero_disables
+PASS C1.no_llm_key_503
+PASS C2.config_error_503
+PASS C2.transient_error_503
+PASS C2.timeout_503
+PASS C3.internal_error_500
+PASS C4.metadata_fields
+PASS Q0.auth_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 132 passed in 14.93s
+PASS Q3.tree_unchanged
+
+SUMMARY: 48/48 passed
+```
+
+#### Commit Base da Fase 4A (`git rev-parse HEAD`):
+```text
+f467d568528fe9551a1e4c824d1ad30463c3fc11
+```
+
+#### Testes Criados na Fase 4A:
+`tests/test_auth.py` (8 novos testes unitários):
+- `test_parse_api_keys_valid_and_invalid`: testa parsing de chave válida e rejeição de entradas com hash inválido (tamanho != 64, não-hex), usuário vazio, role inválido e hashes duplicados.
+- `test_auth_missing_or_invalid_key_401`: testa rejeição com HTTP 401 e detalhe genérico para cabeçalho ausente ou chave desconhecida (sem vazar a chave no log ou resposta).
+- `test_auth_dev_defaults_and_production_rejection`: valida aceitação das chaves padrão de desenvolvimento quando APP_ENV=development e recusa total em APP_ENV=production sem API_KEYS.
+- `test_auth_configured_keys_override_dev_defaults`: valida que configuração de API_KEYS aceita as chaves mapeadas e desabilita as chaves de desenvolvimento.
+- `test_chat_body_user_id_mismatch_403`: valida erro HTTP 403 se user_id no corpo da requisição for divergente da identidade autenticada na chave.
+- `test_session_isolation_and_thread_id`: valida isolamento completo de histórico entre dois usuários com mesmo session_id e formato composite `user_id:session_id` no checkpointer.
+- `test_ticket_authorization_by_role_and_owner`: valida que customer só lista e acessa seus próprios tickets (recebendo 404 para tickets de terceiros) e operador pode listar todos ou filtrar por user_id.
+- `test_rate_limiter_sliding_window_and_zero_disable`: valida bloqueio com HTTP 429 e cabeçalho Retry-After ao exceder limite e liberação após 60s via relógio simulado, bem como desativação com RATE_LIMIT_PER_MINUTE=0.
+
+#### Testes Ajustados na Fase 4A:
+- `tests/conftest.py`: adicionada fixture autouse `reset_auth_settings` para garantir `APP_ENV = "development"`, `API_KEYS = ""` e `reset_rate_limiter()` isolando a suíte de testes de variáveis locais e limites de taxa.
+- `tests/test_eval_judge.py`: adicionado cabeçalho `X-API-Key: getnet-dev-key` e removido `user_id` manual no payload do teste de segurança, atualizando asserção para 401 quando o cabeçalho é omitido (conforme nova regra de autenticação estrita).
+- `tests/test_graph_llm.py`: adicionado cabeçalho `X-API-Key: getnet-dev-key` em requisições `/chat` e `/tickets` e atualizados testes de erro 500/503.
+- `tests/test_robustness.py`: adicionado cabeçalho `X-API-Key: getnet-dev-key` em chamadas aos endpoints de chat.
+- `tests/test_specialists.py`: adicionado cabeçalho `X-API-Key: getnet-dev-key` em chamadas HTTP à API.
+- `tests/test_tokens_and_tools.py`: adicionado cabeçalho `X-API-Key: getnet-dev-key` em chamadas `/chat`.
+- `tests/test_unit.py`: adicionado cabeçalho `X-API-Key: getnet-dev-key` em chamadas `/chat` e `/tickets`; removido `cliente1988` hardcoded em testes de `/chat` para que a identidade derive do principal autenticado.
+
+---
+
 ### Fase 3D: Avaliação do Retrieval e Calibração do RAG_MIN_SCORE
 
 #### Verificação Fase 3D (`python scripts/verify_phase3d.py`):
@@ -269,10 +352,11 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 4
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 4B
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final permanece delegado para ser gerado em ambiente Linux/container pelo usuário para compatibilidade com bibliotecas dependentes de SO (`uvloop`).
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
 3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) entre consultas respondíveis e consultas fora de domínio (*off-topic*).
 4. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção caberá ao prompt do Knowledge Agent ("não encontrado nas fontes oficiais") na Fase 6.
-5. **Próxima Fase (Fase 4: Identidade, Autenticação e Memória Persistente)**: Configuração de chaves de API mapeadas a usuários/perfis (`X-API-Key`), rejeição sem chave em produção, checkpointer persistente em SQLite (`SqliteSaver`), isolamento de threads por usuário e filtragem de tickets por dono.
+5. **Próxima Fase (Fase 4B: Checkpointer Persistente em SQLite)**: Substituição do `MemorySaver` in-memory pelo `SqliteSaver` persistente em disco (`data/checkpoints.db`), suporte a concorrência, migração de schema e retenção do isolamento estrito `thread_id = f"{user_id}:{session_id}"`.
+6. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.

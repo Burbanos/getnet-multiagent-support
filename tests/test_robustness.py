@@ -62,7 +62,7 @@ def test_model_not_found_error_returns_503_misconfigured(client: TestClient):
         graph_mod._orchestrator_instance = OrchestrationGraph(
             chat_model=RaisingChatModel(ModelNotFoundError("Model 'gemini-invalid' not found"))
         )
-        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"})
+        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 503
         assert "misconfigured" in response.text.lower()
         assert "X-Trace-Id" in response.headers
@@ -92,7 +92,7 @@ def test_other_config_errors_return_503_misconfigured(client: TestClient, config
     saved = graph_mod._orchestrator_instance
     try:
         graph_mod._orchestrator_instance = OrchestrationGraph(chat_model=RaisingChatModel(config_exc))
-        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"})
+        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 503
         assert "misconfigured" in response.text.lower()
         assert bool(response.headers.get("X-Trace-Id"))
@@ -107,7 +107,7 @@ def test_model_rate_limit_error_returns_503_unavailable(client: TestClient):
         graph_mod._orchestrator_instance = OrchestrationGraph(
             chat_model=RaisingChatModel(ModelRateLimitError("Rate limit 429 quota exhausted"))
         )
-        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"})
+        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 503
         text_lower = response.text.lower()
         assert "unavailable" in text_lower
@@ -126,7 +126,7 @@ def test_generic_exception_returns_500_without_leak_and_with_trace_id(client: Te
     saved = graph_mod._orchestrator_instance
     try:
         graph_mod._orchestrator_instance = ExplodingGraph()
-        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"})
+        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 500
         assert "DATABASE_SECRET_CREDENTIAL_STRING_98765" not in response.text
         tid = response.headers.get("X-Trace-Id", "")
@@ -144,7 +144,7 @@ def test_trace_id_header_consistency(client: TestClient):
         graph_mod._orchestrator_instance = OrchestrationGraph(
             chat_model=ScriptedChatModel(responses=[AIMessage(content="Resposta normal de atendimento.")])
         )
-        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"})
+        response = client.post("/chat", json={"message": "oi", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert response.status_code == 200
         header_tid = response.headers.get("X-Trace-Id")
         assert bool(header_tid)

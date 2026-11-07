@@ -2,15 +2,16 @@
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import logger, settings
+from src.core.auth import Principal, auth_mode, authenticate
 from src.core.graph import get_orchestrator
 from src.core.llm import (
     LLMConfigurationError,
@@ -20,16 +21,15 @@ from src.core.llm import (
 
 
 class ChatRequest(BaseModel):
-    """Chat request payload containing user identifier, message, and optional session ID."""
+    """Chat request payload containing message and optional session ID."""
     message: str = Field(..., description="Message payload to be evaluated by the multi-agent graph", min_length=1)
-    user_id: str = Field(default="cliente1988", description="Unique merchant or customer identifier", min_length=1)
-    session_id: str | None = Field(default=None, description="Conversational thread/session ID for persistent multi-turn memory")
+    user_id: str | None = Field(default=None, description="Optional merchant or customer identifier to verify against credential")
+    session_id: str | None = Field(default=None, description="Conversational thread/session ID for persistent multi-turn memory", min_length=1, max_length=64)
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "message": "Qual a diferença entre a Get Clássica e a Get Smart?",
-                "user_id": "cliente1988",
                 "session_id": "sess-user-001",
             },
         },
@@ -56,22 +56,6 @@ class AgentMetadata(BaseModel):
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
 
-def verify_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> str | None:
-    """
-    Validate optional X-API-Key header.
-    Defaults to accepting 'getnet-dev-key' or omitted header for frictionless local/docker execution.
-    Rejects unauthorized keys with HTTP 401.
-    """
-    configured_key = getattr(settings, "API_KEY", "getnet-dev-key")
-    valid_keys = {"getnet-dev-key", configured_key}
-    if x_api_key is not None and x_api_key not in valid_keys:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API Key inválida. Forneça uma chave autorizada no cabeçalho 'X-API-Key'.",
-        )
-    return x_api_key
-
-
 class ChatResponse(BaseModel):
     """Chat response payload."""
     response: str = Field(..., description="Synthesized agent response")
@@ -87,6 +71,7 @@ class HealthResponse(BaseModel):
     environment: str
     llm_configured: bool
     guardrails_enabled: bool
+    auth_mode: str
 
 
 @asynccontextmanager
@@ -149,6 +134,7 @@ async def health_check():
         environment=settings.APP_ENV,
         llm_configured=bool(settings.GEMINI_API_KEY),
         guardrails_enabled=settings.ENABLE_GUARDRAILS,
+        auth_mode=auth_mode(),
     )
 
 
@@ -222,8 +208,11 @@ async def list_agents():
     }
 
 
-@app.get("/tickets/{ticket_id}", tags=["Tickets"], dependencies=[Depends(verify_api_key)])
-async def get_ticket_endpoint(ticket_id: str):
+@app.get("/tickets/{ticket_id}", tags=["Tickets"])
+async def get_ticket_endpoint(
+    ticket_id: str,
+    principal: Annotated[Principal, Depends(authenticate)],
+):
     """Retrieve details for a persisted support ticket by ticket ID."""
     from src.core.tickets_db import get_tickets_repository
     repo = get_tickets_repository()
@@ -233,37 +222,67 @@ async def get_ticket_endpoint(ticket_id: str):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
         )
+    if principal.role == "customer" and ticket["user_id"] != principal.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
+        )
     return ticket
 
 
-@app.get("/tickets", tags=["Tickets"], dependencies=[Depends(verify_api_key)])
-async def list_tickets_endpoint(limit: int = 50):
+@app.get("/tickets", tags=["Tickets"])
+async def list_tickets_endpoint(
+    user_id: str | None = None,
+    limit: int = 50,
+    principal: Annotated[Principal, Depends(authenticate)] = None,  # type: ignore[assignment]
+):
     """List recent persisted human escalation tickets from SQLite tickets.db."""
     from src.core.tickets_db import get_tickets_repository
+    if principal.role == "customer":
+        if user_id is not None and user_id != principal.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied.",
+            )
+        filter_user = principal.user_id
+    else:
+        filter_user = user_id
+
     repo = get_tickets_repository()
-    tickets = repo.list_tickets(limit=limit)
+    tickets = repo.list_tickets(user_id=filter_user, limit=limit)
     return {"count": len(tickets), "tickets": tickets}
 
 
-@app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
-@app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"], dependencies=[Depends(verify_api_key)])
-def chat_endpoint(payload: ChatRequest, response: Response):
+@app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
+@app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
+def chat_endpoint(
+    payload: ChatRequest,
+    response: Response,
+    principal: Annotated[Principal, Depends(authenticate)],
+):
     trace_id = f"trc-{uuid.uuid4().hex[:12]}"
     response.headers["X-Trace-Id"] = trace_id
+
+    if payload.user_id is not None and payload.user_id != principal.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="user_id does not match the authenticated credential.",
+        )
+
+    active_session = payload.session_id or uuid.uuid4().hex
     try:
         orchestrator = get_orchestrator()
         state = orchestrator.run_sync(
-            user_id=payload.user_id,
+            user_id=principal.user_id,
             message=payload.message,
-            session_id=payload.session_id,
+            session_id=active_session,
             trace_id=trace_id,
         )
-        active_session = state.session_id or payload.session_id or payload.user_id
 
         metadata = AgentMetadata(
             agent_type="SupervisorAgent",
             routed_by="SupervisorAgent",
-            session_id=active_session,
+            session_id=state.session_id or active_session,
             trace_id=trace_id,
             llm_model=getattr(state, "llm_model", None),
             agents_used=getattr(state, "agents_used", ["SupervisorAgent"]),
@@ -277,7 +296,7 @@ def chat_endpoint(payload: ChatRequest, response: Response):
             tokens_by_agent=getattr(state, "tokens_by_agent", None),
             estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
             debug_details={
-                "session_id": active_session,
+                "session_id": state.session_id or active_session,
                 "trace_id": trace_id,
                 "is_safe": state.is_safe,
                 "safety_violations": state.safety_violations,
@@ -290,7 +309,7 @@ def chat_endpoint(payload: ChatRequest, response: Response):
         return ChatResponse(
             response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
             agent="SupervisorAgent",
-            user_id=state.user_id,
+            user_id=principal.user_id,
             metadata=metadata,
         )
 
@@ -316,7 +335,7 @@ def chat_endpoint(payload: ChatRequest, response: Response):
             headers={"X-Trace-Id": trace_id},
         ) from exc
     except Exception as exc:
-        logger.exception(f"Unhandled error processing message from user '{payload.user_id}' [trace_id={trace_id}]: {exc}")
+        logger.exception(f"Unhandled error processing message from user '{principal.user_id}' [trace_id={trace_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error. Reference: {trace_id}",

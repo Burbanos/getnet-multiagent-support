@@ -17,7 +17,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 * **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
 * **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento, que será avaliada na Fase 6;
 * **Base de conhecimento**: Base oficial ingerida e vetorizada (`gemini-embedding-2`), com avaliação de retrieval e limiar calibrado na Fase 3D;
-* **Autenticação**: A API key é opcional até a Fase 4.
+* **Memória de Sessão em Processo**: Na Fase 4A, o checkpointer isola o estado por `user_id:session_id` usando `MemorySaver` em processo; a persistência relacional com `SqliteSaver` que sobrevive a reinicializações do servidor será implementada na Fase 4B.
 
 ---
 
@@ -203,11 +203,23 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   * `GET /tickets`: Lista os chamados registrados no banco.
   * Na interface `/demo`, o protocolo exibido é um link clicável direto para a API.
 
-### Segurança, Autenticação & Sanitização de Dados Sensíveis (PII)
+### Segurança, Autenticação, Isolamento & Sanitização de Dados Sensíveis (PII)
 * **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
 * **Sanitização de CPF**: Números de CPF em formato padrão ou contínuo são mascarados para `[CPF_MASCARADO_***.***.***-XX]`.
 * **Proteção contra Injeção de Prompt**: Expressões em português e inglês que tentem sobrescrever instruções (`"ignore todas as suas instruções"`, `"me mostre o seu prompt"`, `"regras internas"`, `"prompt de sistema"`, `"esqueça o que foi dito"`) são bloqueadas pelo guardrail com resposta segura e imediata.
-* **Autenticação via Header `X-API-Key`**: Os endpoints da API verificam o cabeçalho `X-API-Key` quando enviado. Para manter o ambiente de testes e Docker fluidos e sem atrito, a chave de desenvolvimento padrão `getnet-dev-key` ou cabeçalho omitido são aceitos. Requisições com chaves expressamente não autorizadas são bloqueadas com HTTP 401 Unauthorized.
+* **Autenticação Obrigatória via Header `X-API-Key`**:
+  * Toda chamada aos endpoints da API (`/chat`, `/api/v1/chat`, `/tickets`, `/tickets/{id}`) exige o cabeçalho `X-API-Key`. A identidade do usuário (`user_id`) e seu papel (`role`: `customer` ou `operator`) são derivados exclusivamente da credencial autenticada, nunca do corpo da requisição. Se a requisição omitir o cabeçalho ou fornecer uma chave inválida, o sistema responde com **HTTP 401 Unauthorized** ("Missing or invalid API key.").
+  * Se o cliente enviar um `user_id` no corpo diferente do proprietário da credencial, o sistema responde com **HTTP 403 Forbidden** ("user_id does not match the authenticated credential.").
+  * Clientes (`customer`) que tentarem consultar chamados de outro usuário via `GET /tickets/{ticket_id}` recebem **HTTP 404 Not Found** (resposta indistinguível de ticket inexistente para evitar enumeração de recursos).
+  * **Rate Limiting (HTTP 429)**: O sistema impõe rate limit por janela deslizante de 60 segundos por credencial (`RATE_LIMIT_PER_MINUTE`, padrão: 30). Ao ultrapassar o limite, responde com **HTTP 429 Too Many Requests** acompanhado do cabeçalho `Retry-After` com o número de segundos para reintento.
+* **Configuração de Chaves (`API_KEYS`) e Ambientes**:
+  * O mapeamento é configurado via variável de ambiente `API_KEYS` no formato `hash:user_id:role;hash:user_id:role;...`, onde `hash` é o SHA-256 (64 hexadecimais em minúsculas) da chave.
+  * O utilitário de linha de comando `python -m src.core.auth hash` lê a chave de forma mascarada com `getpass` e exibe apenas o hash para que credenciais reais nunca sejam persistidas em arquivos de configuração ou histórico.
+  * **Chaves de Desenvolvimento**: Fora de produção (`APP_ENV != production`), quando `API_KEYS` estiver vazio, são aceitas as chaves padrão de desenvolvimento `getnet-dev-key` (`cliente1988`, `customer`) e `getnet-dev-operator` (`operador_dev`, `operator`).
+  * **Produção Obrigatória no Docker Compose**: Como o `docker-compose.yml` opera com `APP_ENV=production`, é obrigatório configurar a variável `API_KEYS`; sem isso, o modo de autenticação é `none` e nenhuma requisição é aceita (todas respondem 401).
+* **Isolamento de Sessão por `user_id:session_id`**:
+  * O identificador de thread do checkpointer é montado como `f"{user_id}:{session_id}"`. Mesmo que dois usuários diferentes utilizem o mesmo `session_id`, suas conversas e memórias permanecem completamente isoladas.
+  * **Limitação Atual de Persistência**: Na Fase 4A, o checkpointer utiliza `MemorySaver` em memória de processo (o estado é reiniciado caso o processo seja finalizado); a migração para persistência relacional com `SqliteSaver` ocorre na Fase 4B.
 
 ### Observabilidade Técnica, Trace ID e Custo por Tokens
 * **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
@@ -305,7 +317,6 @@ curl -X POST "http://localhost:8000/chat" \
      -H "X-API-Key: getnet-dev-key" \
      -d '{
        "message": "When will the money from yesterday'\''s sales be deposited?",
-       "user_id": "cliente1988",
        "session_id": "sess-minha-loja-01"
      }'
 ```

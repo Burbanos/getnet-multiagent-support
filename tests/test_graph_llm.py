@@ -153,7 +153,7 @@ def test_chat_endpoint_without_key_returns_503(client: TestClient):
     saved = graph_mod._orchestrator_instance
     try:
         graph_mod._orchestrator_instance = None
-        res = client.post("/chat", json={"message": "Olá", "user_id": "cliente1988"})
+        res = client.post("/chat", json={"message": "Olá", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert res.status_code == 503
         assert "LLM not configured: set GEMINI_API_KEY." in res.json()["detail"]
     finally:
@@ -170,7 +170,7 @@ def test_chat_endpoint_model_exception_returns_503(client: TestClient):
 
     try:
         graph_mod._orchestrator_instance = OrchestrationGraph(chat_model=FailingChatModel())
-        res = client.post("/chat", json={"message": "Olá", "user_id": "cliente1988"})
+        res = client.post("/chat", json={"message": "Olá", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert res.status_code == 503
         assert "LLM provider unavailable, please retry." in res.json()["detail"]
     finally:

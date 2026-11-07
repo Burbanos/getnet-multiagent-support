@@ -193,7 +193,7 @@ def test_specialist_llm_error_returns_503(client: TestClient):
                 ModelRateLimitError("Quota exceeded (429)"),
             ])
         )
-        res = client.post("/chat", json={"message": "Quando cai?", "user_id": "cliente1988"})
+        res = client.post("/chat", json={"message": "Quando cai?", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert res.status_code == 503
         assert "unavailable" in res.text.lower()
     finally:
@@ -212,7 +212,7 @@ def test_api_reports_agents_used(client: TestClient):
                 AIMessage(content="Seu depósito cai hoje."),
             ])
         )
-        res = client.post("/chat", json={"message": "Quando cai?", "user_id": "cliente1988"})
+        res = client.post("/chat", json={"message": "Quando cai?", "user_id": "cliente1988"}, headers={"X-API-Key": "getnet-dev-key"})
         assert res.status_code == 200
         meta = res.json().get("metadata", {})
         assert meta.get("agents_used") == ["SupervisorAgent", "SupportAgent"]

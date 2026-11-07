@@ -31,10 +31,10 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ---
 
-## Current state and next steps (handoff, 2026-11-06)
+## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: lock regenerated without
-chromadb (`b6a1bae`) plus this SPEC/prompt update. CI (lint, tests, docker build + /health smoke) green.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `f467d56` (phase 3D) plus
+this SPEC/prompt update for 4A. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -43,7 +43,16 @@ chromadb (`b6a1bae`) plus this SPEC/prompt update. CI (lint, tests, docker build
   2D KnowledgeAgent and SupportAgent sub-agents · 2E real token usage, tools without invented values.
 - 3A ingestion of 33 official URLs (30 `ok`: 10 getnet.net/en, 20 site.getnet.com.br; santander.com.br
   dropped, 403 on robots.txt) · 3B chunking, committed `gemini-embedding-2` index, retriever · 3C retriever
-  wired into `search_knowledge_base`, legacy KB and ChromaDB removed (index: 92 chunks, 28 pages).
+  wired into `search_knowledge_base`, legacy KB and ChromaDB removed (index: 92 chunks, 28 pages) · 3D
+  retrieval evaluation, `RAG_MIN_SCORE=0.61` (`reports/retrieval_calibration.*`).
+
+**3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
+0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
+abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
+and the 8 negatives are easy (recipes, football); a payments question about another company would pass.
+"Passing the threshold" is not "having the answer": the Get Mini battery query passes at 0.651 while the chunk
+with "12 hours" ranks 16th. Generic chunks outrank specific ones (home news list over the countries chunk; the
+estorno how-to chunk is top-1 for 5 uncovered queries).
 
 **Real-model smoke test after 3C (5 questions, all facts checked against the corpus):** crediário "até 48x"
 with the issuer caveat (literal on the official page; the old hand-written KB said 36x); Pix bank account →
@@ -55,31 +64,40 @@ flattened tables can misattribute numbers ("isenção acima de R$ 10 mil" came f
 latency 24–42 s per question.
 
 **Working agreements (also in the project instructions):** the reviewer writes only `scripts/verify_*.py`,
-`docs/SPEC.md`, `docs/phase-prompts/*.md` and `src/prompts/*.md`, between phases, after checking that the
+`docs/SPEC.md`, `docs/phase-prompts/*.md` and `src/prompts/*.md` (from Phase 6 also the labeled sets
+`data/eval/*.jsonl`, decided 2026-11-07, pending the matching change in the project instructions; until then
+labeled data travels verbatim inside the phase prompt), between phases, after checking that the
 local folder equals GitHub HEAD; the user types `Execute docs/phase-prompts/<phase>.md` in Antigravity, which
 commits the reviewer files unchanged; the reviewer monitors GitHub and verifies independently. Each verifier
 reruns earlier ones with `VERIFY_NESTED=1` (skips their suites) and lists superseded checks in `PRIOR`
 (2A: R2.single_tool_flow, R3.user_id_injected, R3.bound_tools, R4.two_tools_sequence; 2B:
 S1.default_model_config, S1.default_model_env_example, R2.model_name; 2D: R6.knowledge_flow; 3B: L1.settings,
-which pinned the provisional `RAG_MIN_SCORE=0.60`). Anything that
+which pinned the provisional `RAG_MIN_SCORE=0.60`; 4A: the checks that call `/chat` without a key, re-checked
+with a key as C1–C4 in `verify_phase4a.py`). Anything that
 needs the API key (index builds, smoke tests, real-model evals) is run by the user in a terminal with
 `Read-Host -MaskInput`; Antigravity must stop and ask. Antigravity's sandbox hangs pytest/TestClient when run
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 3D (retrieval evaluation and threshold calibration)**, prompt `docs/phase-prompts/3D.md`,
-verifier `scripts/verify_phase3d.py` (details in Phase 3, item 3D). The 48-query labeled set was written by the
-reviewer from literal corpus text and is copied verbatim by the implementer; the verifier holds its own copy
-and a reference implementation of every metric. Note: mean cosine between chunks of different pages is 0.685
-(min 0.488); the threshold is decided by the query-vs-chunk curve, not by that number. Include the language
-rule (EN question → EN answer) and date citation as real-model checks when Phase 6 starts.
+**Current phase: 4A (identity from credentials, per-user isolation, tickets by owner, rate limit)**, prompt
+`docs/phase-prompts/4A.md`, verifier `scripts/verify_phase4a.py` (details in Phase 4). Found while planning: the
+checkpointer thread id was the bare `session_id` and `user_id` came from the request body, so anyone knowing
+a session id could read that conversation. 4B (SQLite checkpointer, restart test) follows; it adds the
+`langgraph-checkpoint-sqlite` dependency, so the user regenerates the lock in Codespaces.
 
-**Backlog after 3D:** replace `data/eval_dataset.json` (ground truth still from the old KB) in Phase 6;
-cadastro pop-up text ("Como deseja continuar?", in <4 pages) survives the boilerplate filter; WhatsApp payment
-link has only the global page as source; Phase 4 auth + persistent per-user memory; Phase 5 escalation
-handoff/resume; Phase 6 real-model evaluation; Phase 7 observability (per-node logs, latency per agent,
-circuit breaker so the failing primary model is skipped for a while, cost); Phase 8 README claims table and
-`demo.html` review.
+**Backlog:**
+- Phase 6 (from 3D): real-model abstention on the 10 `uncovered` queries through the Knowledge Agent as a
+  headline metric; harder negatives (other acquirers, banks, generic payments); "answered with the answer"
+  vs "passed the threshold"; language rule (EN question → EN answer) and collection-date citation; replace
+  `data/eval_dataset.json` (ground truth from the old KB).
+- RAG quality: chunk generality (title prefix per chunk or smaller chunks, measured with the 3D set);
+  cadastro pop-up text ("Como deseja continuar?", in <4 pages) survives the boilerplate filter; WhatsApp
+  payment link has only the global page as source.
+- Phase 5 escalation handoff/resume; Phase 7 observability (per-node logs, latency per agent, hashed user id
+  in logs, circuit breaker so the failing primary model is skipped for a while, cost).
+- Phase 8: README claims table (3D wording "separação ideal" / "100% rejeitadas" holds only for the 8
+  off-topic queries; "100% respondidas" means passing the threshold), `/agents` lists stale tools and
+  "MemorySaver", `demo.html` review.
 
 ## 1. Target architecture
 
@@ -324,6 +342,29 @@ without network. Topics with no official coverage must be answered with abstenti
 
 ### Phase 4 — Identity, auth and persistent memory
 **Goal:** user identity from credentials; per-user isolated persistent sessions.
+**Split:**
+- 4A (checked by `scripts/verify_phase4a.py`): `src/core/auth.py` with `Principal(user_id, role, key_id)`
+  (frozen dataclass; `key_id` = first 12 hex chars of the key hash, the only key-derived value that may be
+  logged), `hash_api_key` (sha256 hex of the UTF-8 key), `parse_api_keys(spec)` for `API_KEYS` =
+  `sha256hex:user_id:role` entries separated by `;` (lowercase 64-hex hash, non-empty user id, role
+  `customer|operator`, no duplicates, else ValueError), `get_principal_table()` (read at request time:
+  `API_KEYS` when set; otherwise, only when `APP_ENV` is not `production`, the documented development keys
+  `getnet-dev-key` → `cliente1988`/customer and `getnet-dev-operator` → `operador_dev`/operator; in
+  production with no `API_KEYS` no key is accepted), `authenticate` (FastAPI dependency on `X-API-Key`,
+  constant-time comparison, 401 without echoing the key), `RateLimiter(limit_per_minute, clock)` (sliding
+  60 s window per `key_id`, `hit()` returns seconds to wait or None, 0 disables), `get_rate_limiter()` /
+  `reset_rate_limiter()`; 429 with `Retry-After`. `/health` stays public and reports `auth_mode`
+  (`configured | development_defaults | none`). `/chat`: user from the principal; body `user_id` optional and
+  403 if it differs; `session_id` 1–64 chars, generated when absent; checkpointer thread id
+  `f"{user_id}:{session_id}"`; `run_sync` rejects an empty user id; no `cliente1988` fallback in `main.py` or
+  `graph.py`. `/tickets`: customers see only their own (403 when asking for another `user_id`), operators see
+  all and may filter by `user_id`; `/tickets/{id}` of another owner → 404 for customers. CLI
+  `python -m src.core.auth hash` reads the key with `getpass` and prints its hash. Settings `API_KEYS=""`,
+  `RATE_LIMIT_PER_MINUTE=30`; dead `CONFIDENCE_THRESHOLD_ESCALATION` removed. `demo.html` sends `X-API-Key`
+  and no `user_id`. Checkpointer still `MemorySaver` (in-process).
+- 4B: `SqliteSaver` (`langgraph-checkpoint-sqlite`, lock regenerated by the user), `CHECKPOINT_DB_PATH`,
+  restart test (new orchestrator instance over the same file keeps the conversation), isolation re-checked
+  over SQLite, Docker volume for the checkpoint file.
 **Acceptance:**
 - AC4.1 API keys configured via env (hashed), mapped to `{user_id, role}`; missing/invalid key → 401; no default key accepted when `APP_ENV=production`.
 - AC4.2 Body `user_id` ignored or must equal principal (403 otherwise) — test.
