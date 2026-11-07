@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import logger, settings
-from src.core.auth import Principal, auth_mode, authenticate
+from src.core.auth import Principal, auth_mode, authenticate, validate_auth_config
 from src.core.graph import get_orchestrator
 from src.core.llm import (
     LLMConfigurationError,
@@ -76,6 +76,8 @@ class HealthResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_auth_config()
+    get_orchestrator()
     yield
 
 
@@ -104,7 +106,7 @@ async def root():
     return {
         "service": "Getnet Multi-Agent Support System",
         "version": "2.0.0",
-        "architecture": "Supervisor ReAct with Tool Calling & MemorySaver",
+        "architecture": f"Supervisor ReAct with Tool Calling & SqliteSaver ({settings.CHECKPOINT_DB_PATH}, thread user_id:session_id)",
         "status": "online",
         "documentation": "/docs",
         "health": "/health",
@@ -145,7 +147,7 @@ async def list_agents():
         "orchestrator": {
             "name": "SupervisorAgent",
             "model_reference": "Google Gemini Flash (Function Calling)",
-            "checkpointer": "MemorySaver (thread-scoped multi-turn state)",
+            "checkpointer": f"SqliteSaver at {settings.CHECKPOINT_DB_PATH} (thread user_id:session_id)",
             "safety": "GuardrailAgent (PII sanitization & prompt injection defense)",
         },
         "agents": [

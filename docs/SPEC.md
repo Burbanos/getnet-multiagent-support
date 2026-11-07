@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `f467d56` (phase 3D) plus
-this SPEC/prompt update for 4A. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `0e3ef87` (phase 4A, CI green) plus
+this SPEC/prompt update for 4B. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -45,6 +45,10 @@ this SPEC/prompt update for 4A. CI (lint, tests, docker build + /health smoke) r
   dropped, 403 on robots.txt) · 3B chunking, committed `gemini-embedding-2` index, retriever · 3C retriever
   wired into `search_knowledge_base`, legacy KB and ChromaDB removed (index: 92 chunks, 28 pages) · 3D
   retrieval evaluation, `RAG_MIN_SCORE=0.61` (`reports/retrieval_calibration.*`).
+- 4A identity from `X-API-Key` (hashed `API_KEYS`, development keys only outside production), thread id
+  `user_id:session_id`, tickets by owner, per-key rate limit. Review notes: a malformed `API_KEYS` turned every
+  authenticated request into a 500 while `/health` said `configured` (fixed in 4B); the rate limit is per
+  process and unlocked (state it in the README claims table, Phase 8).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -64,26 +68,24 @@ flattened tables can misattribute numbers ("isenção acima de R$ 10 mil" came f
 latency 24–42 s per question.
 
 **Working agreements (also in the project instructions):** the reviewer writes only `scripts/verify_*.py`,
-`docs/SPEC.md`, `docs/phase-prompts/*.md` and `src/prompts/*.md` (from Phase 6 also the labeled sets
-`data/eval/*.jsonl`, decided 2026-11-07, pending the matching change in the project instructions; until then
-labeled data travels verbatim inside the phase prompt), between phases, after checking that the
+`docs/SPEC.md`, `docs/phase-prompts/*.md` and `src/prompts/*.md` and the labeled sets `data/eval/*.jsonl`
+(from 2026-11-07; the 3D set was still copied from the prompt), between phases, after checking that the
 local folder equals GitHub HEAD; the user types `Execute docs/phase-prompts/<phase>.md` in Antigravity, which
 commits the reviewer files unchanged; the reviewer monitors GitHub and verifies independently. Each verifier
 reruns earlier ones with `VERIFY_NESTED=1` (skips their suites) and lists superseded checks in `PRIOR`
 (2A: R2.single_tool_flow, R3.user_id_injected, R3.bound_tools, R4.two_tools_sequence; 2B:
 S1.default_model_config, S1.default_model_env_example, R2.model_name; 2D: R6.knowledge_flow; 3B: L1.settings,
 which pinned the provisional `RAG_MIN_SCORE=0.60`; 4A: the checks that call `/chat` without a key, re-checked
-with a key as C1–C4 in `verify_phase4a.py`). Anything that
+with a key as C1–C4 in `verify_phase4a.py`). When a phase invalidates earlier checks, its verifier re-checks the
+covered behaviour under the new rule. From 4B, nested verifier runs get a temporary `CHECKPOINT_DB_PATH`. Anything that
 needs the API key (index builds, smoke tests, real-model evals) is run by the user in a terminal with
 `Read-Host -MaskInput`; Antigravity must stop and ask. Antigravity's sandbox hangs pytest/TestClient when run
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 4A (identity from credentials, per-user isolation, tickets by owner, rate limit)**, prompt
-`docs/phase-prompts/4A.md`, verifier `scripts/verify_phase4a.py` (details in Phase 4). Found while planning: the
-checkpointer thread id was the bare `session_id` and `user_id` came from the request body, so anyone knowing
-a session id could read that conversation. 4B (SQLite checkpointer, restart test) follows; it adds the
-`langgraph-checkpoint-sqlite` dependency, so the user regenerates the lock in Codespaces.
+**Current phase: 4B (SQLite checkpointer, restart survival, fail-fast configuration)**, prompt
+`docs/phase-prompts/4B.md`, verifier `scripts/verify_phase4b.py` (details in Phase 4). The phase starts with a
+dependency-only commit; the user regenerates the lock in Codespaces before the implementation, so CI stays green.
 
 **Backlog:**
 - Phase 6 (from 3D): real-model abstention on the 10 `uncovered` queries through the Knowledge Agent as a
@@ -362,9 +364,22 @@ without network. Topics with no official coverage must be answered with abstenti
   `python -m src.core.auth hash` reads the key with `getpass` and prints its hash. Settings `API_KEYS=""`,
   `RATE_LIMIT_PER_MINUTE=30`; dead `CONFIDENCE_THRESHOLD_ESCALATION` removed. `demo.html` sends `X-API-Key`
   and no `user_id`. Checkpointer still `MemorySaver` (in-process).
-- 4B: `SqliteSaver` (`langgraph-checkpoint-sqlite`, lock regenerated by the user), `CHECKPOINT_DB_PATH`,
-  restart test (new orchestrator instance over the same file keeps the conversation), isolation re-checked
-  over SQLite, Docker volume for the checkpoint file.
+- 4B (checked by `scripts/verify_phase4b.py`): dependency `langgraph-checkpoint-sqlite>=3.1,<4` (3.1.3 accepts
+  the locked `langgraph-checkpoint==4.3.1`; adds `aiosqlite` and `sqlite-vec`), declared in a first commit; the
+  user regenerates `requirements.lock` in Codespaces with `python:3.11-slim` and `pip-compile` (existing pins
+  kept) before the implementation. `src/core/checkpointer.py`: `build_sqlite_checkpointer(path)` creates the
+  parent directory, opens `sqlite3.connect(path, check_same_thread=False)` (FastAPI runs sync endpoints in a
+  thread pool; `SqliteSaver` serialises access with its own lock) and returns a `SqliteSaver`; any failure
+  propagates (no temp-dir or in-memory fallback). `OrchestrationGraph(..., checkpointer=None)`: None keeps
+  `MemorySaver`, so tests and earlier verifiers stay in memory; `get_orchestrator()` builds the SQLite one at
+  `CHECKPOINT_DB_PATH` (default `data/checkpoints.db`, inside the Docker data volume). `.gitignore` covers the
+  database and its WAL files. Fail-fast configuration: `validate_auth_config()` raises ValueError for a
+  malformed `API_KEYS`; `auth_mode()` reports `invalid`; `authenticate` answers 503 "Authentication
+  misconfigured: check API_KEYS." instead of 500; the FastAPI lifespan calls `validate_auth_config()` and
+  `get_orchestrator()`, so the app refuses to start with bad keys or an unusable database path.
+  `tests/conftest.py` sets `CHECKPOINT_DB_PATH` to a temporary file before importing `src`; the suite never
+  writes `data/checkpoints.db`. `/` and `/agents` stop describing `MemorySaver`. Known limits (README):
+  no retention or cleanup of old threads; one SQLite file per instance (no shared memory across replicas).
 **Acceptance:**
 - AC4.1 API keys configured via env (hashed), mapped to `{user_id, role}`; missing/invalid key → 401; no default key accepted when `APP_ENV=production`.
 - AC4.2 Body `user_id` ignored or must equal principal (403 otherwise) — test.

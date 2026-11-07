@@ -29,6 +29,7 @@ services:
       - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
       - API_KEYS=${API_KEYS:-}
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
+      - CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-data/checkpoints.db}
     volumes:
       - tickets_data:/app/data
     healthcheck:

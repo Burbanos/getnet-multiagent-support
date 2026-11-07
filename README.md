@@ -8,7 +8,7 @@
 [![Auth](https://img.shields.io/badge/auth-X--API--Key-blue.svg)]()
 [![Security](https://img.shields.io/badge/security-PII%20Luhn%20%2B%20non--root-success.svg)]()
 
-Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com declaração de ferramentas**, persistência conversacional multi-turn via **LangGraph MemorySaver**, base de conhecimento vetorial **índice de embeddings com limiar de relevância**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e cálculo de custo por tokens**, avaliação de acurácia de roteamento e persistência de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
+Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet, estruturado sobre o padrão **Supervisor + ReAct com declaração de ferramentas**, persistência conversacional multi-turn em banco SQLite via **LangGraph SqliteSaver**, base de conhecimento vetorial **índice de embeddings com limiar de relevância**, sanitização de **PII (Luhn PAN + CPF)**, observabilidade com **Trace ID e cálculo de custo por tokens**, avaliação de acurácia de roteamento e persistência de chamados humanos em banco relacional **SQLite (`data/tickets.db`)**.
 
 ---
 
@@ -17,7 +17,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 * **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
 * **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento, que será avaliada na Fase 6;
 * **Base de conhecimento**: Base oficial ingerida e vetorizada (`gemini-embedding-2`), com avaliação de retrieval e limiar calibrado na Fase 3D;
-* **Memória de Sessão em Processo**: Na Fase 4A, o checkpointer isola o estado por `user_id:session_id` usando `MemorySaver` em processo; a persistência relacional com `SqliteSaver` que sobrevive a reinicializações do servidor será implementada na Fase 4B.
+* **Persistência e Isolamento de Memória**: O histórico de sessões é persistido em SQLite via `SqliteSaver` no arquivo `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`, preservado no volume Docker), sobrevivendo a reinícios e isolado por `user_id:session_id`. Limitações honestas: não há expiração/limpeza automática de conversas antigas; cada réplica utiliza seu próprio arquivo SQLite (sem memória compartilhada entre instâncias sem banco compartilhado); o rate limit é controlado em memória por processo; o app não sobe com `API_KEYS` inválido ou banco inacessível (e responde 503 se a configuração ficar inválida em execução).
 
 ---
 
@@ -52,7 +52,7 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
   - [Especialistas Registrados como Tools](#especialistas-registrados-como-tools)
 - [2. Pilares de Engenharia e Diferenciais](#2-pilares-de-engenharia-e-diferenciais)
   - [Orquestração Agêntica ReAct](#orquestração-agêntica-react)
-  - [Memória Persistente Multi-Turn (LangGraph MemorySaver)](#memória-persistente-multi-turn-langgraph-memorysaver)
+  - [Memória Persistente Multi-Turn (LangGraph SqliteSaver)](#memória-persistente-multi-turn-langgraph-sqlitesaver)
   - [RAG Vetorial e Limiar de Abstenção](#rag-vetorial-e-limiar-de-abstenção)
   - [Transbordo Humano Real com SQLite (tickets.db)](#transbordo-humano-real-com-sqlite-ticketsdb)
   - [Segurança & Sanitização de Dados Sensíveis (PII)](#segurança--sanitização-de-dados-sensíveis-pii)
@@ -90,7 +90,7 @@ Usuário (Turno N)
        ↓
 [Supervisor Node] (Observa saída ToolMessage estruturada e sintetiza resposta grounded)
        ↓
-Resposta ao Usuário + Gravação no MemorySaver (thread_id = session_id)
+Resposta ao Usuário + Gravação no SqliteSaver (thread_id = user_id:session_id)
 ```
 
 ### Grafo de Estados Compilado (LangGraph)
@@ -147,10 +147,10 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 * **Métrica de Confiança**: A métrica de confiança exibida na telemetria reflete o score calculado sobre os vetores de contexto recuperados ou a precisão da ferramenta especializada acionada.
 * **Ciclo ReAct Estruturado**: O Supervisor emite chamadas estruturadas de ferramentas no estado do grafo, o ToolNode executa a ferramenta populando ToolMessage e retorna ao Supervisor para observação e síntese.
 
-### Memória Persistente Multi-Turn (LangGraph MemorySaver)
-* O workflow compila o grafo utilizando o checkpointer nativo `MemorySaver` de `langgraph.checkpoint.memory`.
-* As sessões são indexadas por `thread_id` (correspondente ao `session_id` da requisição HTTP).
-* O assistente mantém contexto entre turnos de diálogo: uma pergunta de acompanhamento (ex: *"E qual delas tem tela touch com Android?"*) reaproveita o contexto histórico do turno anterior sem exigir que o lojista repita os modelos.
+### Memória Persistente Multi-Turn (LangGraph SqliteSaver)
+* O workflow compila o grafo utilizando o checkpointer relacional `SqliteSaver` de `langgraph.checkpoint.sqlite`, persistido no caminho definido por `CHECKPOINT_DB_PATH` (padrão: `data/checkpoints.db`).
+* As sessões são indexadas por `thread_id` composto no formato `f"{user_id}:{session_id}"`, assegurando isolamento estrito entre usuários distintos mesmo que compartilhem o mesmo `session_id`.
+* O estado conversacional persiste em disco e sobrevive a reinicializações completas do serviço. O assistente mantém contexto entre turnos de diálogo: uma pergunta de acompanhamento (ex: *"E qual delas tem tela touch com Android?"*) reaproveita o contexto histórico do turno anterior sem exigir que o lojista repita os modelos.
 
 ### RAG Vetorial e Pipeline de Conhecimento (Fase 3C)
 * **Knowledge Agent Conectado ao Índice Real**:
@@ -217,9 +217,11 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   * O utilitário de linha de comando `python -m src.core.auth hash` lê a chave de forma mascarada com `getpass` e exibe apenas o hash para que credenciais reais nunca sejam persistidas em arquivos de configuração ou histórico.
   * **Chaves de Desenvolvimento**: Fora de produção (`APP_ENV != production`), quando `API_KEYS` estiver vazio, são aceitas as chaves padrão de desenvolvimento `getnet-dev-key` (`cliente1988`, `customer`) e `getnet-dev-operator` (`operador_dev`, `operator`).
   * **Produção Obrigatória no Docker Compose**: Como o `docker-compose.yml` opera com `APP_ENV=production`, é obrigatório configurar a variável `API_KEYS`; sem isso, o modo de autenticação é `none` e nenhuma requisição é aceita (todas respondem 401).
-* **Isolamento de Sessão por `user_id:session_id`**:
+* **Isolamento de Sessão e Persistência em SQLite (`user_id:session_id`)**:
   * O identificador de thread do checkpointer é montado como `f"{user_id}:{session_id}"`. Mesmo que dois usuários diferentes utilizem o mesmo `session_id`, suas conversas e memórias permanecem completamente isoladas.
-  * **Limitação Atual de Persistência**: Na Fase 4A, o checkpointer utiliza `MemorySaver` em memória de processo (o estado é reiniciado caso o processo seja finalizado); a migração para persistência relacional com `SqliteSaver` ocorre na Fase 4B.
+  * A memória é persistida em banco de dados SQLite (`SqliteSaver`) no arquivo indicado por `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`, mantido dentro do volume persistente no Docker). A conversa e o histórico de mensagens sobrevivem a reinícios da aplicação.
+  * **Fail-Fast de Configuração**: Na inicialização do serviço (`lifespan`), a aplicação valida a sintaxe das credenciais em `API_KEYS` e inicializa o banco em `CHECKPOINT_DB_PATH`. Se `API_KEYS` estiver mal formado ou o caminho do banco for inacessível (ex.: caminho sob um arquivo regular), o app recusa inicializar e levanta erro imediatamente. Caso a configuração se torne inválida durante a execução, o endpoint `/chat` responde com **HTTP 503 Service Unavailable** ("Authentication misconfigured: check API_KEYS.") e `/health` reporta `auth_mode: "invalid"`.
+  * **Limitações Conhecidas**: Não há rotina automática de retenção ou limpeza (purge) de conversas antigas; o armazenamento opera com um arquivo SQLite por instância (réplicas horizontais não compartilham memória em disco sem um banco compartilhado); o rate limiting é mantido em memória por processo.
 
 ### Observabilidade Técnica, Trace ID e Custo por Tokens
 * **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
@@ -395,7 +397,9 @@ getnet-multiagent-support/
 │   │   ├── index.py           # Vetorização e persistência de embeddings
 │   │   └── retriever.py       # Busca vetorial com abstenção formal
 │   ├── core/
-│   │   ├── graph.py               # Grafo LangGraph Supervisor ReAct com MemorySaver
+│   │   ├── graph.py               # Grafo LangGraph Supervisor ReAct com SqliteSaver
+│   │   ├── checkpointer.py        # Construtor do SqliteSaver persistente
+│   │   ├── auth.py                # Autenticação via X-API-Key, papéis e rate limiting
 │   │   ├── llm.py                 # Provedor do modelo ChatGoogleGenerativeAI e tratamento de erros
 │   │   ├── pii.py                 # Sanitizador de PII (algoritmo de Luhn para cartões e CPF)
 │   │   ├── tickets_db.py          # Repositório SQLite para persistência e consulta de chamados

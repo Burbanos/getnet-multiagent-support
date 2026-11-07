@@ -76,24 +76,37 @@ def parse_api_keys(spec: str) -> dict[str, Principal]:
 
 def auth_mode() -> str:
     """Determine the active authentication mode from configuration."""
-    if bool(settings.API_KEYS.strip()):
-        return "configured"
+    raw_keys = settings.API_KEYS.strip()
+    if bool(raw_keys):
+        try:
+            parse_api_keys(raw_keys)
+            return "configured"
+        except ValueError:
+            return "invalid"
     if settings.APP_ENV.lower() == "production":
         return "none"
     return "development_defaults"
 
 
+def validate_auth_config() -> str:
+    """
+    Validate authentication configuration on startup.
+    Raises ValueError if API_KEYS is malformed, otherwise returns active auth_mode.
+    """
+    get_principal_table()
+    return auth_mode()
+
+
 def get_principal_table() -> dict[str, Principal]:
     """
     Resolve principal lookup table based on current settings.
-    - configured: parsed from settings.API_KEYS
+    - configured: parsed from settings.API_KEYS (raises ValueError if malformed)
     - none: empty table (all requests will be rejected)
     - development_defaults: default dev customer and operator keys
     """
-    mode = auth_mode()
-    if mode == "configured":
+    if bool(settings.API_KEYS.strip()):
         return parse_api_keys(settings.API_KEYS)
-    if mode == "none":
+    if settings.APP_ENV.lower() == "production":
         return {}
     # development_defaults
     table: dict[str, Principal] = {}
@@ -161,11 +174,18 @@ def authenticate(x_api_key: str | None = Header(None, alias="X-API-Key")) -> Pri
     FastAPI dependency to authenticate requests using X-API-Key header.
     Validates against principal table and enforces rate limit.
     """
+    try:
+        table = get_principal_table()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication misconfigured: check API_KEYS.",
+        ) from exc
+
     if not x_api_key:
         raise HTTPException(status_code=401, detail="Missing or invalid API key.")
 
     incoming_hash = hash_api_key(x_api_key)
-    table = get_principal_table()
 
     matched: Principal | None = None
     for key_hash, principal in table.items():

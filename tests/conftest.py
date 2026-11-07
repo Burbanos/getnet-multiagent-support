@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Ensure test environment variables are set before importing app
 _test_tmp_dir = tempfile.mkdtemp(prefix="getnet_test_tickets_")
 os.environ["TICKETS_DB_PATH"] = str(Path(_test_tmp_dir) / "tickets.db")
+os.environ["CHECKPOINT_DB_PATH"] = str(Path(_test_tmp_dir) / "checkpoints.db")
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["APP_ENV"] = "testing"
 os.environ["ENABLE_GUARDRAILS"] = "true"

@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     ENABLE_GUARDRAILS: bool = True
     API_KEYS: str = ""
     RATE_LIMIT_PER_MINUTE: int = 30
+    CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
 
 
 settings = Settings()

@@ -14,6 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from src.agents.guardrails import GuardrailAgent
 from src.agents.specialists import SpecialistAgent
 from src.config import settings
+from src.core.checkpointer import build_sqlite_checkpointer
 from src.core.llm import (
     LLMConfigurationError,
     LLMNotConfiguredError,
@@ -60,6 +61,7 @@ class OrchestrationGraph:
         self,
         chat_model: BaseChatModel | None = None,
         fallback_model: BaseChatModel | None = None,
+        checkpointer: Any | None = None,
     ):
         self.guardrail_agent = GuardrailAgent()
         self.chat_model: BaseChatModel | None = chat_model
@@ -82,7 +84,7 @@ class OrchestrationGraph:
             fallback_model=fallback_model,
         )
 
-        self.checkpointer = MemorySaver()
+        self.checkpointer = checkpointer if checkpointer is not None else MemorySaver()
         self.graph = self._build_graph()
 
     def _get_bound_models(self) -> tuple[Any, Any]:
@@ -582,5 +584,6 @@ def get_orchestrator() -> OrchestrationGraph:
     """Dependency getter for singleton OrchestrationGraph."""
     global _orchestrator_instance
     if _orchestrator_instance is None:
-        _orchestrator_instance = OrchestrationGraph()
+        checkpointer = build_sqlite_checkpointer(settings.CHECKPOINT_DB_PATH)
+        _orchestrator_instance = OrchestrationGraph(checkpointer=checkpointer)
     return _orchestrator_instance

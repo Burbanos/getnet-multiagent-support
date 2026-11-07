@@ -4,6 +4,71 @@
 
 ---
 
+### Fase 4B: Memória Persistente em SQLite e Configuração que Falha Cedo
+
+#### Verificação Fase 4B (`python scripts/verify_phase4b.py`):
+```text
+PASS S1.requirement_declared
+PASS S1.lock_regenerated_on_linux
+PASS S2.gitignore
+PASS S3.config_documented
+PASS S4.no_silent_fallback
+PASS S5.no_memorysaver_claims
+PASS S6.readme
+PASS R0.settings
+PASS R1.builder
+PASS R1.fails_loudly
+PASS R2.default_in_memory
+PASS R3.memory_survives_restart
+PASS R3.thread_id_in_sqlite
+PASS R4.isolation_over_sqlite
+PASS R4.threads_on_disk
+PASS R5.api_uses_sqlite
+PASS R6.startup_opens_db
+PASS R6.startup_fails_on_bad_db_path
+PASS R7.validate_rejects_bad_keys
+PASS R7.bad_keys_503_not_500
+PASS R7.startup_fails_on_bad_keys
+PASS R7.valid_keys_unchanged
+PASS Q0.checkpointer_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 139 passed in 12.97s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_db
+
+SUMMARY: 37/37 passed
+```
+
+#### Commit Base da Fase 4B (`git rev-parse HEAD`):
+```text
+2bc8e2b42d10c87665cb6dad5b67b38b138051a9
+```
+
+#### Testes Criados na Fase 4B:
+`tests/test_checkpointer.py` (7 novos testes unitários):
+- `test_build_sqlite_checkpointer_creates_dirs_and_file`: valida que `build_sqlite_checkpointer` cria as pastas pai intermediárias, conecta ao SQLite e retorna uma instância de `SqliteSaver`.
+- `test_build_sqlite_checkpointer_unusable_path_raises`: valida falha ruidosa (sem fallback silencioso para `/tmp` ou memória) ao tentar criar banco em caminho inacessível (pasta pai é um arquivo regular).
+- `test_orchestration_graph_memory_survives_restart`: valida persistência real entre turnos após reinício simulado do processo (segundo grafo orquestrador sobre o mesmo arquivo SQLite recupera o histórico e segredos do primeiro turno).
+- `test_orchestration_graph_user_isolation_sqlite`: valida isolamento completo de contexto entre dois usuários que compartilham o mesmo `session_id`, gravando threads independentes `user_id:session_id` no SQLite.
+- `test_orchestration_graph_default_in_memory`: valida que `OrchestrationGraph()` sem argumento `checkpointer` preserva o checkpointer in-memory `MemorySaver` (mantendo suites de testes e verificadores anteriores isolados em memória).
+- `test_malformed_api_keys_fail_fast_and_503`: valida que `API_KEYS` mal formatado gera erro HTTP 503 no `/chat`, reporta `auth_mode: "invalid"` no `/health` e impede o arranque da aplicação (`with TestClient(app)` levanta `ValueError`).
+- `test_startup_fails_on_unusable_checkpoint_db_path`: valida fail-fast impedindo a aplicação de iniciar via `lifespan` caso `CHECKPOINT_DB_PATH` aponte para um caminho inacessível.
+
+#### Testes Ajustados na Fase 4B:
+- `tests/conftest.py`: adicionada a configuração de `os.environ["CHECKPOINT_DB_PATH"]` para um arquivo temporário em `tempfile.mkdtemp()` antes de qualquer import de `src`, garantindo que a execução da suíte de testes nunca crie nem modifique `data/checkpoints.db`.
+
+---
+
 ### Fase 4A: Identidade pela Credencial, Isolamento por Usuário, Tickets por Dono e Rate Limit
 
 #### Verificação Fase 4A (`python scripts/verify_phase4a.py`):
@@ -352,11 +417,12 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 4B
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 5
 
-1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final permanece delegado para ser gerado em ambiente Linux/container pelo usuário para compatibilidade com bibliotecas dependentes de SO (`uvloop`).
+1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final foi regenerado com sucesso em ambiente Linux (Python 3.11 no Codespaces) contendo as novas dependências `langgraph-checkpoint-sqlite==3.1.3`, `aiosqlite==0.22.1` e `sqlite-vec==0.1.9`.
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
 3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) entre consultas respondíveis e consultas fora de domínio (*off-topic*).
 4. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção caberá ao prompt do Knowledge Agent ("não encontrado nas fontes oficiais") na Fase 6.
-5. **Próxima Fase (Fase 4B: Checkpointer Persistente em SQLite)**: Substituição do `MemorySaver` in-memory pelo `SqliteSaver` persistente em disco (`data/checkpoints.db`), suporte a concorrência, migração de schema e retenção do isolamento estrito `thread_id = f"{user_id}:{session_id}"`.
+5. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas agora sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
 6. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
+7. **Próxima Fase (Fase 5: Transbordo Humano com Handoff e Resume)**: Registro detalhado de tickets (`reason`, `priority`, `transcript snapshot`, `status open|in_progress|answered|closed`), uso de `interrupt()` do LangGraph para pausar a execução aguardando resposta humana via `PATCH /tickets/{id}` e retomada da conversa no próximo turno com a resposta do operador, sem promessas falsas de tempo de espera/fila.
