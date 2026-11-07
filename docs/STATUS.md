@@ -4,78 +4,67 @@
 
 ---
 
-### Fase 3A: Coleta das Fontes Oficiais e Conformidade com robots.txt (Fase 3A e 3A.1)
+### Fase 3B: Fragmentação, Índice de Embeddings e Retriever (Biblioteca)
 
-#### Nota sobre Ajuste de Fonte Oficial (Fase 3A.1):
-- Na execução inicial da Fase 3A, o domínio `www.santander.com.br` retornou HTTP 403 Forbidden (bloqueio por CDN Akamai para o `USER_AGENT` público do projeto) mesmo na consulta ao `/robots.txt`. Em estrita conformidade com as regras de coleta ética (sem falsificação de User-Agent nem contorno de bloqueios), o domínio foi descontinuado da lista de fontes.
-- Conforme alinhamento na Fase 3A.1, o domínio brasileiro foi substituído por `site.getnet.com.br` (site oficial direto da Getnet Brasil). Sua rota `/robots.txt` retorna HTTP 404, o que pela RFC 9309 significa ausência de restrições de rastreamento.
-- A lista oficial `data/sources.yaml` foi atualizada para 33 fontes oficiais (10 globais em `getnet.net/en` e 23 nacionais em `site.getnet.com.br`).
-- A coleta real via rede (`python -m src.rag.ingest`) resultou em:
-  - `ok`: 30 páginas coletadas e higienizadas com sucesso (10 globais, 20 nacionais).
-  - `no_content`: 3 páginas com conteúdo renderizado estritamente no navegador via JavaScript (`site.getnet.com.br/`, `site.getnet.com.br/link-de-pagamento/`, `site.getnet.com.br/pagamentos-pelo-whatsapp/`), registradas fielmente sem texto.
-  - `robots_disallowed`: 0
-  - `http_error`: 0
-  - `off_allowlist`: 0
-
-#### Verificação Fase 3A (`python scripts/verify_phase3a.py`):
+#### Verificação Fase 3B (`python scripts/verify_phase3b.py`):
 ```text
-PASS C1.sources_yaml
-PASS C1.no_portugal_market
-PASS C1.no_blocked_santander
-PASS C2.one_record_per_source
-PASS C2.statuses_valid
-PASS C3.ok_records_integrity
-PASS C3.non_ok_without_text
-PASS C4.corpus_size
-PASS C5.manifest
-PASS C6.attribution
-PASS C6.readme_sources
-PASS M1.user_agent
-PASS M1.allowed_domains
-PASS M2.robots_disallow
-PASS M3.robots_404_allows
-PASS M3.ua_header
-PASS M4.extraction
-PASS M4.record_fields
-PASS M5.robots_5xx_disallows
-PASS M6.http_error
-PASS M6.no_content
-PASS M7.redirect_off_allowlist
-PASS M7.unknown_host_no_request
-PASS M8.robots_cached
-PASS M8.rate_limit
-PASS M9.run_writes_outputs
+PASS L1.settings
+PASS L2.get_embedder
+PASS L2.get_embedder_requires_key
+PASS L3.boilerplate_removed
+PASS L3.dash_lines_removed
+PASS L3.non_ok_ignored
+PASS L3.max_chars
+PASS L3.verbatim_lines
+PASS L3.deterministic_ids
+PASS L3.fields
+PASS L4.build_index
+PASS L4.load_rejects_mismatch
+PASS L4.search_sorted
+PASS L5.retriever_success
+PASS L5.retriever_abstain
+PASS L5.top_k
+PASS I1.index_files
+PASS I2.meta
+PASS I3.embeddings_shape
+PASS I4.chunk_fields
+PASS I5.chunk_provenance
+PASS I5.chunk_verbatim
+PASS I5.chunk_size
+PASS I6.no_boilerplate
+PASS I6.page_coverage
+PASS I7.embeddings_are_semantic :: intra=0.806 inter=0.685
 PASS Q0.verify_phase2a
 PASS Q0.verify_phase2b
 PASS Q0.verify_phase2c
 PASS Q0.verify_phase2d
 PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 100 passed in 14.97s
+PASS Q2.pytest_offline_no_key :: 111 passed in 15.85s
 PASS Q3.tree_unchanged
 
-SUMMARY: 34/34 passed
+SUMMARY: 35/35 passed
 ```
 
-#### Commit Base da Fase 3A:
+#### Commit Base da Fase 3B:
 ```text
-e08c1f7644bc687146f627666f470f7f2700ef4d
+fb0923f148e96a79c8b34ff55540966c445a88ea
 ```
 
-#### Testes Alterados e Criados na Fase 3A:
-1. `tests/test_ingest.py` (novo, 12 testes unitários 100% offline via `httpx.MockTransport`):
-   - `test_extraction_clean_content_and_title`: validação da higienização HTML (remoção de tags de script, style, nav, header, footer, etc.) e extração de título.
-   - `test_robots_txt_disallow_skips_page_request`: bloqueio preventivo de requisição quando o `robots.txt` desautoriza a rota.
-   - `test_robots_txt_404_allows_page_request`: respeito à RFC 9309 onde HTTP 404 em `robots.txt` autoriza o rastreamento.
-   - `test_robots_txt_500_disallows_page_request`: respeito à RFC 9309 onde HTTP 5xx em `robots.txt` trata temporariamente como desautorizado.
-   - `test_user_agent_header_sent_on_all_requests`: envio estrito do `USER_AGENT` oficial em todas as requisições (`robots.txt` e páginas).
-   - `test_http_error_handling`: captura e classificação de erros de servidor HTTP (500) gerando registro sem texto.
-   - `test_no_content_for_short_pages`: páginas com menos de 300 caracteres úteis classificadas como `no_content`.
-   - `test_redirect_off_allowlist`: redirecionamentos que saem dos domínios da allowlist são bloqueados e classificados como `off_allowlist`.
-   - `test_unknown_host_off_allowlist_without_network_request`: URLs com host desconhecido nem chegam a disparar chamadas de rede.
-   - `test_robots_txt_cached_single_request_per_host`: cache em memória do arquivo `robots.txt` por host na mesma sessão de ingestão.
-   - `test_rate_limiting_enforced_per_host`: aplicação de intervalo mínimo (`min_delay_s`) entre requisições ao mesmo domínio.
-   - `test_ingestor_run_generates_pages_jsonl_and_manifest`: ciclo completo de ponta a ponta gerando `data/corpus/pages.jsonl` e `manifest.json`.
+#### Testes Alterados e Criados na Fase 3B:
+1. `tests/test_rag_index.py` (novo, 11 testes unitários determinísticos e 100% offline com `FakeKeywordEmbedder`):
+   - `test_boilerplate_removal_and_dash_lines`: remoção de linhas de rodapé/boilerplate presentes em $\ge 4$ páginas e de linhas compostas apenas por traços/pontuação (ex.: "—").
+   - `test_non_ok_records_ignored`: registros com status diferente de "ok" ignorados na fragmentação.
+   - `test_chunk_size_capped_at_max_chars`: chunks respeitando o limite máximo de caracteres (900 chars).
+   - `test_chunk_lines_are_verbatim`: preservação estrita e verbatim das linhas originais da página fonte nos chunks.
+   - `test_chunk_id_deterministic_and_unique`: identificadores de chunk reproduzíveis e determinísticos (`{doc_sha256[:12]}-{idx:03d}`).
+   - `test_chunk_fields_completeness`: presença de todos os campos (`chunk_id`, `doc_url`, `title`, `market`, `fetched_at`, `doc_sha256`, `text`).
+   - `test_build_index_artifacts_and_normalization`: geração de `embeddings.npy` em float32 normalizado (norma L2 = 1.0), `chunks.jsonl` e `index_meta.json`.
+   - `test_vector_index_load_valid_and_mismatches`: carregamento do índice com validação de modelo e dimensões esperadas (levantando `ValueError` em caso de incompatibilidade).
+   - `test_vector_index_search_cosine_ordering`: ordenação decrescente por similaridade de cosseno nas buscas do índice.
+   - `test_retriever_success_abstain_and_top_k`: retorno formatado com documentos relevantes em caso de score $\ge min\_score$, abstenção explícita (`status: "abstain"`) quando abaixo do limiar e respeito a `top_k`.
+   - `test_get_embedder_configuration`: `get_embedder` levanta `LLMNotConfiguredError` se `GEMINI_API_KEY` não estiver definida, e constrói `GoogleGenerativeAIEmbeddings` com modelo, dimensão e task type corretos quando configurada.
 
 ---
 
@@ -136,10 +125,11 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ---
 
-### 7. Higienização e Refatoração de Testes (Fases 1A a 3A)
+### 7. Higienização e Refatoração de Testes (Fases 1A a 3B)
 
-**Total atual de testes**: 100 testes aprovados e 100% offline (`verify_nonet`).
+**Total atual de testes**: 111 testes aprovados e 100% offline (`verify_nonet`).
 
+- **Fase 3B**: 11 novos testes em `tests/test_rag_index.py` cobrindo fragmentação com remoção de boilerplate, filtro de linhas de pontuação, normalização L2 e persistência do índice vetorial (`embeddings.npy`, `chunks.jsonl`, `index_meta.json`), busca por cosseno e abstenção formal do retriever.
 - **Fase 3A**: 12 novos testes em `tests/test_ingest.py` cobrindo conformidade ética de robots.txt, RFC 9309 (404 permitido, 5xx restrito), rate limiting por host, isolamento de domínios na allowlist, extração e limpeza de tags HTML e persistência do corpus.
 - **Fase 2E**: 9 novos testes em `tests/test_tokens_and_tools.py`.
 - **Fase 2D**: 10 novos testes em `tests/test_specialists.py` e adaptação do fluxo hierárquico nos testes de integração.
@@ -153,49 +143,50 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ### 8. Verificação e Saídas Oficiais
 
-#### Verificação Fase 3A (`python scripts/verify_phase3a.py`):
+#### Verificação Fase 3B (`python scripts/verify_phase3b.py`):
 ```text
-PASS C1.sources_yaml
-PASS C1.no_portugal_market
-PASS C1.no_blocked_santander
-PASS C2.one_record_per_source
-PASS C2.statuses_valid
-PASS C3.ok_records_integrity
-PASS C3.non_ok_without_text
-PASS C4.corpus_size
-PASS C5.manifest
-PASS C6.attribution
-PASS C6.readme_sources
-PASS M1.user_agent
-PASS M1.allowed_domains
-PASS M2.robots_disallow
-PASS M3.robots_404_allows
-PASS M3.ua_header
-PASS M4.extraction
-PASS M4.record_fields
-PASS M5.robots_5xx_disallows
-PASS M6.http_error
-PASS M6.no_content
-PASS M7.redirect_off_allowlist
-PASS M7.unknown_host_no_request
-PASS M8.robots_cached
-PASS M8.rate_limit
-PASS M9.run_writes_outputs
+PASS L1.settings
+PASS L2.get_embedder
+PASS L2.get_embedder_requires_key
+PASS L3.boilerplate_removed
+PASS L3.dash_lines_removed
+PASS L3.non_ok_ignored
+PASS L3.max_chars
+PASS L3.verbatim_lines
+PASS L3.deterministic_ids
+PASS L3.fields
+PASS L4.build_index
+PASS L4.load_rejects_mismatch
+PASS L4.search_sorted
+PASS L5.retriever_success
+PASS L5.retriever_abstain
+PASS L5.top_k
+PASS I1.index_files
+PASS I2.meta
+PASS I3.embeddings_shape
+PASS I4.chunk_fields
+PASS I5.chunk_provenance
+PASS I5.chunk_verbatim
+PASS I5.chunk_size
+PASS I6.no_boilerplate
+PASS I6.page_coverage
+PASS I7.embeddings_are_semantic :: intra=0.806 inter=0.685
 PASS Q0.verify_phase2a
 PASS Q0.verify_phase2b
 PASS Q0.verify_phase2c
 PASS Q0.verify_phase2d
 PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 100 passed in 14.97s
+PASS Q2.pytest_offline_no_key :: 111 passed in 15.85s
 PASS Q3.tree_unchanged
 
-SUMMARY: 34/34 passed
+SUMMARY: 35/35 passed
 ```
 
 #### Execução da Suíte Pytest (`python -m pytest -q`):
 ```text
-100 passed in 14.97s
+111 passed in 15.85s
 ```
 
 #### Linting (`python -m ruff check .`):
@@ -205,9 +196,9 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3B
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3C
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final permanece delegado para ser gerado em ambiente Linux/container pelo usuário para compatibilidade com bibliotecas dependentes de SO (`uvloop`).
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
-3. **Corpus de Conhecimento e Páginas JavaScript**: Das 33 fontes oficiais (10 globais, 23 BR), 30 páginas foram indexadas com conteúdo superior a 300 caracteres úteis (`ok`), e 3 páginas institucionais com renderização puramente client-side via JavaScript (`https://site.getnet.com.br/`, `https://site.getnet.com.br/link-de-pagamento/`, `https://site.getnet.com.br/pagamentos-pelo-whatsapp/`) foram catalogadas sem texto como `no_content`.
-4. **Próxima Fase (Fase 3B: Chunking, Enriquecimento e Indexação Vetorial)**: Implementar chunking hierárquico sobre `data/corpus/pages.jsonl`, preservação rigorosa de metadados (`url`, `title`, `market`) e substituição do retriever em memória para a nova coleção ChromaDB baseada nos documentos oficiais ingeridos.
+3. **Índice Commitado de Embeddings**: O índice oficial gerado com `gemini-embedding-2` contém 94 chunks a partir das 30 páginas oficiais, com discriminação semântica confirmada (`intra=0.806` vs `inter=0.685`). Os arquivos `data/index/{chunks.jsonl, embeddings.npy, index_meta.json}` encontram-se commitados e versionados.
+4. **Próxima Fase (Fase 3C: Integração do Retriever aos Agentes)**: Conectar o novo `Retriever` da biblioteca ao `KnowledgeAgent` (`src/agents/knowledge.py` e `src/tools/agent_tools.py`), aposentando a base estática legada `data/getnet_kb.json` e o ChromaDB provisório.

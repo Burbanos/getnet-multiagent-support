@@ -153,10 +153,14 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 * As sessões são indexadas por `thread_id` (correspondente ao `session_id` da requisição HTTP).
 * O assistente mantém contexto entre turnos de diálogo: uma pergunta de acompanhamento (ex: *"E qual delas tem tela touch com Android?"*) reaproveita o contexto histórico do turno anterior sem exigir que o lojista repita os modelos.
 
-### RAG Vetorial e Limiar de Abstenção
-* **Base de Conhecimento**: A base `data/getnet_kb.json` reúne artigos abrangendo o ecossistema Getnet (maquininhas Get Smart, Clássica, Mini, POS Digital, Pix na maquininha, antecipação avulsa e automática, crediário em até 36x, cancelamento e estorno, taxas, segurança PCI-DSS, reposição gratuita de bobinas e fechamento de lote).
-* **Limiar de Abstenção Explícito**: Ao realizar a busca vetorial combinada, se o score for inferior ao limiar ou não houver correspondência temática com os produtos Getnet, o sistema abstém-se de responder com documentos divergentes:
-  > *"Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."*
+### RAG Vetorial e Pipeline de Conhecimento (Fase 3B)
+* **Pipeline Oficial de RAG**:
+  1. **Ingestão (`src/rag/ingest.py`)**: Coleta ética de fontes oficiais (`data/sources.yaml`), respeitando `robots.txt` e gerando o corpus em `data/corpus/pages.jsonl`.
+  2. **Fragmentação (`src/rag/chunking.py`)**: Filtra linhas de boilerplate (repetidas em $\ge 4$ páginas), linhas sem caracteres alfanuméricos e agrupa as linhas restantes na ordem original (verbatim) em chunks limitados a 900 caracteres.
+  3. **Geração de Embeddings (`src/core/llm.py`)**: Utiliza o modelo `gemini-embedding-2` com 768 dimensões, configurando a tarefa adequada para cada contexto: `RETRIEVAL_DOCUMENT` para indexação de chunks e `RETRIEVAL_QUERY` para consultas em tempo de execução.
+  4. **Índice Vetorial Commitado (`src/rag/index.py`)**: Vetores com normalização L2 persistidos em `data/index/embeddings.npy` (float32), metadados em `data/index/index_meta.json` e chunks em `data/index/chunks.jsonl`.
+  5. **Retriever e Abstenção (`src/rag/retriever.py`)**: Busca por similaridade de cosseno com limiar de corte (`RAG_MIN_SCORE = 0.60`). Se a melhor pontuação for inferior ao limiar ou não houver resultados, o retriever abstém-se formalmente (`status: "abstain"` com lista vazia de documentos), prevenindo alucinações.
+* **Transição e Próximos Passos**: O limiar atual de `0.60` é provisório até a calibração empírica da Fase 3D. A integração completa deste novo retriever ao `KnowledgeAgent` será implementada na Fase 3C (atualmente o agente segue usando `data/getnet_kb.json`).
 
 ### Fontes de Dados e Corpus Oficial (Fase 3A)
 * **Política de Fontes Oficiais**:

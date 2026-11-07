@@ -200,10 +200,28 @@ without network. Topics with no official coverage must be answered with abstenti
   off_allowlist`; `data/corpus/pages.jsonl` (one record per source) and `manifest.json` (user agent, counts);
   at least 15 `ok` pages, 8 of them `BR`. Ingestion tooling deps (beautifulsoup4, pyyaml) live in
   `requirements-dev.txt`, not in the runtime lock.
-- 3B: chunking, embeddings, committed index, retriever with threshold and abstention, Knowledge Agent
-  integration, removal of `data/getnet_kb.json` and of ChromaDB if no longer needed (decided in 3B).
-- 3C: labeled retrieval set (≥30 queries, in- and out-of-domain, PT and EN), calibration script, hit@k/MRR
-  and abstention precision/recall committed in `reports/`.
+- 3B (checked by `scripts/verify_phase3b.py`): library only, agents unchanged. `src/rag/chunking.py`
+  `build_chunks(records, max_chars=900, boilerplate_min_pages=4)`: only `ok` pages; drops lines repeated in
+  ≥4 pages (site footer/CTA) and lines without alphanumerics; chunks of verbatim source lines ≤900 chars with
+  deterministic `chunk_id` and provenance (`doc_url`, `title`, `market`, `fetched_at`, `doc_sha256`).
+  `src/rag/index.py`: `build_index(chunks, embedder, out_dir, embedding_model, dim, corpus_sha256)` writes
+  `data/index/{chunks.jsonl, embeddings.npy (float32, L2-normalised), index_meta.json}`; `VectorIndex.load(dir,
+  expected_model, expected_dim)` (mismatch → ValueError) and `.search(vector, k)` by cosine; CLI
+  `python -m src.rag.index` builds the committed index (run by the user, who holds the API key).
+  `src/rag/retriever.py`: `Retriever(index, embedder, min_score, top_k).search(query)` → `success` with
+  documents scoring ≥ `min_score` (max `top_k`) or `abstain` with no documents. `get_embedder(task_type)` in
+  `src/core/llm.py`. Embedding model `gemini-embedding-2` at 768 dims, task types RETRIEVAL_DOCUMENT/QUERY.
+  Chosen on 2026-11-06 over `gemini-embedding-001` with 5 real pages and 4 queries: relevant top scores
+  0.738–0.807 vs 0.461 for an out-of-domain query (margin 0.277 vs 0.215), and better PT/EN cross-lingual
+  matching. `RAG_MIN_SCORE=0.60` and `RAG_TOP_K=4` are provisional until 3D.
+- 3C: wire the retriever into `search_knowledge_base` (citations with URL and fetch date), remove
+  `data/getnet_kb.json`, the ChromaDB retriever and the `chromadb` dependency (lock regenerated afterwards),
+  update the Knowledge Agent prompt and the README RAG section.
+- 3D: labeled retrieval set (≥30 queries, in- and out-of-domain, PT and EN), calibration script for
+  `RAG_MIN_SCORE`, hit@k/MRR and abstention precision/recall committed in `reports/`.
+  Known coverage gap: no official BR page with server-rendered text about payment links via WhatsApp
+  (`/link-de-pagamento/`, `/pagamentos-pelo-whatsapp/` and alternatives are JavaScript-only or menu-only),
+  so that scenario must abstain or use the global online-payments page.
 **Acceptance (whole phase):**
 - AC3.1 `sources.yaml` allowlist; ingest honors robots.txt (tests with simulated robots).
 - AC3.2 Each chunk has `doc_url`, `fetched_at`, `sha256`, `chunk_id`, verbatim source text; no hand-written content.

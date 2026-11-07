@@ -14,7 +14,7 @@ from langchain_core.exceptions import (
 )
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 from src.config import settings
 
@@ -93,6 +93,21 @@ def get_fallback_model() -> BaseChatModel | None:
     if not fb_name:
         return None
     return _build_chat_model(fb_name)
+
+
+def get_embedder(task_type: str) -> GoogleGenerativeAIEmbeddings:
+    """
+    Return configured GoogleGenerativeAIEmbeddings instance.
+    Raises LLMNotConfiguredError if GEMINI_API_KEY is not configured.
+    """
+    if not settings.GEMINI_API_KEY:
+        raise LLMNotConfiguredError("GEMINI_API_KEY is not configured.")
+    return GoogleGenerativeAIEmbeddings(
+        model=settings.EMBEDDING_MODEL,
+        google_api_key=settings.GEMINI_API_KEY,
+        task_type=task_type,
+        output_dimensionality=settings.EMBEDDING_DIM,
+    )
 
 
 def extract_model_name(model: Any) -> str:

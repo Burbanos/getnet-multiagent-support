@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     KB_DATA_PATH: str = "data/getnet_kb.json"
     CHROMA_PERSIST_DIR: str = ""
 
+    EMBEDDING_MODEL: str = "gemini-embedding-2"
+    EMBEDDING_DIM: int = 768
+    RAG_TOP_K: int = 4
+    RAG_MIN_SCORE: float = 0.60
+    INDEX_DIR: str = "data/index"
+
     ENABLE_GUARDRAILS: bool = True
     CONFIDENCE_THRESHOLD_ESCALATION: float = 0.45
 
