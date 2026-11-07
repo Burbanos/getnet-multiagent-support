@@ -61,10 +61,15 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
   - [Execução via Docker Compose](#execução-via-docker-compose)
   - [Execução Local](#execução-local)
   - [Endpoints da API REST](#endpoints-da-api-rest)
-- [4. Testes Automatizados e CI/CD](#4-testes-automatizados-e-cicd)
-- [5. Matriz de Cobertura dos Cenários Oficiais](#5-matriz-de-cobertura-dos-cenários-oficiais)
-- [6. Glossário de Defesa Técnica (Perguntas de Entrevista)](#6-glossário-de-defesa-técnica-perguntas-de-entrevista)
-- [7. Estrutura do Repositório](#7-estrutura-do-repositório)
+- [4. Avaliação e Métricas](#4-avaliação-e-métricas)
+  - [Dataset de Avaliação (data/eval/cases.jsonl)](#dataset-de-avaliação-dataevalcasesjsonl)
+  - [Checagens Determinísticas](#checagens-determinísticas)
+  - [Subconjunto Offline no CI](#subconjunto-offline-no-ci-python--m-srceval-offline)
+  - [Medições com Modelo Real (Fase 6B)](#medições-com-modelo-real-fase-6b)
+- [5. Testes Automatizados e CI/CD](#5-testes-automatizados-e-cicd)
+- [6. Matriz de Cobertura dos Cenários Oficiais](#6-matriz-de-cobertura-dos-cenários-oficiais)
+- [7. Glossário de Defesa Técnica (Perguntas de Entrevista)](#7-glossário-de-defesa-técnica-perguntas-de-entrevista)
+- [8. Estrutura do Repositório](#8-estrutura-do-repositório)
 
 ---
 
@@ -369,7 +374,54 @@ curl -X POST "http://localhost:8000/chat" \
 
 ---
 
-## 4. Testes Automatizados e CI/CD
+## 4. Avaliação e Métricas
+
+O sistema conta com um harness de avaliação determinística e um dataset estruturado em `data/eval/cases.jsonl` (SHA256: `2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07`).
+
+### Dataset de Avaliação (`data/eval/cases.jsonl`)
+O conjunto reúne **69 casos de teste** cobrindo fluxos reais de suporte a lojistas, organizados por categoria e idioma:
+- **Distribuição por Categoria**:
+  - `knowledge`: 22 casos (produtos, taxas, crediário, Pix, antecipação, link de pagamento)
+  - `support`: 9 casos (liquidação financeira, recusa de transações, diagnóstico de terminal POS)
+  - `uncovered`: 8 casos (perguntas dentro do escopo comercial/adquirência mas ausentes no corpus)
+  - `safety`: 6 casos (tentativas de injeção de prompt, bypass DAN, extração de credenciais e exploits)
+  - `multi_turn`: 6 casos (diálogos multi-turn com acompanhamento contextual)
+  - `off_topic`: 5 casos (perguntas completamente fora do domínio bancário/adquirência)
+  - `escalation`: 5 casos (pedidos explícitos de transbordo para atendimento humano)
+  - `web`: 4 casos (informações em tempo real que exigem busca externa na web)
+  - `pii`: 2 casos (mensagens contendo números de cartão de crédito e dados sensíveis)
+  - `multi_intent`: 2 casos (mensagens compostas com múltiplas intenções simultâneas)
+- **Distribuição por Idioma**: 41 casos em Português (`pt`) e 28 casos em Inglês (`en`).
+- **Cenários Oficiais**: Inclui integralmente os 10 cenários oficiais de referência do desafio Getnet (`official: true`).
+- **Origem dos Rótulos e Fatos**: Todos os rótulos de expectativa (`expect`) e fatos esperados (`facts_any`, `facts_none`, `gold_urls`) foram redigidos e conferidos diretamente contra o corpus oficial de conhecimento (`data/knowledge/corpus.jsonl`) e o comportamento do grafo de orquestração.
+
+### Checagens Determinísticas
+Cada caso de teste avaliado é submetido a uma bateria de 9 verificações determinísticas sobre o último turno da conversa:
+- `routing_ok`: valida se os especialistas acionados (`agents_used` filtrados para `KnowledgeAgent` e `SupportAgent`) correspondem exatamente ao esperado;
+- `tools_ok`: valida se todas as ferramentas de `tools_all` foram invocadas e nenhuma de `tools_none` foi acionada;
+- `escalation_ok`: valida se a emissão do ticket de transbordo (`ticket_id`) confere com a expectativa de escalonamento;
+- `priority_ok`: valida a prioridade atribuída ao chamado (`ticket_priority`);
+- `blocked_ok`: valida se a mensagem foi bloqueada pelo guardrail de segurança (`is_safe == False`);
+- `sources_ok`: valida se as URLs de fontes oficiais retornadas contêm as URLs-ouro esperadas (`gold_urls`);
+- `facts_ok`: valida se todas as alternativas de fatos essenciais (`facts_any`) estão presentes na resposta normalizada;
+- `facts_none_ok`: valida se termos proibidos ou alucinações (`facts_none`) não foram vazados na resposta;
+- `language_ok`: valida se o idioma da resposta corresponde ao idioma esperado (`case["lang"]`), detectado via frequência lexical.
+
+### Subconjunto Offline no CI (`python -m src.eval offline`)
+Para execução rápida e determística no pipeline de integração contínua (CI) sem necessidade de chave de API (`GEMINI_API_KEY`) nem tráfego de rede, disponibilizamos o runner offline:
+
+```bash
+python -m src.eval offline
+```
+
+Esse comando executa o grafo com o modelo sentinela `ForbiddenChatModel` sobre o subconjunto de regressão offline (os 6 casos da categoria `safety`). O modelo sentinela intercepta qualquer tentativa acidental de geração via LLM e falha se houver vazamento. No CI, o teste `tests/test_eval_offline.py` garante que todos os casos offline passem com exatamente 0 chamadas a modelos.
+
+### Medições com Modelo Real (Fase 6B)
+A avaliação ponta a ponta com o modelo de linguagem real (Gemini 2.5 Flash), juiz LLM de fidelidade e relevância, análise de abstenção com groundedness e geração dos relatórios completos de benchmark (`reports/eval_*.json` e `reports/eval_*.md`) é executada na **Fase 6B**.
+
+---
+
+## 5. Testes Automatizados e CI/CD
 
 A suíte conta com testes automatizados cobrindo os cenários oficiais do desafio, testes unitários de componentes e validação do dataset de avaliação:
 
@@ -383,7 +435,7 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 
 ---
 
-## 5. Matriz de Cobertura dos Cenários Oficiais
+## 6. Matriz de Cobertura dos Cenários Oficiais
 
 | ID | Pergunta de Avaliação | Ferramenta Acionada (ReAct) | Fonte / Evidência | Status |
 | :-: | :--- | :--- | :--- | :-: |
@@ -400,7 +452,7 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 
 ---
 
-## 6. Glossário de Defesa Técnica (Perguntas de Entrevista)
+## 7. Glossário de Defesa Técnica (Perguntas de Entrevista)
 
 ### 1. "A UI mostra uma confiança na resposta. Como esse número é calculado?"
 > **Defesa**: *"A métrica de confiança exibida no inspetor de telemetria reflete o score calculado sobre os vetores de contexto recuperados. Quando o lojista faz uma pergunta operacional atendida por ferramentas transacionais (como liquidação financeira ou diagnóstico do POS), a confiança reflete 100% de precisão determinística oriunda do banco de dados oficial."*
@@ -419,7 +471,7 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 
 ---
 
-## 7. Estrutura do Repositório
+## 8. Estrutura do Repositório
 
 ```text
 getnet-multiagent-support/
@@ -429,12 +481,21 @@ getnet-multiagent-support/
 ├── data/
 │   ├── corpus/                # Páginas oficiais Getnet e manifest.json
 │   ├── index/                 # Índice de embeddings (chunks.jsonl, embeddings.npy, index_meta.json)
-│   └── eval_dataset.json      # Dataset de avaliação com 12 pares rotulados
+│   └── eval/
+│       └── cases.jsonl        # Dataset estruturado de avaliação (69 casos de teste)
 ├── src/
 │   ├── main.py                # Servidor FastAPI com endpoints /chat, /tickets e lifecycles
 │   ├── config.py              # Pydantic Settings e configuração de log estruturado JSON
 │   ├── agents/
-│   │   └── guardrails.py      # Sanitização PII (Luhn PAN + CPF) e bloqueio de injeções
+│   │   ├── guardrails.py      # Sanitização PII (Luhn PAN + CPF) e bloqueio de injeções
+│   │   └── specialists.py     # Subagentes especialistas (KnowledgeAgent e SupportAgent)
+│   ├── eval/
+│   │   ├── cases.py           # Validação e carregamento de casos de teste
+│   │   ├── checks.py          # Checagens determinísticas e detecção de idioma
+│   │   ├── metrics.py         # Agregação estatística de métricas e percentis
+│   │   ├── offline.py         # Sentinela ForbiddenChatModel e runner offline
+│   │   ├── report.py          # Gerador de relatórios em JSON e Markdown
+│   │   └── __main__.py        # Interface CLI (python -m src.eval offline)
 │   ├── rag/
 │   │   ├── ingest.py          # Coleta ética de fontes com robots.txt
 │   │   ├── chunking.py        # Fragmentação com remoção de boilerplate e caudas
@@ -458,7 +519,9 @@ getnet-multiagent-support/
 │       └── demo.html              # Console interativo 3 colunas com telemetria e tickets
 ├── tests/
 │   ├── conftest.py                # Fixtures de sessão para TestClient e componentes
-│   ├── test_eval_judge.py         # Validação de schema do dataset de avaliação e roteamento
+│   ├── test_eval_harness.py       # Testes unitários do harness de avaliação determinística
+│   ├── test_eval_offline.py       # Teste de regressão offline do subconjunto safety no CI
+│   ├── test_eval_judge.py         # Testes de segurança e cabeçalho X-API-Key
 │   ├── test_scenarios.py          # Testes de integração dos 10 cenários oficiais de avaliação
 │   └── test_unit.py               # Testes unitários (Supervisor, ReAct, MemorySaver, RAG, PII, SQLite)
 ├── Dockerfile                     # Build multi-stage seguro executado sob usuário não-root

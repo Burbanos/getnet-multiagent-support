@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `fa8ccf0` (phase 5B, CI green) plus
-this SPEC/prompt update for 5C. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `3c09da8` (phase 5C, CI green) plus
+this SPEC/prompt update for 6A. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -63,6 +63,9 @@ this SPEC/prompt update for 5C. CI (lint, tests, docker build + /health smoke) r
   `resumed` when closed without reply). Review notes (fixed in 5C): messages sent while waiting never reached
   the operator; `mark_delivered` result ignored (double delivery under concurrent requests). Still open: the
   delivery is marked before the checkpoint write.
+- 5C auto-escalation after 2 consecutive knowledge abstentions (no sources), follow-ups appended to the ticket,
+  single delivery. Review notes: README says forced escalation resets the counter (it does not: that path skips
+  `abstention_check`); `append_customer_message` is read-modify-write without a lock; the transcript has no cap.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -97,18 +100,17 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 5C (auto-escalation after repeated abstention; handoff gate fixes)**, prompt
-`docs/phase-prompts/5C.md`, verifier `scripts/verify_phase5c.py` (details in Phase 5). Last part of Phase 5; Phase 6
-(real-model evaluation, 14% of the rubric) follows and needs the user's key in a terminal.
-**Design change (2026-11-07, reviewer), kept for 5B:** AC5.2 originally asked for `interrupt()`; the handoff gate
-replaced it because the resume comes from the operator and the customer may keep writing (those messages must pass
-the guardrail and reach memory and, from 5C, the ticket). The user can still ask to revert.
+**Current phase: 6A (evaluation harness, deterministic checks, offline subset in CI)**, prompt
+`docs/phase-prompts/6A.md`, verifier `scripts/verify_phase6a.py`, labeled set `data/eval/cases.jsonl` written by the
+reviewer (details in Phase 6). 6B (LLM judge, resumable real-model run by the user, committed report) follows.
+**Design change kept from 5B:** the handoff gate replaced `interrupt()` (see AC5.2); the user can still ask to revert.
 
 **Backlog:**
 - Phase 6 (from 3D): real-model abstention on the 10 `uncovered` queries through the Knowledge Agent as a
   headline metric; harder negatives (other acquirers, banks, generic payments); "answered with the answer"
   vs "passed the threshold"; language rule (EN question → EN answer) and collection-date citation; replace
   `data/eval_dataset.json` (ground truth from the old KB).
+- PII masking eats the space after a masked card ("[CARTAO_MASCARADO_****1111]foi").
 - RAG quality: chunk generality (title prefix per chunk or smaller chunks, measured with the 3D set);
   cadastro pop-up text ("Como deseja continuar?", in <4 pages) survives the boilerplate filter; WhatsApp
   payment link has only the global page as source.
@@ -465,11 +467,43 @@ without network. Topics with no official coverage must be answered with abstenti
 - AC5.5 Persistence failure surfaces an error to the user; no silent `/tmp` fallback.
 
 ### Phase 6 — Evaluation
+**Split:**
+- 6A (checked by `scripts/verify_phase6a.py`): `data/eval/cases.jsonl` (reviewer-owned, 69 cases: the 10 official
+  scenarios verbatim, 17 more knowledge questions whose gold URLs and facts were checked against literal corpus
+  text, 6 support, 2 web, 8 uncovered, 5 off-topic, 6 safety, 2 PII, 5 escalation, 6 multi-turn, 2 multi-intent;
+  41 PT, 28 EN). Case keys: `id`, `category`, `lang`, `official`, `offline` (safety only), `turns` (the last one is
+  evaluated; earlier turns run in the same session), `expect` with exactly `agents` (set of specialists, `[]` = none,
+  null = not checked), `tools_all`, `tools_none`, `escalate`, `priority`, `blocked`, `gold_urls`, `facts_any`
+  (groups; every group needs one alternative in the answer), `facts_none`, `abstain` (judged in 6B).
+  Package `src/eval` (no regex, no imports from `tests/`): `cases.load_cases` (ValueError on duplicate id, unknown
+  category, language, agent or tool, empty turns, missing/extra keys, `offline` outside safety), `cases_sha256`
+  (canonical form as in 3D); `checks.detect_language` (lowercase, split on whitespace, strip the punctuation
+  in `STRIP` (exact string in `docs/phase-prompts/6A.md`), count hits in `PT_WORDS` and `EN_WORDS`, larger wins, tie → `unknown`); `checks.
+  evaluate_case(case, result)` → `{"checks": {...}, "passed"}` over the last turn, each check True/False/None
+  (not applicable): `routing_ok` (specialists in `agents_used` == expected set), `tools_ok`, `escalation_ok`
+  (ticket created == expected), `priority_ok`, `blocked_ok` (always), `sources_ok` (any gold URL in sources),
+  `facts_ok`, `facts_none_ok` (whitespace-normalised, lowercase substring), `language_ok` (skipped when blocked,
+  unsafe or handoff); `passed` = all applicable checks true; a result with status other than `ok` → all None,
+  not passed. `metrics.aggregate(cases, results)`: errors excluded from every rate and listed; `<check>_rate`
+  (`routing_rate`, `tools_rate`, `escalation_rate`, `priority_rate`, `blocked_rate`, `sources_rate`,
+  `facts_rate`, `facts_none_rate`, `language_rate`), `pass_rate`, escalation precision/recall, latency p50/p95
+  per case (nearest rank, turns summed), `tokens_total` and `tokens_mean_per_case` over cases that report tokens,
+  `estimated_cost_usd: null` with `cost_note`, pass rate by category, by language and for the official cases.
+  `report.write_report(cases, results, out_json, out_md, run_id)`. `offline.ForbiddenChatModel` (counts calls and
+  fails) and `offline.run_offline(cases)` (each case in a fresh graph; any exception → status `error`;
+  `model_calls` per result); CLI `python -m src.eval offline` prints `offline: N/M passed` and fails unless every
+  offline case passes with zero model calls; `tests/test_eval_offline.py` runs it in CI (AC6.4). The old
+  `data/eval_dataset.json` (ground truth from the deleted KB) and its schema test are removed.
+- 6B: LLM judge (rubric: grounded in the evidence, answers the question, abstained) that never sees the expected
+  agents, tools or facts; `python -m src.eval run` (needs the key; one result line per case appended to
+  `reports/eval_runs/<run_id>.jsonl`, resumable, stops after repeated quota errors, tickets in a temporary database)
+  and `python -m src.eval report`; end-to-end abstention precision/recall on `uncovered`/`off_topic` vs answerable;
+  list of check/judge disagreements; committed report with model names and date.
 **Acceptance:**
-- AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold chunk ids), abstention, multi-turn, safety, escalation, PT and EN.
-- AC6.2 `scripts/run_eval.py` runs against the real model, outputs `reports/eval_<date>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost.
+- AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold URLs and literal facts), abstention, multi-turn, safety, escalation, PT and EN.
+- AC6.2 `python -m src.eval run` executes against the real model and `report` outputs `reports/eval_<run_id>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost (null until Phase 7).
 - AC6.3 LLM judge with rubric prompt; judge never sees the expected tool; disagreements listed.
-- AC6.4 CI runs a deterministic offline subset (fake model) as regression; real-model report committed with model name and date.
+- AC6.4 CI runs a deterministic offline subset (no model may be called) as regression; real-model report committed with model name and date.
 
 ### Phase 7 — Observability and cost
 **Acceptance:**

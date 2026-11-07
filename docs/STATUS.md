@@ -4,6 +4,76 @@
 
 ---
 
+### Fase 6A: Harness de Avaliação, Checagens Determinísticas e Subconjunto Offline no CI
+
+#### Verificação Fase 6A (`python scripts/verify_phase6a.py`):
+```text
+PASS D1.cases_reviewer_owned :: 69 cases, sha 2d7d8e746a23
+PASS D2.composition
+PASS D3.old_dataset_removed
+PASS R0.api
+PASS R0.no_regex_no_tests_import
+PASS R1.load_cases
+PASS R1.validation
+PASS R2.word_lists
+PASS R2.detect_language
+PASS R3.evaluate_case_matches_reference
+PASS R4.aggregate_matches_reference
+PASS R4.cost_is_null
+PASS R5.write_report
+PASS O1.offline_subset
+PASS O2.forbidden_model_detects_calls
+PASS S1.readme
+PASS Q0.harness_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 179 passed in 19.73s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q5.cli_offline :: offline: 6/6 passed
+
+SUMMARY: 36/36 passed
+```
+
+#### Commit Base da Fase 6A (`git rev-parse HEAD`):
+```text
+3c09da875bd09b393b445b7507a6597456054c11
+```
+
+#### Testes Criados, Alterados e Removidos na Fase 6A:
+- **Criados**:
+  - `tests/test_eval_offline.py`:
+    - `test_eval_offline_regression_subset`: executa `run_offline` sobre os 6 casos da categoria `safety` com `offline: True` de `data/eval/cases.jsonl`, validando aprovação determinística de 100% com exatamente 0 chamadas a modelos LLM.
+  - `tests/test_eval_harness.py` (9 testes unitários):
+    - `test_load_cases_validation_rejections`: valida rejeição estrita via `ValueError` para esquemas e semânticas inválidas (IDs duplicados, categoria fora da lista, idioma fora de `pt|en`, turnos vazios ou em branco, agente/ferramenta desconhecida, offline fora de `safety`, chave ausente em `expect`).
+    - `test_detect_language`: valida classificação por contagem léxica entre Português (`pt`), Inglês (`en`) e desempate/ausência (`unknown`).
+    - `test_evaluate_case_individual_checks`: valida individualmente cada uma das 9 checagens determinísticas (`routing_ok`, `tools_ok`, `escalation_ok`, `priority_ok`, `blocked_ok`, `sources_ok`, `facts_ok`, `facts_none_ok`, `language_ok`) para cenários `True`, `False` e `None`.
+    - `test_evaluate_case_facts_any_groups`: valida que todos os grupos de fatos alternativos de `facts_any` são exigidos, com normalização de maiúsculas/minúsculas e espaços múltiplos.
+    - `test_evaluate_case_error_and_empty_turns`: valida que resultados com `status != "ok"` ou lista de turnos vazia produzem checagens `None` e `passed = False`.
+    - `test_aggregate_metrics_excludes_errors`: valida que execuções com erro de infraestrutura são computadas em `n_errors` e seus IDs listados em `error_ids`, sem poluir os denominadores das taxas de métricas.
+    - `test_aggregate_percentiles_tokens_and_cost`: valida cálculo dos percentis p50 e p95 de latência por posição mais próxima (`ceil(p*n)-1`), soma e média de tokens, `estimated_cost_usd: None` e nota de precificação da Fase 7.
+    - `test_write_report_json_and_markdown`: valida escrita em disco e estrutura completa dos relatórios em JSON e Markdown.
+    - `test_cases_sha256_stability`: valida estabilidade e determinismo do hash SHA256 independentemente da ordem das chaves do dicionário.
+- **Alterados**:
+  - `tests/test_eval_judge.py`: removida a constante `DATASET_PATH` e o teste `test_eval_dataset_schema`, mantendo apenas o teste de segurança de cabeçalho `test_x_api_key_security_header`.
+- **Removidos**:
+  - `data/eval_dataset.json` (removido do repositório; substituído por `data/eval/cases.jsonl`).
+
+---
+
 ### Fase 5C: Escalonamento Automático por Abstenção Repetida e Correções do Portão
 
 #### Verificação Fase 5C (`python scripts/verify_phase5c.py`):
@@ -632,10 +702,11 @@ All checks passed!
 ### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 6
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final foi regenerado com sucesso em ambiente Linux (Python 3.11 no Codespaces) contendo as novas dependências `langgraph-checkpoint-sqlite==3.1.3`, `aiosqlite==0.22.1` e `sqlite-vec==0.1.9`.
-2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
-3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) especificamente entre as consultas respondíveis e as 8 consultas fora de domínio (*off-topic*).
-4. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção caberá ao prompt do Knowledge Agent ("não encontrado nas fontes oficiais") na Fase 6.
-5. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
-6. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
-7. **Transbordo Humano Completo (Fases 5A, 5B e 5C)**: A Fase 5 está 100% concluída. O ciclo de vida do ticket (`open -> in_progress -> answered -> closed`), o portão de atendimento `handoff_gate` (com mensagens de espera padronizadas, sem prazo, sem chamadas ao LLM e entrega única da resposta do operador com `delivered_at`) e o escalonamento automático por abstenções repetidas (`consecutive_abstentions >= ESCALATE_AFTER_ABSTENTIONS`) estão plenamente validados.
-8. **Próxima Fase (Fase 6: Avaliação de Abstenção com Modelo Real)**: Avaliação da abstenção sobre as 10 perguntas *uncovered* através do Knowledge Agent utilizando modelo LLM real (necessitará de chave `GEMINI_API_KEY` fornecida pelo usuário no terminal).
+2. **Dataset de Avaliação `data/eval/cases.jsonl`**: Conferido integralmente com SHA256 `2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07` (69 casos, 10 oficiais, 6 offline). Nenhuma divergência com o SPEC encontrada nos dados do revisor.
+3. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` no agregado com nota explicativa em `cost_note` ("Token pricing arrives in Phase 7; cost calculation is not active yet."), conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
+4. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) especificamente entre as consultas respondíveis e as 8 consultas fora de domínio (*off-topic*).
+5. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção será avaliada de ponta a ponta na Fase 6B.
+6. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
+7. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
+8. **Transbordo Humano Completo (Fases 5A, 5B e 5C)**: O ciclo de vida do ticket (`open -> in_progress -> answered -> closed`), o portão de atendimento `handoff_gate` (com mensagens de espera padronizadas, sem prazo, sem chamadas ao LLM e entrega única da resposta do operador com `delivered_at`) e o escalonamento automático por abstenções repetidas (`consecutive_abstentions >= ESCALATE_AFTER_ABSTENTIONS`) estão plenamente validados.
+9. **Próxima Fase (Fase 6B: Avaliação com Modelo Real e Juiz LLM)**: Execução de benchmark completo sobre todos os casos de `data/eval/cases.jsonl` com modelo Gemini real (`GEMINI_API_KEY`), avaliação de fidelidade/relevância via juiz LLM, e emissão de relatórios consolidados em `reports/`.

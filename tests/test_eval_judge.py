@@ -1,7 +1,5 @@
-"""Evaluation dataset verification and security header tests."""
-import json
+"""Security header and evaluation endpoint tests."""
 import logging
-from pathlib import Path
 
 from langchain_core.messages import AIMessage
 from starlette.testclient import TestClient
@@ -10,33 +8,14 @@ import src.core.graph as graph_mod
 from src.core.graph import OrchestrationGraph
 from tests.fakes import ScriptedChatModel
 
-logger = logging.getLogger("multiagent.eval_dataset")
-
-DATASET_PATH = Path(__file__).resolve().parent.parent / "data" / "eval_dataset.json"
-
-
-def test_eval_dataset_schema():
-    """Verify that eval_dataset.json exists and adheres to the evaluation specification."""
-    assert DATASET_PATH.exists(), f"Evaluation dataset not found at {DATASET_PATH}"
-    with open(DATASET_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    assert isinstance(data, list)
-    assert len(data) == 12, f"Expected 12 labeled test pairs, found {len(data)}"
-
-    required_keys = {"id", "question", "expected_tool", "ground_truth_context", "ideal_answer"}
-    for item in data:
-        assert required_keys.issubset(item.keys()), f"Missing keys in {item}"
-        assert len(item["question"]) > 5
-        assert len(item["ground_truth_context"]) > 5
-        assert len(item["ideal_answer"]) > 5
+logger = logging.getLogger("multiagent.eval_judge")
 
 
 def test_x_api_key_security_header(client: TestClient):
     """
     Test X-API-Key security header enforcement:
     1. Valid key 'getnet-dev-key' returns HTTP 200.
-    2. Omitted header returns HTTP 200 (frictionless local development).
+    2. Omitted header returns HTTP 401 Unauthorized.
     3. Unauthorized key returns HTTP 401 Unauthorized.
     """
     saved = graph_mod._orchestrator_instance
