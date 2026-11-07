@@ -44,6 +44,12 @@ HANDOFF_PENDING_MESSAGE = (
 )
 HANDOFF_REPLY_PREFIX = "Resposta da equipe de atendimento humano (chamado {ticket_id}) / Reply from our human support team (request {ticket_id}):\n\n"
 
+AUTO_ESCALATION_NOTE = (
+    "Como não encontrei essa informação nas fontes oficiais, registrei o chamado {ticket_id} para a equipe de atendimento humano; "
+    "a resposta aparecerá nesta conversa quando for registrada. / I could not find this in the official sources, so I registered "
+    "request {ticket_id} for our human support team; the reply will appear in this conversation when it is recorded."
+)
+
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
 
 
@@ -119,6 +125,7 @@ class OrchestrationGraph:
         builder.add_node("supervisor", self._supervisor_node)
         builder.add_node("tools", self._tools_node)
         builder.add_node("force_escalation", self._force_escalation_node)
+        builder.add_node("abstention_check", self._abstention_check_node)
 
         # 2. Add Edges
         builder.add_edge(START, "guardrail")
@@ -147,13 +154,14 @@ class OrchestrationGraph:
             {
                 "tools": "tools",
                 "force_escalation": "force_escalation",
-                "end": END,
+                "end": "abstention_check",
             },
         )
 
         # ReAct observation loop: from tools back to supervisor
         builder.add_edge("tools", "supervisor")
         builder.add_edge("force_escalation", END)
+        builder.add_edge("abstention_check", END)
 
         return builder.compile(checkpointer=self.checkpointer)
 
@@ -219,16 +227,22 @@ class OrchestrationGraph:
         # 2. Operator replied and reply not yet delivered in chat:
         # (answered, or answered and subsequently closed before delivery)
         if operator_reply and not delivered_at:
-            reply_text = HANDOFF_REPLY_PREFIX.format(ticket_id=pending_id) + operator_reply
-            repo.mark_delivered(pending_id)
+            delivered = repo.mark_delivered(pending_id)
+            if delivered:
+                reply_text = HANDOFF_REPLY_PREFIX.format(ticket_id=pending_id) + operator_reply
+                return {
+                    "messages": [AIMessage(content=reply_text)],
+                    "final_response": reply_text,
+                    "pending_ticket_id": None,
+                    "handoff": {"ticket_id": pending_id, "status": "delivered"},
+                    "agents_used": ["HumanHandoff"],
+                    "llm_model": None,
+                    "tokens": None,
+                }
+            # Already delivered by a concurrent request: clear pending_ticket_id and resume
             return {
-                "messages": [AIMessage(content=reply_text)],
-                "final_response": reply_text,
                 "pending_ticket_id": None,
-                "handoff": {"ticket_id": pending_id, "status": "delivered"},
-                "agents_used": ["HumanHandoff"],
-                "llm_model": None,
-                "tokens": None,
+                "handoff": {"ticket_id": pending_id, "status": "resumed"},
             }
 
         # 3. Closed without reply: resume normal bot assistance
@@ -238,7 +252,15 @@ class OrchestrationGraph:
                 "handoff": {"ticket_id": pending_id, "status": "resumed"},
             }
 
-        # 4. Otherwise (status 'open' or 'in_progress'): keep waiting notice
+        # 4. Otherwise (status 'open' or 'in_progress'): append customer message to ticket and keep waiting notice
+        raw_msg = ""
+        for m in reversed(state.get("messages", [])):
+            if isinstance(m, HumanMessage) or getattr(m, "type", "") in ("human", "user"):
+                raw_msg = m.content if isinstance(m.content, str) else str(m.content)
+                break
+        if raw_msg:
+            repo.append_customer_message(pending_id, raw_msg)
+
         pending_text = HANDOFF_PENDING_MESSAGE.format(ticket_id=pending_id)
         return {
             "messages": [AIMessage(content=pending_text)],
@@ -256,6 +278,71 @@ class OrchestrationGraph:
         if status in ("pending", "delivered"):
             return "end"
         return "continue"
+
+    def _abstention_check_node(self, state: SupervisorState) -> dict[str, Any]:
+        """
+        Evaluate consecutive knowledge abstentions and auto-escalate when threshold reached.
+        """
+        # 1. Ticket created this turn by supervisor -> reset counter to 0
+        if state.get("ticket"):
+            return {"consecutive_abstentions": 0}
+
+        knowledge_outcomes = state.get("knowledge_outcomes", [])
+        # 2. Turn without Knowledge Agent -> unchanged
+        if not knowledge_outcomes:
+            return {}
+
+        # 3. Any call with sources -> reset counter to 0
+        if any(knowledge_outcomes):
+            return {"consecutive_abstentions": 0}
+
+        # 4. All calls in this turn abstained -> increment counter
+        current_count = state.get("consecutive_abstentions", 0) + 1
+        limit = settings.ESCALATE_AFTER_ABSTENTIONS
+        pending_id = state.get("pending_ticket_id")
+
+        if limit > 0 and current_count >= limit and not pending_id:
+            escalate_tool = TOOLS_BY_NAME.get("escalate_to_human")
+            ticket_obj = None
+            if escalate_tool:
+                try:
+                    reason = f"automatic escalation: {current_count} consecutive questions without official sources"
+                    escalate_res = escalate_tool.invoke(
+                        {"reason": reason, "priority": "standard"},
+                        config={
+                            "configurable": {
+                                "user_id": state["user_id"],
+                                "session_id": state["session_id"],
+                                "transcript": transcript_snapshot(state["messages"]),
+                            }
+                        },
+                    )
+                    parsed = json.loads(escalate_res) if isinstance(escalate_res, str) else escalate_res
+                    if isinstance(parsed, dict) and parsed.get("ticket_id"):
+                        ticket_obj = parsed
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(f"Failed to auto-escalate on repeated abstention: {exc}")
+
+            if ticket_obj and ticket_obj.get("ticket_id"):
+                new_tid = ticket_obj["ticket_id"]
+                note = AUTO_ESCALATION_NOTE.format(ticket_id=new_tid)
+                orig_final = state.get("final_response") or ""
+                new_final = f"{orig_final}\n\n{note}" if orig_final else note
+                ai_note_msg = AIMessage(content=note)
+                tools_used = list(state.get("tools_used", []))
+                tools_used.append("escalate_to_human")
+                return {
+                    "final_response": new_final,
+                    "messages": [ai_note_msg],
+                    "ticket": ticket_obj,
+                    "pending_ticket_id": new_tid,
+                    "tools_used": tools_used,
+                    "consecutive_abstentions": 0,
+                }
+            # If persistence failed, keep counter and do not append note
+            return {"consecutive_abstentions": current_count}
+
+        return {"consecutive_abstentions": current_count}
 
     def _supervisor_node(self, state: SupervisorState) -> dict[str, Any]:
         """
@@ -427,6 +514,7 @@ class OrchestrationGraph:
         user_id = state["user_id"]
         trace_id = state.get("trace_id", "")
         tba = state.get("tokens_by_agent")
+        knowledge_outcomes = list(state.get("knowledge_outcomes", []))
 
         for call in tool_calls:
             tool_name = call.get("name")
@@ -438,6 +526,7 @@ class OrchestrationGraph:
                     agents_used.append("KnowledgeAgent")
                 question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
                 spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
+                knowledge_outcomes.append(bool(spec_res.get("sources")))
 
                 spec_usage = spec_res.get("usage")
                 if spec_usage:
@@ -560,6 +649,7 @@ class OrchestrationGraph:
             "ticket": ticket,
             "tokens_by_agent": tba,
             "tokens": tokens,
+            "knowledge_outcomes": knowledge_outcomes,
         }
         if ticket and ticket.get("ticket_id"):
             ret["pending_ticket_id"] = ticket["ticket_id"]
@@ -597,6 +687,7 @@ class OrchestrationGraph:
             "retrieved_docs": [],
             "ticket": None,
             "handoff": None,
+            "knowledge_outcomes": [],
             "final_response": "",
             "supervisor_steps": 0,
             "llm_model": None,

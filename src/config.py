@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 30
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
     TICKETS_DB_PATH: str = "data/tickets.db"
+    ESCALATE_AFTER_ABSTENTIONS: int = 2
 
 
 settings = Settings()

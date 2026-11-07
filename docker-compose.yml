@@ -31,6 +31,7 @@ services:
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
       - CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-data/checkpoints.db}
       - TICKETS_DB_PATH=${TICKETS_DB_PATH:-data/tickets.db}
+      - ESCALATE_AFTER_ABSTENTIONS=${ESCALATE_AFTER_ABSTENTIONS:-2}
     volumes:
       - tickets_data:/app/data
     healthcheck:

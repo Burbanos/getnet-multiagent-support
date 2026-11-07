@@ -234,6 +234,19 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 * **Metadados da API (`metadata.handoff`)**: Nos turnos em que o portão intercepta a conversa (`pending` ou `delivered`), a resposta expõe `agent_type = "HumanHandoff"` e o objeto `handoff` com o `ticket_id` e seu respectivo status.
 * **Por que não usamos `interrupt()` do LangGraph**: Optamos por não usar `interrupt()` porque a retomada do atendimento depende de uma ação assíncrona de terceiros (o operador) e o lojista pode continuar enviando mensagens durante a espera; com o portão `handoff_gate`, as mensagens intermediárias do cliente passam pelo guardrail e são preservadas na memória conversacional sem bloquear a execução do grafo.
 
+### Escalonamento Automático por Abstenção Repetida e Atualização do Chamado (Fase 5C)
+* **Critério de Abstenção**: Uma consulta ao `KnowledgeAgent` é classificada como abstenção quando o especialista não retorna nenhuma fonte (`sources` vazio, tanto de documentos oficiais quanto de busca web).
+* **Limitação Importante**: A abstenção é estritamente contabilizada pela ausência de fontes no resultado do retriever/especialista; uma resposta fundamentada em fontes que porventura não responda à totalidade da pergunta não pontua como abstenção mecânica (essa avaliação qualitativa com modelo real é o foco da Fase 6).
+* **Contador de Abstenções Consecutivas (`consecutive_abstentions`)**: O estado conversacional mantém o contador persistido no checkpointer `SqliteSaver`.
+* **Limite Configurável (`ESCALATE_AFTER_ABSTENTIONS`)**: Definido por variável de ambiente (padrão: 2; valor `0` desativa o gatilho automático).
+* **Regras de Reset e Manutenção do Contador**:
+  - Se um chamado for aberto no turno (pelo modelo ou por limite de passos), o contador zera (`consecutive_abstentions = 0`).
+  - Se qualquer chamada ao `KnowledgeAgent` retornar fontes, o contador zera.
+  - Turnos conversacionais sem invocação do Knowledge Agent (como saudações, small talk ou consultas de conta no Support Agent) não alteram nem zeram o contador.
+* **Abertura Automática e Nota Fixa**: Ao atingir o limite configurado (e na ausência de chamado pendente), o nó `abstention_check` aciona `escalate_to_human`, anexa a nota bilíngue oficial sem promessas de prazo (`AUTO_ESCALATION_NOTE`) ao final da resposta, grava o ticket no estado com `pending_ticket_id` e zera o contador. Falhas de gravação preservam a resposta original e mantêm o contador.
+* **Encaminhamento de Mensagens Durante a Espera**: Mensagens enviadas pelo cliente enquanto o chamado aguarda resposta passam pelo guardrail (sanitização de cartões e CPF) e são anexadas diretamente ao histórico do chamado no banco SQLite via `append_customer_message`, garantindo que o operador visualize todo o diálogo recente.
+* **Garantia de Entrega Única**: O portão só entrega a resposta humana se `mark_delivered` retornar `True`. Caso requisições concorrentes já tenham entregue a resposta, a pendência é limpa e o fluxo retoma o atendimento convencional (`resumed`) sem repetições.
+
 ### Segurança, Autenticação, Isolamento & Sanitização de Dados Sensíveis (PII)
 * **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
 * **Sanitização de CPF**: Números de CPF em formato padrão ou contínuo são mascarados para `[CPF_MASCARADO_***.***.***-XX]`.

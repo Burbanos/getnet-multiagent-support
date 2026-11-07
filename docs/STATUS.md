@@ -4,6 +4,72 @@
 
 ---
 
+### Fase 5C: Escalonamento Automático por Abstenção Repetida e Correções do Portão
+
+#### Verificação Fase 5C (`python scripts/verify_phase5c.py`):
+```text
+PASS S1.readme
+PASS S2.config_documented
+PASS R0.api
+PASS R0.settings_and_note
+PASS E1.counter_increments
+PASS E1.escalates_on_second
+PASS E1.then_handoff_gate
+PASS E2.grounded_answer_resets
+PASS E3.small_talk_does_not_reset
+PASS E4.zero_disables
+PASS E5.no_double_ticket
+PASS E6.failed_auto_ticket_no_note
+PASS E7.counter_per_user
+PASS G1.followups_reach_operator
+PASS G3.normal_service_after_delivery
+PASS G1.append_bounded
+PASS G2.no_double_delivery
+PASS Q0.abstention_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 170 passed in 18.39s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 35/35 passed
+```
+
+#### Commit Base da Fase 5C (`git rev-parse HEAD`):
+```text
+fa8ccf04aa592538e702bdae6c8ea86f65ed2b10
+```
+
+#### Testes Criados na Fase 5C:
+`tests/test_abstention_escalation.py` (10 novos testes unitários):
+- `test_abstention_counter_increments_on_first_abstention`: valida que o contador `consecutive_abstentions` incrementa para 1 após a primeira consulta do Knowledge Agent sem fontes, sem criar ticket.
+- `test_auto_escalation_on_second_abstention_with_note_and_pending_ticket`: valida que ao atingir 2 abstenções consecutivas é criado um chamado automático, anexando a nota oficial padronizada (`AUTO_ESCALATION_NOTE`) ao final da resposta, gravando `pending_ticket_id`, zerando o contador e adicionando `escalate_to_human` a `tools_used`.
+- `test_grounded_answer_resets_abstention_counter`: valida que qualquer consulta com fontes encontradas zera o contador `consecutive_abstentions` para 0.
+- `test_small_talk_does_not_reset_abstention_counter`: valida que turnos sem acionamento do Knowledge Agent (como saudações) não alteram nem resetam o contador de abstenções.
+- `test_zero_limit_disables_auto_escalation`: valida que configurar `ESCALATE_AFTER_ABSTENTIONS = 0` desativa completamente o mecanismo de escalonamento automático.
+- `test_turn_with_supervisor_escalation_does_not_create_double_ticket`: valida que quando o supervisor já solicitou escalonamento no turno, o nó `abstention_check` não abre um segundo ticket duplicado e zera o contador.
+- `test_failed_ticket_creation_does_not_append_note_and_keeps_counter`: valida que falhas de persistência na abertura automática não anexam a nota enganosa de ticket aberto e mantêm o contador de abstenções intacto.
+- `test_abstention_counter_isolated_per_user`: valida que o contador `consecutive_abstentions` permanece estritamente isolado por usuário no checkpointer.
+- `test_followup_message_while_waiting_appended_to_ticket_transcript_masked`: valida que mensagens enviadas pelo cliente enquanto o ticket aguarda resposta passam pelo guardrail (número de cartão mascarado) e são anexadas ao `transcript` do ticket no banco via `append_customer_message`.
+- `test_mark_delivered_false_does_not_deliver_again_and_resumes`: valida que se `mark_delivered` retornar `False` (resposta já entregue concorrentemente), a resposta não é duplicada, o `pending_ticket_id` é limpo e o fluxo retoma o atendimento convencional (`resumed`).
+
+#### Testes Ajustados na Fase 5C:
+Nenhum teste existente precisou ser alterado (`git diff tests/` afeta apenas o novo arquivo `tests/test_abstention_escalation.py`).
+
+---
+
 ### Fase 5B: Portão de Transbordo (Handoff Gate) e Entrega de Resposta no Chat
 
 #### Verificação Fase 5B (`python scripts/verify_phase5b.py`):
@@ -563,14 +629,13 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 5C
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 6
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final foi regenerado com sucesso em ambiente Linux (Python 3.11 no Codespaces) contendo as novas dependências `langgraph-checkpoint-sqlite==3.1.3`, `aiosqlite==0.22.1` e `sqlite-vec==0.1.9`.
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
-3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) entre consultas respondíveis e consultas fora de domínio (*off-topic*).
+3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) especificamente entre as consultas respondíveis e as 8 consultas fora de domínio (*off-topic*).
 4. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção caberá ao prompt do Knowledge Agent ("não encontrado nas fontes oficiais") na Fase 6.
 5. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
 6. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
-7. **Transbordo Humano e Ciclo de Vida de Tickets (Fase 5A)**: Concluída com sucesso na Fase 5A. Os chamados agora persistem com `session_id`, `priority` (`standard|high`), snapshot mascarado das últimas 20 mensagens em `transcript`, ciclo estrito de status `open -> in_progress -> answered -> closed` e endpoint `PATCH /tickets/{id}` para operadores.
-8. **Decisão de Design do Transbordo Humano (Fase 5B)**: Conforme nota de design do revisor, não utilizamos a primitiva `interrupt()` do LangGraph porque o resume é desencadeado de forma assíncrona por um terceiro (operador via `PATCH /tickets/{id}`) e o cliente pode continuar enviando mensagens durante a espera. Implementou-se o `handoff_gate` logo após o guardrail com estado persistido `pending_ticket_id`, garantindo mascaramento contínuo de PII, retenção na memória e entrega única da resposta do operador com `delivered_at`.
-9. **Próxima Fase (Fase 5C: Escalonamento Automático por Abstenção Repetida)**: Implementação do trigger automático de escalonamento para atendimento humano quando houver abstenções repetidas na mesma sessão conversacional (AC5.4).
+7. **Transbordo Humano Completo (Fases 5A, 5B e 5C)**: A Fase 5 está 100% concluída. O ciclo de vida do ticket (`open -> in_progress -> answered -> closed`), o portão de atendimento `handoff_gate` (com mensagens de espera padronizadas, sem prazo, sem chamadas ao LLM e entrega única da resposta do operador com `delivered_at`) e o escalonamento automático por abstenções repetidas (`consecutive_abstentions >= ESCALATE_AFTER_ABSTENTIONS`) estão plenamente validados.
+8. **Próxima Fase (Fase 6: Avaliação de Abstenção com Modelo Real)**: Avaliação da abstenção sobre as 10 perguntas *uncovered* através do Knowledge Agent utilizando modelo LLM real (necessitará de chave `GEMINI_API_KEY` fornecida pelo usuário no terminal).

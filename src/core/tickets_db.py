@@ -308,6 +308,26 @@ class TicketsRepository:
             conn.commit()
             return cursor.rowcount > 0
 
+    def append_customer_message(self, ticket_id: str, content: str) -> bool:
+        """Append a user message to the ticket's transcript and update updated_at. Returns False if ticket missing."""
+        ticket = self.get_ticket(ticket_id)
+        if ticket is None:
+            return False
+
+        clean_content = content[:2000]
+        transcript = list(ticket.get("transcript") or [])
+        transcript.append({"role": "user", "content": clean_content})
+        tr_json = json.dumps(transcript, ensure_ascii=False)
+        now = datetime.now(UTC).isoformat()
+
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE tickets SET transcript = ?, updated_at = ? WHERE ticket_id = ?",
+                (tr_json, now, ticket_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
 
 _tickets_repo: TicketsRepository | None = None
 
