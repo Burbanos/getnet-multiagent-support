@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "gemini-embedding-2"
     EMBEDDING_DIM: int = 768
     RAG_TOP_K: int = 4
-    RAG_MIN_SCORE: float = 0.60
+    RAG_MIN_SCORE: float = 0.61
     RAG_MIN_CHUNK_CHARS: int = 120
     INDEX_DIR: str = "data/index"
 

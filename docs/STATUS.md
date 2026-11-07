@@ -1,6 +1,90 @@
 # STATUS DO REPOSITÓRIO
 
-**Data de geração**: 06/11/2026 | **Branch**: `main`
+**Data de geração**: 07/11/2026 | **Branch**: `main`
+
+---
+
+### Fase 3D: Avaliação do Retrieval e Calibração do RAG_MIN_SCORE
+
+#### Verificação Fase 3D (`python scripts/verify_phase3d.py`):
+```text
+PASS S1.dataset_identical :: 48 queries, sha256 8178a22508da
+PASS S2.dataset_composition
+PASS R0.api
+PASS R0.no_regex
+PASS R1.sha_canonical
+PASS R1.normalize
+PASS R1.grid
+PASS R2.load_labeled_validates
+PASS R2.load_labeled_real
+PASS R3.evaluate_matches_reference
+PASS R4.curve_matches_reference
+PASS R4.choose_matches_reference
+PASS R4.choose_median_of_plateau
+PASS R5.run_embed
+PASS R6.run_report_writes
+PASS R6.run_report_refuses_mismatch
+PASS E1.query_embeddings
+PASS E2.embeddings_plausible :: mean top1 answerable=0.795, off_topic=0.540
+PASS P1.report_exists
+PASS P1.provenance
+PASS P2.retrieval_metrics_recomputed :: hit@1=0.900 hit@3=0.967 hit@5=0.967 mrr@10=0.933 answer_hit@3=0.900
+PASS P2.per_query_recomputed
+PASS P2.curve_recomputed
+PASS P2.chosen_threshold :: chosen=0.61 balanced_accuracy=1.000 answer_rate=1.000 off_topic_abstain=1.000 uncovered_abstain=0.000
+PASS P2.warnings :: warnings=['uncovered_not_filtered']
+PASS P2.markdown_report
+PASS P3.setting_updated
+PASS P3.compose_consistent
+PASS P4.readme
+PASS Q0.calibration_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 124 passed in 12.81s
+PASS Q3.tree_unchanged
+
+SUMMARY: 41/41 passed
+```
+
+#### Commit Base da Fase 3D:
+```text
+6cddc0ec2935827a1c1fe60fbd01df5356b0a836
+```
+
+#### Consultas `answerable` com `gold_rank` None ou `answer_hit@3` falso:
+- `a17` (PT): `gold_rank = 2`, `answer_hit@3 = False` (top-1 score 0.793, chunk `a35faa6f803d-004`).
+- `e05` (EN): `gold_rank = None`, `answer_hit@3 = False` (top-1 score 0.651, chunk `590a78a70a4e-001`).
+- `e07` (EN): `gold_rank = 1`, `answer_hit@3 = False` (top-1 score 0.806, chunk `fb3e6c49736e-003`).
+
+#### Consultas `uncovered` respondidas no limiar escolhido (`RAG_MIN_SCORE = 0.61`):
+Todas as 10 consultas `uncovered` obtiveram score superior ao limiar calibrado (0.61) e decisão `answer`:
+- `u01` (PT): score 0.849, chunk `314e4bd739df-000`, decisão `answer`
+- `u02` (PT): score 0.778, chunk `081b9925942a-002`, decisão `answer`
+- `u03` (PT): score 0.701, chunk `28851a0d386e-001`, decisão `answer`
+- `u04` (PT): score 0.711, chunk `28851a0d386e-001`, decisão `answer`
+- `u05` (PT): score 0.770, chunk `28851a0d386e-000`, decisão `answer`
+- `u06` (PT): score 0.691, chunk `28851a0d386e-001`, decisão `answer`
+- `u07` (PT): score 0.732, chunk `590a78a70a4e-002`, decisão `answer`
+- `u08` (EN): score 0.767, chunk `4507fe8d48bb-000`, decisão `answer`
+- `u09` (EN): score 0.636, chunk `28851a0d386e-001`, decisão `answer`
+- `u10` (EN): score 0.743, chunk `75a823f71e23-000`, decisão `answer`
+
+#### Testes Criados na Fase 3D:
+`tests/test_retrieval_calibration.py` (7 novos testes unitários):
+- `test_load_labeled_validations`: valida rejeição de categoria desconhecida, idioma inválido, id duplicado, campos vazios de URLs e trechos em answerable, e leitura de registros válidos.
+- `test_evaluate_hit_and_mrr_ranks`: valida cálculo analítico de hit@1, hit@3, hit@5 e MRR@10 sobre matriz ortogonal e ranks conhecidos.
+- `test_evaluate_answer_hit3_multiline`: valida normalização sem regex em correspondência de trechos com múltiplas quebras de linha e caixas altas/baixas.
+- `test_abstention_curve_and_choose_threshold_tie`: valida métricas da curva de abstenção e desempate de platô de acurácia balanceada pela mediana inferior.
+- `test_run_embed_with_fake_embedder`: valida que consultas são vetorizadas via `embed_query` (RETRIEVAL_QUERY) e nunca `embed_documents`, gravando shape (n, dim) e metadados JSON.
+- `test_run_report_refuses_mismatches`: valida que `run_report` recusa divergências de `query_ids`, `dataset_sha256` ou `embedding_model`.
+- `test_run_report_outputs`: valida geração dos relatórios JSON e Markdown em diretório temporário com conferência de chaves e métricas.
 
 ---
 
@@ -185,10 +269,10 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3D
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 4
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final permanece delegado para ser gerado em ambiente Linux/container pelo usuário para compatibilidade com bibliotecas dependentes de SO (`uvloop`).
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
-3. **Índice Commitado Regenerado**: O índice foi reconstruído com `RAG_MIN_CHUNK_CHARS = 120`, consolidando 92 chunks a partir das 30 páginas oficiais, sem nenhum trecho menor que 120 caracteres (`chunks.jsonl`, `embeddings.npy`, `index_meta.json`).
-4. **Descontinuação Completa do ChromaDB**: Todo o código legado em `src/agents/knowledge.py`, `data/getnet_kb.json`, dependência `chromadb` em `requirements.txt`, volume e variáveis no `docker-compose.yml` foram integralmente expurgados do repositório.
-5. **Próxima Fase (Fase 3D: Avaliação e Calibração Paramétrica do RAG)**: Criação de dataset rotulado com $\ge 30$ queries (in- e out-of-domain, PT e EN), calibração empírica do limiar `RAG_MIN_SCORE` e geração de relatórios de métricas (hit@k, MRR, precision/recall de abstenção) em `reports/`.
+3. **Calibração do Limiar `RAG_MIN_SCORE = 0.61`**: A avaliação do retrieval no conjunto rotulado de 48 consultas demonstrou separação perfeita (balanced accuracy = 1.000) entre consultas respondíveis e consultas fora de domínio (*off-topic*).
+4. **Comportamento das Consultas *Uncovered***: Como previsto na especificação, as consultas *uncovered* pertencem ao domínio semântico Getnet/concorrentes e obtêm similaridade cosseno superior a 0.61 (aviso `uncovered_not_filtered`). A sua abstenção caberá ao prompt do Knowledge Agent ("não encontrado nas fontes oficiais") na Fase 6.
+5. **Próxima Fase (Fase 4: Identidade, Autenticação e Memória Persistente)**: Configuração de chaves de API mapeadas a usuários/perfis (`X-API-Key`), rejeição sem chave em produção, checkpointer persistente em SQLite (`SqliteSaver`), isolamento de threads por usuário e filtragem de tickets por dono.

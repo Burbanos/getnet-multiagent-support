@@ -1,0 +1,1197 @@
+{
+  "generated_at": "2026-11-07T03:20:43.939816+00:00",
+  "dataset": {
+    "path": "data\\eval\\retrieval_labeled.jsonl",
+    "sha256": "8178a22508daa0f3649de0d6f075d9f73886465b56c3fa0a08a071b96e562cc7",
+    "n_queries": 48,
+    "by_category": {
+      "answerable": 30,
+      "uncovered": 10,
+      "off_topic": 8
+    },
+    "by_lang": {
+      "pt": 33,
+      "en": 15
+    }
+  },
+  "index": {
+    "dir": "data/index",
+    "embedding_model": "gemini-embedding-2",
+    "dim": 768,
+    "n_chunks": 92,
+    "corpus_sha256": "85e98b5ed800a75305e29833bfb0be813e64a78542b30b31ea50ed63223861ff"
+  },
+  "query_embeddings": {
+    "path": "data\\eval\\retrieval_query_embeddings.npy",
+    "created_at": "2026-11-07T03:19:39.726064+00:00"
+  },
+  "retrieval": {
+    "n": 30,
+    "hit@1": 0.9,
+    "hit@3": 0.9666666666666667,
+    "hit@5": 0.9666666666666667,
+    "mrr@10": 0.9333333333333333,
+    "answer_hit@3": 0.9,
+    "by_lang": {
+      "pt": {
+        "n": 21,
+        "hit@1": 0.9523809523809523,
+        "hit@3": 1.0,
+        "hit@5": 1.0,
+        "mrr@10": 0.9761904761904762,
+        "answer_hit@3": 0.9523809523809523
+      },
+      "en": {
+        "n": 9,
+        "hit@1": 0.7777777777777778,
+        "hit@3": 0.8888888888888888,
+        "hit@5": 0.8888888888888888,
+        "mrr@10": 0.8333333333333334,
+        "answer_hit@3": 0.7777777777777778
+      }
+    }
+  },
+  "abstention": {
+    "calibration_set": "answerable vs off_topic",
+    "rule": "maximize balanced accuracy on answerable vs off_topic; ties pick lower median",
+    "curve": [
+      {
+        "threshold": 0.3,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.31,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.32,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.33,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.34,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.35,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.36,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.37,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.38,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.39,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.4,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.41,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.42,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.43,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.44,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.45,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.46,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.47,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.48,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.49,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.5,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.51,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": null,
+        "abstain_recall": 0.0
+      },
+      {
+        "threshold": 0.52,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.25,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.625,
+        "abstain_precision": 1.0,
+        "abstain_recall": 0.25
+      },
+      {
+        "threshold": 0.53,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.25,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.625,
+        "abstain_precision": 1.0,
+        "abstain_recall": 0.25
+      },
+      {
+        "threshold": 0.54,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.5,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.75,
+        "abstain_precision": 1.0,
+        "abstain_recall": 0.5
+      },
+      {
+        "threshold": 0.55,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.75,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.875,
+        "abstain_precision": 1.0,
+        "abstain_recall": 0.75
+      },
+      {
+        "threshold": 0.56,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.875,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9375,
+        "abstain_precision": 1.0,
+        "abstain_recall": 0.875
+      },
+      {
+        "threshold": 0.57,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 0.875,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9375,
+        "abstain_precision": 1.0,
+        "abstain_recall": 0.875
+      },
+      {
+        "threshold": 0.58,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.59,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.6,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.61,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.62,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.63,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.0,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.64,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.1,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.65,
+        "answer_rate": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.1,
+        "balanced_accuracy": 1.0,
+        "abstain_precision": 1.0,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.66,
+        "answer_rate": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.1,
+        "balanced_accuracy": 0.9833333333333334,
+        "abstain_precision": 0.8888888888888888,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.67,
+        "answer_rate": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.1,
+        "balanced_accuracy": 0.9833333333333334,
+        "abstain_precision": 0.8888888888888888,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.68,
+        "answer_rate": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.1,
+        "balanced_accuracy": 0.9833333333333334,
+        "abstain_precision": 0.8888888888888888,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.69,
+        "answer_rate": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.1,
+        "balanced_accuracy": 0.9833333333333334,
+        "abstain_precision": 0.8888888888888888,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.7,
+        "answer_rate": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.2,
+        "balanced_accuracy": 0.9833333333333334,
+        "abstain_precision": 0.8888888888888888,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.71,
+        "answer_rate": 0.9333333333333333,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.3,
+        "balanced_accuracy": 0.9666666666666667,
+        "abstain_precision": 0.8,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.72,
+        "answer_rate": 0.9333333333333333,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.4,
+        "balanced_accuracy": 0.9666666666666667,
+        "abstain_precision": 0.8,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.73,
+        "answer_rate": 0.8666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.4,
+        "balanced_accuracy": 0.9333333333333333,
+        "abstain_precision": 0.6666666666666666,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.74,
+        "answer_rate": 0.8333333333333334,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.5,
+        "balanced_accuracy": 0.9166666666666667,
+        "abstain_precision": 0.6153846153846154,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.75,
+        "answer_rate": 0.7666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.6,
+        "balanced_accuracy": 0.8833333333333333,
+        "abstain_precision": 0.5333333333333333,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.76,
+        "answer_rate": 0.7333333333333333,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.6,
+        "balanced_accuracy": 0.8666666666666667,
+        "abstain_precision": 0.5,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.77,
+        "answer_rate": 0.7333333333333333,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.8,
+        "balanced_accuracy": 0.8666666666666667,
+        "abstain_precision": 0.5,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.78,
+        "answer_rate": 0.7333333333333333,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.8666666666666667,
+        "abstain_precision": 0.5,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.79,
+        "answer_rate": 0.6666666666666666,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.8333333333333333,
+        "abstain_precision": 0.4444444444444444,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.8,
+        "answer_rate": 0.6,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.8,
+        "abstain_precision": 0.4,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.81,
+        "answer_rate": 0.4666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.7333333333333334,
+        "abstain_precision": 0.3333333333333333,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.82,
+        "answer_rate": 0.36666666666666664,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.6833333333333333,
+        "abstain_precision": 0.2962962962962963,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.83,
+        "answer_rate": 0.3,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.65,
+        "abstain_precision": 0.27586206896551724,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.84,
+        "answer_rate": 0.16666666666666666,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 0.9,
+        "balanced_accuracy": 0.5833333333333334,
+        "abstain_precision": 0.24242424242424243,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.85,
+        "answer_rate": 0.1,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.55,
+        "abstain_precision": 0.22857142857142856,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.86,
+        "answer_rate": 0.03333333333333333,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5166666666666667,
+        "abstain_precision": 0.21621621621621623,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.87,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.88,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.89,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.9,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.91,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.92,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.93,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.94,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      },
+      {
+        "threshold": 0.95,
+        "answer_rate": 0.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "balanced_accuracy": 0.5,
+        "abstain_precision": 0.21052631578947367,
+        "abstain_recall": 1.0
+      }
+    ],
+    "chosen_threshold": 0.61,
+    "at_chosen": {
+      "threshold": 0.61,
+      "answer_rate": 1.0,
+      "off_topic_abstain_rate": 1.0,
+      "uncovered_abstain_rate": 0.0,
+      "balanced_accuracy": 1.0,
+      "abstain_precision": 1.0,
+      "abstain_recall": 1.0
+    }
+  },
+  "per_query": [
+    {
+      "id": "a01",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8165306054557613,
+      "top1_chunk_id": "a35faa6f803d-004",
+      "top1_url": "https://site.getnet.com.br/crediario/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a02",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8311593107573473,
+      "top1_chunk_id": "a35faa6f803d-005",
+      "top1_url": "https://site.getnet.com.br/crediario/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a03",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8269975225035259,
+      "top1_chunk_id": "a35faa6f803d-003",
+      "top1_url": "https://site.getnet.com.br/crediario/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a04",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7876006521229423,
+      "top1_chunk_id": "590a78a70a4e-001",
+      "top1_url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a05",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8313986852668327,
+      "top1_chunk_id": "2c9f9e715248-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a06",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7079385385172641,
+      "top1_chunk_id": "f42597cedc2c-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-habilitar-antecipacao-automatica-pelo-app/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a07",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8546559550211139,
+      "top1_chunk_id": "a0274ab9b8ba-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-configuracoes/como-configurar-o-wi-fi-na-sua-maquininha-getnet/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a08",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8361417362395644,
+      "top1_chunk_id": "75a823f71e23-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-configuracoes/configuracoes-da-sua-maquininha/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a09",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8065886876325673,
+      "top1_chunk_id": "75a823f71e23-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-configuracoes/configuracoes-da-sua-maquininha/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a10",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8138422662113465,
+      "top1_chunk_id": "314e4bd739df-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-pix/como-fazer-uma-venda-com-pix-na-maquininha/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a11",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7960666886131968,
+      "top1_chunk_id": "018618194cc3-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-pix/como-habilitar-o-recebimento-de-vendas-via-pix-no-aplicativo-getnet-brasil/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a12",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8202448251242118,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a13",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7833885486203117,
+      "top1_chunk_id": "28851a0d386e-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a14",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8103885134765902,
+      "top1_chunk_id": "e6e8bcc6e090-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-get-conta/o-que-e-a-get-conta/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a15",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8505723372133357,
+      "top1_chunk_id": "e6e8bcc6e090-002",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-get-conta/o-que-e-a-get-conta/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a16",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7203176316296995,
+      "top1_chunk_id": "b3cf4c4a6da6-003",
+      "top1_url": "https://site.getnet.com.br/get-tap/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a17",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7931310236475808,
+      "top1_chunk_id": "a35faa6f803d-004",
+      "top1_url": "https://site.getnet.com.br/crediario/",
+      "gold_rank": 2,
+      "answer_hit@3": false,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a18",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8021362002494211,
+      "top1_chunk_id": "f94bd60e1e43-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-maquininha/solucoes-get-smart/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a19",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.7225130230018142,
+      "top1_chunk_id": "96da15e4cbd0-000",
+      "top1_url": "https://site.getnet.com.br/conversor-de-moedas/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a20",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8332647948252381,
+      "top1_chunk_id": "081b9925942a-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-taxas/taxas-por-transacao/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "a21",
+      "lang": "pt",
+      "category": "answerable",
+      "top1_score": 0.8461199952442817,
+      "top1_chunk_id": "5665e9a6303f-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-maquininha/como-fazer-uma-venda-na-maquininha-getnet/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e01",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.8411817161708173,
+      "top1_chunk_id": "a35faa6f803d-000",
+      "top1_url": "https://site.getnet.com.br/crediario/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e02",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.8668662102653645,
+      "top1_chunk_id": "2c9f9e715248-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e03",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.7467926663833928,
+      "top1_chunk_id": "08d5affa1f91-002",
+      "top1_url": "https://www.getnet.net/en/our-solutions/in-person-payments",
+      "gold_rank": 2,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e04",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.759116450103422,
+      "top1_chunk_id": "4507fe8d48bb-000",
+      "top1_url": "https://www.getnet.net/en/our-solutions/online-payments",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e05",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.6510961260549426,
+      "top1_chunk_id": "590a78a70a4e-001",
+      "top1_url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "gold_rank": null,
+      "answer_hit@3": false,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e06",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.7413554324350994,
+      "top1_chunk_id": "6005d5ea376c-005",
+      "top1_url": "https://www.getnet.net/en/our-solutions/agentic-commerce",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e07",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.8062742972544084,
+      "top1_chunk_id": "fb3e6c49736e-003",
+      "top1_url": "https://www.getnet.net/en/",
+      "gold_rank": 1,
+      "answer_hit@3": false,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e08",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.7398036892362647,
+      "top1_chunk_id": "53e32ad391e8-000",
+      "top1_url": "https://www.getnet.net/en/developers",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "e09",
+      "lang": "en",
+      "category": "answerable",
+      "top1_score": 0.8087550123232008,
+      "top1_chunk_id": "e73ab22a38ed-005",
+      "top1_url": "https://www.getnet.net/en/resources/blog/the-mobile-payment-revolution-in-latin-america",
+      "gold_rank": 1,
+      "answer_hit@3": true,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u01",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.8492138911037744,
+      "top1_chunk_id": "314e4bd739df-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-pix/como-fazer-uma-venda-com-pix-na-maquininha/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u02",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.7777137046944876,
+      "top1_chunk_id": "081b9925942a-002",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-taxas/taxas-por-transacao/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u03",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.7008580016499204,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u04",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.7111224960147287,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u05",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.7699766438425705,
+      "top1_chunk_id": "28851a0d386e-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u06",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.6914823800048017,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u07",
+      "lang": "pt",
+      "category": "uncovered",
+      "top1_score": 0.7324625085666145,
+      "top1_chunk_id": "590a78a70a4e-002",
+      "top1_url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u08",
+      "lang": "en",
+      "category": "uncovered",
+      "top1_score": 0.7665421216236696,
+      "top1_chunk_id": "4507fe8d48bb-000",
+      "top1_url": "https://www.getnet.net/en/our-solutions/online-payments",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u09",
+      "lang": "en",
+      "category": "uncovered",
+      "top1_score": 0.6362612664185655,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "u10",
+      "lang": "en",
+      "category": "uncovered",
+      "top1_score": 0.743072270598551,
+      "top1_chunk_id": "75a823f71e23-000",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-configuracoes/configuracoes-da-sua-maquininha/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "answer"
+    },
+    {
+      "id": "o01",
+      "lang": "pt",
+      "category": "off_topic",
+      "top1_score": 0.5386364054555172,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o02",
+      "lang": "pt",
+      "category": "off_topic",
+      "top1_score": 0.5158560310642668,
+      "top1_chunk_id": "fb3e6c49736e-003",
+      "top1_url": "https://www.getnet.net/en/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o03",
+      "lang": "pt",
+      "category": "off_topic",
+      "top1_score": 0.5532093065593066,
+      "top1_chunk_id": "47b12cbe60bc-000",
+      "top1_url": "https://site.getnet.com.br/conta-digital/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o04",
+      "lang": "pt",
+      "category": "off_topic",
+      "top1_score": 0.511920852335547,
+      "top1_chunk_id": "590a78a70a4e-005",
+      "top1_url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o05",
+      "lang": "pt",
+      "category": "off_topic",
+      "top1_score": 0.5702453665719847,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o06",
+      "lang": "en",
+      "category": "off_topic",
+      "top1_score": 0.534712459379654,
+      "top1_chunk_id": "f715b5205be9-002",
+      "top1_url": "https://www.getnet.net/en/our-solutions/value-added-solutions",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o07",
+      "lang": "en",
+      "category": "off_topic",
+      "top1_score": 0.5460430028979086,
+      "top1_chunk_id": "53e32ad391e8-002",
+      "top1_url": "https://www.getnet.net/en/developers",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    },
+    {
+      "id": "o08",
+      "lang": "en",
+      "category": "off_topic",
+      "top1_score": 0.5467965405356394,
+      "top1_chunk_id": "28851a0d386e-001",
+      "top1_url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "gold_rank": null,
+      "answer_hit@3": null,
+      "decision_at_chosen": "abstain"
+    }
+  ],
+  "warnings": [
+    "uncovered_not_filtered"
+  ]
+}

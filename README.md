@@ -16,7 +16,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 
 * **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
 * **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento, que será avaliada na Fase 6;
-* **Base de conhecimento**: A base de conhecimento é conteúdo provisório escrito à mão até a Fase 3;
+* **Base de conhecimento**: Base oficial ingerida e vetorizada (`gemini-embedding-2`), com avaliação de retrieval e limiar calibrado na Fase 3D;
 * **Autenticação**: A API key é opcional até a Fase 4.
 
 ---
@@ -162,7 +162,26 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
   2. **Fragmentação (`src/rag/chunking.py`)**: Filtra linhas de boilerplate (repetidas em $\ge 4$ páginas), linhas sem caracteres alfanuméricos, descarta páginas com menos de 120 caracteres de conteúdo retido e agrupa as linhas restantes na ordem original (verbatim) em chunks de até 900 caracteres, anexando caudas curtas (< 120 chars) ao trecho anterior.
   3. **Geração de Embeddings (`src/core/llm.py`)**: Utiliza o modelo `gemini-embedding-2` com 768 dimensões, configurando `RETRIEVAL_DOCUMENT` para indexação de chunks e `RETRIEVAL_QUERY` para consultas em tempo de execução.
   4. **Índice Vetorial Commitado (`src/rag/index.py`)**: Vetores com normalização L2 persistidos em `data/index/embeddings.npy` (float32), metadados em `data/index/index_meta.json` e chunks em `data/index/chunks.jsonl`.
-  5. **Retriever e Abstenção (`src/rag/retriever.py`)**: Busca por similaridade de cosseno com limiar de corte (`RAG_MIN_SCORE = 0.60`). O limiar atual de `0.60` continua provisório até a calibração empírica da Fase 3D.
+  5. **Retriever e Abstenção (`src/rag/retriever.py`)**: Busca por similaridade de cosseno com limiar de corte calibrado (`RAG_MIN_SCORE = 0.61`). Quando a melhor similaridade de cosseno fica abaixo desse limiar, o retriever devolve status `abstain`.
+
+#### Avaliação do retrieval e Calibração de Limiar (Fase 3D)
+O sistema avalia a qualidade do retrieval e a política de abstenção sobre um conjunto rotulado de 48 consultas (`data/eval/retrieval_labeled.jsonl`: 30 respondíveis [21 PT, 9 EN], 10 *uncovered* e 8 *off-topic*). Os detalhes completos e curvas estão disponíveis em [`reports/retrieval_calibration.md`](reports/retrieval_calibration.md) (e JSON em [`reports/retrieval_calibration.json`](reports/retrieval_calibration.json)).
+
+* **Métricas de Retrieval (Consultas Respondíveis)**:
+  | Métrica | Geral (n=30) | Português (n=21) | Inglês (n=9) |
+  | :--- | :---: | :---: | :---: |
+  | **hit@1** | 0.900 | 0.952 | 0.778 |
+  | **hit@3** | 0.967 | 1.000 | 0.889 |
+  | **hit@5** | 0.967 | 1.000 | 0.889 |
+  | **mrr@10** | 0.933 | 0.976 | 0.833 |
+  | **answer_hit@3** | 0.900 | 0.952 | 0.778 |
+
+* **Limiar Escolhido (`RAG_MIN_SCORE = 0.61`) e Métricas de Abstenção**:
+  * **Balanced Accuracy**: 1.000 (separação ideal entre consultas respondíveis e fora do domínio).
+  * **Taxa de Resposta (Answerable)**: 1.000 (100% das perguntas respondíveis são respondidas).
+  * **Abstenção Off-Topic**: 1.000 (100% das perguntas fora de domínio são rejeitadas com abstenção).
+  * **Abstenção Uncovered**: 0.000 (perguntas *uncovered* estão próximas do vocabulário do domínio Getnet por construção e não são filtradas apenas pelo limiar de similaridade vetorial, dependendo do Knowledge Agent para reconhecer a ausência de resposta no trecho e responder "não encontrado nas fontes oficiais").
+  * **Avisos do Relatório**: `[!WARNING]` `uncovered_not_filtered` (comportamento esperado e documentado na especificação).
 
 ### Fontes de Dados e Corpus Oficial (Fase 3A)
 * **Política de Fontes Oficiais**:
