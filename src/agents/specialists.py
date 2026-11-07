@@ -72,6 +72,7 @@ class SpecialistAgent:
         tools_used: list[str] = []
         sources: list[str] = []
         retrieved_docs: list[dict[str, Any]] = []
+        specialist_usage: dict[str, int] | None = None
 
         steps = 0
         max_steps = settings.MAX_SPECIALIST_STEPS
@@ -87,6 +88,17 @@ class SpecialistAgent:
             )
             messages.append(ai_message)
 
+            u = getattr(ai_message, "usage_metadata", None)
+            if u:
+                inp = u.get("input_tokens", 0)
+                out = u.get("output_tokens", 0)
+                tot = u.get("total_tokens", inp + out)
+                if specialist_usage is None:
+                    specialist_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                specialist_usage["input_tokens"] += inp
+                specialist_usage["output_tokens"] += out
+                specialist_usage["total_tokens"] += tot
+
             tool_calls = getattr(ai_message, "tool_calls", None) or []
             if not tool_calls:
                 answer = str(ai_message.text) if hasattr(ai_message, "text") else (
@@ -99,6 +111,7 @@ class SpecialistAgent:
                     "tools_used": tools_used,
                     "sources": sources,
                     "retrieved_docs": retrieved_docs,
+                    "usage": specialist_usage,
                 }
 
             if steps >= max_steps:
@@ -153,4 +166,5 @@ class SpecialistAgent:
             "tools_used": tools_used,
             "sources": sources,
             "retrieved_docs": retrieved_docs,
+            "usage": specialist_usage,
         }

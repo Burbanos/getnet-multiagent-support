@@ -204,12 +204,37 @@ class OrchestrationGraph:
 
         current_steps = state.get("supervisor_steps", 0) + 1
 
+        tba = state.get("tokens_by_agent")
+        u = getattr(ai_message, "usage_metadata", None)
+        if u:
+            inp = u.get("input_tokens", 0)
+            out = u.get("output_tokens", 0)
+            tot = u.get("total_tokens", inp + out)
+            tba_dict = dict(tba) if tba is not None else {}
+            cur = tba_dict.get("SupervisorAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+            tba_dict["SupervisorAgent"] = {
+                "input_tokens": cur["input_tokens"] + inp,
+                "output_tokens": cur["output_tokens"] + out,
+                "total_tokens": cur["total_tokens"] + tot,
+            }
+            tba = tba_dict
+
+        tokens = None
+        if tba:
+            tokens = {
+                "input_tokens": sum(v["input_tokens"] for v in tba.values()),
+                "output_tokens": sum(v["output_tokens"] for v in tba.values()),
+                "total_tokens": sum(v["total_tokens"] for v in tba.values()),
+            }
+
         return {
             "messages": [ai_message],
             "final_response": response_text,
             "tool_calls": existing_calls,
             "supervisor_steps": current_steps,
             "llm_model": model_used,
+            "tokens_by_agent": tba,
+            "tokens": tokens,
         }
 
     def _supervisor_condition(self, state: SupervisorState) -> str:
@@ -309,6 +334,7 @@ class OrchestrationGraph:
 
         user_id = state.get("user_id", "cliente1988")
         trace_id = state.get("trace_id", "")
+        tba = state.get("tokens_by_agent")
 
         for call in tool_calls:
             tool_name = call.get("name")
@@ -320,6 +346,20 @@ class OrchestrationGraph:
                     agents_used.append("KnowledgeAgent")
                 question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
                 spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
+
+                spec_usage = spec_res.get("usage")
+                if spec_usage:
+                    inp = spec_usage.get("input_tokens", 0)
+                    out = spec_usage.get("output_tokens", 0)
+                    tot = spec_usage.get("total_tokens", inp + out)
+                    tba_dict = dict(tba) if tba is not None else {}
+                    cur = tba_dict.get("KnowledgeAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+                    tba_dict["KnowledgeAgent"] = {
+                        "input_tokens": cur["input_tokens"] + inp,
+                        "output_tokens": cur["output_tokens"] + out,
+                        "total_tokens": cur["total_tokens"] + tot,
+                    }
+                    tba = tba_dict
 
                 payload = {
                     "agent": spec_res["agent"],
@@ -342,6 +382,20 @@ class OrchestrationGraph:
                     agents_used.append("SupportAgent")
                 request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
                 spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
+
+                spec_usage = spec_res.get("usage")
+                if spec_usage:
+                    inp = spec_usage.get("input_tokens", 0)
+                    out = spec_usage.get("output_tokens", 0)
+                    tot = spec_usage.get("total_tokens", inp + out)
+                    tba_dict = dict(tba) if tba is not None else {}
+                    cur = tba_dict.get("SupportAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+                    tba_dict["SupportAgent"] = {
+                        "input_tokens": cur["input_tokens"] + inp,
+                        "output_tokens": cur["output_tokens"] + out,
+                        "total_tokens": cur["total_tokens"] + tot,
+                    }
+                    tba = tba_dict
 
                 payload = {
                     "agent": spec_res["agent"],
@@ -389,6 +443,14 @@ class OrchestrationGraph:
                 t_msg = ToolMessage(content=err_payload, tool_call_id=call_id, name=tool_name)
                 tool_messages.append(t_msg)
 
+        tokens = None
+        if tba:
+            tokens = {
+                "input_tokens": sum(v["input_tokens"] for v in tba.values()),
+                "output_tokens": sum(v["output_tokens"] for v in tba.values()),
+                "total_tokens": sum(v["total_tokens"] for v in tba.values()),
+            }
+
         return {
             "messages": tool_messages,
             "agents_used": agents_used,
@@ -397,6 +459,8 @@ class OrchestrationGraph:
             "sources": sources,
             "retrieved_docs": retrieved_docs,
             "ticket": ticket,
+            "tokens_by_agent": tba,
+            "tokens": tokens,
         }
 
     def run_sync(
@@ -433,6 +497,7 @@ class OrchestrationGraph:
             "llm_model": None,
             "execution_time_ms": 0.0,
             "tokens": None,
+            "tokens_by_agent": None,
             "estimated_cost_usd": None,
         }
 
@@ -464,10 +529,6 @@ class OrchestrationGraph:
                     final_text = m.content if isinstance(m.content, str) else str(m.content)
                     break
 
-        # Token metrics & cost estimation are unmeasured, set to None
-        token_usage = None
-        cost_usd = None
-
         # Map to backward-compatible AgentState
         agent_state = AgentState(
             user_id=user_id,
@@ -491,8 +552,9 @@ class OrchestrationGraph:
             escalation_ticket_id=result.get("ticket", {}).get("ticket_id") if result.get("ticket") else None,
             intent="dynamic_react",
             execution_time_ms=elapsed_ms,
-            tokens=token_usage,
-            estimated_cost_usd=cost_usd,
+            tokens=result.get("tokens"),
+            tokens_by_agent=result.get("tokens_by_agent"),
+            estimated_cost_usd=None,
         )
 
         logger.info(

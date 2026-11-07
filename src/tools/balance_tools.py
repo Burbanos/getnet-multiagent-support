@@ -45,22 +45,29 @@ def get_declined_transaction_details(user_id: str, error_code: str | None = None
     declined = [t for t in recent_txns if t.get("status") == "DECLINED"]
     latest_declined = declined[0] if declined else None
 
-    code_to_check = error_code or (latest_declined.get("error_code") if latest_declined else "51")
-    catalog_info = db.decline_code_catalog.get(code_to_check, {
-        "name": "Erro Genérico / Não Identificado",
-        "description": "A adquirente ou bandeira não autorizou a cobrança.",
-        "solution": "Tente passar novamente em 2 minutos ou solicite outro cartão."
-    })
+    code_to_check = error_code or (latest_declined.get("error_code") if latest_declined else None)
+
+    if code_to_check is None:
+        code_known = None
+        code_details = None
+    elif code_to_check in db.decline_code_catalog:
+        code_known = True
+        catalog_info = db.decline_code_catalog[code_to_check]
+        code_details = {
+            "error_code": code_to_check,
+            "title": catalog_info.get("name"),
+            "cause": catalog_info.get("description"),
+            "recommended_action": catalog_info.get("solution"),
+        }
+    else:
+        code_known = False
+        code_details = None
 
     return {
         "status": "success",
         "user_id": user_id,
         "latest_declined_transaction": latest_declined,
         "queried_code": code_to_check,
-        "code_details": {
-            "error_code": code_to_check,
-            "title": catalog_info.get("name"),
-            "cause": catalog_info.get("description"),
-            "recommended_action": catalog_info.get("solution")
-        }
+        "code_known": code_known,
+        "code_details": code_details,
     }

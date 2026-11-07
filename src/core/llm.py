@@ -1,6 +1,10 @@
 """LLM model provider abstraction using LangChain Google GenAI."""
 import logging
+import warnings
 from typing import Any
+
+# Filter benign UserWarning from lite models that use fixed sampling defaults (ignore temperature).
+warnings.filterwarnings("ignore", category=UserWarning, message=r".*uses fixed sampling defaults.*")
 
 from langchain_core.exceptions import (
     ModelAuthenticationError,

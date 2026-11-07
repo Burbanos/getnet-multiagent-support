@@ -41,6 +41,7 @@ class SupervisorState(TypedDict):
     llm_model: str | None
     execution_time_ms: float
     tokens: dict[str, int] | None
+    tokens_by_agent: dict[str, dict[str, int]] | None
     estimated_cost_usd: float | None
 
 
@@ -79,6 +80,7 @@ class AgentState(BaseModel):
     start_time: float = 0.0
     execution_time_ms: float = 0.0
     tokens: dict[str, int] | None = None
+    tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
 
     model_config = {
@@ -110,6 +112,7 @@ class AgentMetadata(BaseModel):
     safety_violations: list[str] = Field(default_factory=list)
     execution_time_ms: float = 0.0
     tokens: dict[str, int] | None = None
+    tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
 
 

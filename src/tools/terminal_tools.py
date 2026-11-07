@@ -34,12 +34,45 @@ def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = N
                 terminal = t
                 break
 
-    steps = [
-        "Reinicie o terminal mantendo o botão liga/desliga pressionado por 5 segundos.",
-        "No menu do Get Smart, acesse 'Configurações' > 'Rede' e verifique se o chip Claro/Vivo está ativado.",
-        "Se estiver em local fechado com sinal fraco, conecte o terminal à sua rede Wi-Fi 2.4GHz.",
-        "Realize um teste de conexão em 'Menu Lojista' > 'Comunicação' > 'Teste de Conexão'."
-    ]
+    model = terminal.get("model")
+    sim_operator = terminal.get("sim_operator")
+    sim_status = (terminal.get("sim_status") or "").strip().lower()
+    signal_level = (terminal.get("signal_level") or "").strip().lower()
+    wifi_connected = bool(terminal.get("wifi_connected"))
+
+    sinal_fraco = ("fraco" in signal_level or "sem sinal" in signal_level) and not wifi_connected
+
+    steps: list[str] = []
+    if model:
+        steps.append(f"Reinicie o terminal {model} mantendo o botão liga/desliga pressionado por 5 segundos.")
+    else:
+        steps.append("Reinicie o terminal mantendo o botão liga/desliga pressionado por 5 segundos.")
+
+    has_issue = False
+
+    if sinal_fraco:
+        has_issue = True
+        if sim_operator:
+            steps.append(f"Em Configurações > Rede, verifique se o chip {sim_operator} está ativo.")
+        else:
+            steps.append("Em Configurações > Rede, verifique se o chip está ativo.")
+        steps.append("Conecte o terminal a uma rede Wi-Fi 2.4GHz.")
+
+    if sim_status and sim_status not in ("ativo", "active", "online"):
+        has_issue = True
+        if sim_operator:
+            steps.append(f"Verifique a situação do chip com a operadora {sim_operator}.")
+        else:
+            steps.append("Verifique a situação do chip com a operadora.")
+
+    steps.append("Faça um teste de conexão no menu do terminal.")
+
+    if sinal_fraco:
+        diagnosis = "Sinal móvel baixo e Wi-Fi desconectado."
+    elif has_issue:
+        diagnosis = f"Problema identificado na conectividade do chip ({terminal.get('sim_status')})."
+    else:
+        diagnosis = "Nenhum problema de conectividade identificado na telemetria do terminal."
 
     return {
         "status": "success",
@@ -53,6 +86,6 @@ def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = N
         "wifi_connected": terminal.get("wifi_connected"),
         "signal_level": terminal.get("signal_level"),
         "battery_level": terminal.get("battery_level"),
-        "diagnosis": "Conexão de chip 4G com sinal instável na localidade. Recomenda-se ativar o Wi-Fi ou reiniciar a máquina.",
-        "troubleshooting_steps": steps
+        "diagnosis": diagnosis,
+        "troubleshooting_steps": steps,
     }

@@ -156,7 +156,15 @@ supervisor a JSON with `agent`, `status`, `answer`, `tools_used`, `sources`. `to
 listing leaf tools; `agents_used` lists agents in order. Supervisor prompt forbids vague time
 promises ("em breve", "shortly"). Phase 2A checks that assumed the supervisor calls leaf tools
 directly are superseded (listed in the verifier).
-2E = real token usage, tool outputs without invented defaults (AC2.8).
+2E = real token usage and tools without invented values (checked by `scripts/verify_phase2e.py`):
+`tokens` (`input_tokens`, `output_tokens`, `total_tokens`) summed from the provider's `usage_metadata`
+of every model call in the turn (supervisor and specialists), plus `tokens_by_agent`; both `null` when
+the provider reports nothing; counted per turn, not per session; `estimated_cost_usd` stays `null`
+until Phase 7. `diagnose_declined_transaction` never invents a decline code (no decline and no code →
+`queried_code`/`code_details` null) and never presents an unknown code as catalogued (`code_known`
+false, `code_details` null). `diagnose_terminal` derives diagnosis and steps from the terminal's own
+telemetry (model, operator, signal, Wi-Fi, SIM status) with no hardcoded model or carrier. The benign
+"fixed sampling defaults" warning from lite models is filtered in `src/core/llm.py`.
 Additional 2A criteria:
 - AC2.9 The guardrail replaces the incoming HumanMessage (same message id) instead of appending a masked copy; raw PII never reaches the model and is not stored in the checkpointer (test).
 - AC2.10 `langchain-google-genai` declared and locked; the CI test job installs `-r requirements.lock -r requirements-dev.txt` (requirements-dev stays on ranges because the Linux lock pins `uvloop`, which does not install on Windows); Dockerfile fails if the lock is missing; CI actions on `checkout@v5` / `setup-python@v6`.

@@ -51,6 +51,7 @@ class AgentMetadata(BaseModel):
     ticket: dict[str, Any] | None = Field(default=None, description="Persisted support ticket if escalation occurred")
     llm_model: str | None = Field(default=None, description="Model identifier that produced the final response")
     tokens: dict[str, int] | None = Field(default=None, description="Token usage estimation")
+    tokens_by_agent: dict[str, dict[str, int]] | None = Field(default=None, description="Token usage broken down by agent")
     estimated_cost_usd: float | None = Field(default=None, description="Estimated execution cost in USD")
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
@@ -272,8 +273,9 @@ def chat_endpoint(payload: ChatRequest, response: Response):
             sources=state.sources,
             retrieved_docs=state.retrieved_docs,
             ticket=state.ticket,
-            tokens=None,
-            estimated_cost_usd=None,
+            tokens=getattr(state, "tokens", None),
+            tokens_by_agent=getattr(state, "tokens_by_agent", None),
+            estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
             debug_details={
                 "session_id": active_session,
                 "trace_id": trace_id,
