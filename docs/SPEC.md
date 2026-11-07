@@ -180,12 +180,34 @@ Additional 2A criteria:
 - AC2.6 Integration tests with scripted fake model cover: single tool, two tools in sequence (e.g. settlement + knowledge), direct answer, tool error handling.
 
 ### Phase 3 — Real RAG
-**Goal:** corpus from real pages, multilingual embeddings, calibrated threshold, abstention, citations.
-**Files:** `scripts/ingest.py`, `data/sources.yaml`, `data/corpus/*.jsonl`, `src/rag/{chunking,store,retriever}.py`, tests.
-**Acceptance:**
-- AC3.1 `sources.yaml` allowlist; ingest honors robots.txt (unit test with a disallowing robots fixture).
+**Goal:** corpus from real official pages, multilingual retrieval, calibrated threshold, abstention, citations.
+**Source policy (decided 2026-11-06, revised in 3A.1):** `www.getnet.net/en` (market `global`) and
+`site.getnet.com.br`, the official Getnet Brasil site that `www.getnet.com.br` redirects to (market `BR`;
+its `/robots.txt` returns 404, which RFC 9309 treats as no restrictions). `www.santander.com.br` was dropped:
+its CDN (Akamai) answers 403 "Access Denied" to the project user agent even on `/robots.txt`, and the
+project never disguises its user agent. `www.getnet.net/pt` is excluded: it is the Portugal market (TPA,
+euro tariffs) and would mislead Brazilian merchants. The ingested text is committed under `data/corpus/`
+with source URL, fetch date and sha256 per page, plus an attribution notice (content belongs to its owners
+and is not covered by the repository licence), so evaluators can check answers against literal page text
+without network. Topics with no official coverage must be answered with abstention, never invented.
+**Split:**
+- 3A (checked by `scripts/verify_phase3a.py`): `data/sources.yaml` allowlist; `src/rag/ingest.py` with
+  `USER_AGENT` (identifies the project and repo URL), `ALLOWED_DOMAINS` (`www.getnet.net`,
+  `site.getnet.com.br`, `www.getnet.com.br`), `Ingestor(client, user_agent,
+  min_delay_s).fetch(url, market)` and `.run(sources_path, out_dir)`; robots.txt per host (404/410 → allowed,
+  5xx or network error → disallowed, cached per host); per-host rate limit; main-text extraction without
+  nav/header/footer/scripts; statuses `ok | robots_disallowed | http_error | fetch_error | no_content |
+  off_allowlist`; `data/corpus/pages.jsonl` (one record per source) and `manifest.json` (user agent, counts);
+  at least 15 `ok` pages, 8 of them `BR`. Ingestion tooling deps (beautifulsoup4, pyyaml) live in
+  `requirements-dev.txt`, not in the runtime lock.
+- 3B: chunking, embeddings, committed index, retriever with threshold and abstention, Knowledge Agent
+  integration, removal of `data/getnet_kb.json` and of ChromaDB if no longer needed (decided in 3B).
+- 3C: labeled retrieval set (≥30 queries, in- and out-of-domain, PT and EN), calibration script, hit@k/MRR
+  and abstention precision/recall committed in `reports/`.
+**Acceptance (whole phase):**
+- AC3.1 `sources.yaml` allowlist; ingest honors robots.txt (tests with simulated robots).
 - AC3.2 Each chunk has `doc_url`, `fetched_at`, `sha256`, `chunk_id`, verbatim source text; no hand-written content.
-- AC3.3 Index builds offline from committed snapshots (`python -m src.rag.store --rebuild`).
+- AC3.3 Index builds from committed snapshots.
 - AC3.4 Threshold chosen by a calibration script over labeled in/out-of-domain queries; value + curve committed in `reports/`.
 - AC3.5 Retriever returns `abstain` below threshold; Knowledge Agent answers "not found in official sources" and never cites a chunk it did not receive (test).
 - AC3.6 Retrieval metrics (hit@3, MRR) on ≥30 labeled queries committed in `reports/retrieval_*.json`.

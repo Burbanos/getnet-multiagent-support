@@ -1,0 +1,279 @@
+{
+  "user_agent": "getnet-multiagent-support-ingest/1.0 (+https://github.com/Burbanos/getnet-multiagent-support)",
+  "generated_at": "2026-11-07T01:37:28.827906+00:00",
+  "sources_file_sha256": "bf1c65eec9aa6054ab8b703585261ba40a4c6c14a6b9bfa4d222f84666ffaf46",
+  "counts": {
+    "fetch_error": 0,
+    "no_content": 3,
+    "ok": 30,
+    "http_error": 0,
+    "robots_disallowed": 0,
+    "off_allowlist": 0
+  },
+  "records": [
+    {
+      "url": "https://www.getnet.net/en/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:36:52.523226+00:00",
+      "sha256": "fb3e6c49736e3578b417e2671c3af73b598614fb7e9e85ac3d0a77632871ff3c",
+      "chars": 3858
+    },
+    {
+      "url": "https://www.getnet.net/en/our-solutions/in-person-payments",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:36:55.260867+00:00",
+      "sha256": "08d5affa1f91594b1c0183e5e3407171a89b1fc9d8293f4b12d3841a146ad8e3",
+      "chars": 2741
+    },
+    {
+      "url": "https://www.getnet.net/en/our-solutions/online-payments",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:36:56.134514+00:00",
+      "sha256": "4507fe8d48bb8d160ce46f746880c94ea4a99620a37b11d0441952757bddce0f",
+      "chars": 2370
+    },
+    {
+      "url": "https://www.getnet.net/en/our-solutions/omnichannel",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:36:57.225466+00:00",
+      "sha256": "5380a4ee5f69789d129d427ea54c5d36925d12046516c9e165f1efe4adfae6b7",
+      "chars": 2189
+    },
+    {
+      "url": "https://www.getnet.net/en/our-solutions/value-added-solutions",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:36:58.260695+00:00",
+      "sha256": "f715b5205be971291ccc89c929c1d74db3a405f9745ad7eb4c6d5e78ee8df83d",
+      "chars": 1898
+    },
+    {
+      "url": "https://www.getnet.net/en/our-solutions/agentic-commerce",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:36:59.073915+00:00",
+      "sha256": "6005d5ea376cd5a2639117a89a39359f1bbe2794dd34ced108a4c3aaaa39b105",
+      "chars": 5176
+    },
+    {
+      "url": "https://www.getnet.net/en/corporate/about-us",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:00.187160+00:00",
+      "sha256": "28436f222a7afad6fac433fc8a97630cf377269b10218d7cece2d922a42451f3",
+      "chars": 2466
+    },
+    {
+      "url": "https://www.getnet.net/en/developers",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:01.070728+00:00",
+      "sha256": "53e32ad391e88f8c98ffe02ab0fc4063e38ecab628f53b6e1d7221d1021fa4c6",
+      "chars": 2177
+    },
+    {
+      "url": "https://www.getnet.net/en/partners",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:01.800339+00:00",
+      "sha256": "0578c1e36160d42ddfe7863d06ba7762b4516dcf6e1da0227f6a9c9b92158a2a",
+      "chars": 3333
+    },
+    {
+      "url": "https://www.getnet.net/en/resources/blog/the-mobile-payment-revolution-in-latin-america",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:03.150421+00:00",
+      "sha256": "e73ab22a38edca4c17821778267dae1d584da1d26fdce049af70aa255388fcf2",
+      "chars": 12642
+    },
+    {
+      "url": "https://site.getnet.com.br/",
+      "status": "no_content",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:04.321049+00:00",
+      "sha256": null,
+      "chars": 0
+    },
+    {
+      "url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:05.456820+00:00",
+      "sha256": "590a78a70a4e5f1f0bbc75039c91e68871ba33820bdcf00c48003327ccf27c79",
+      "chars": 5195
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/solucoes-get-smart/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:06.515016+00:00",
+      "sha256": "f94bd60e1e43309dc9382fd9d9c9135d76a742406c3afed029b80440d97d2092",
+      "chars": 1880
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/como-fazer-uma-venda-na-maquininha-getnet/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:09.020268+00:00",
+      "sha256": "5665e9a6303f8214d03b01bbcce2f5e5d9a17d818b318edf9e54ec15e31d3760",
+      "chars": 2156
+    },
+    {
+      "url": "https://site.getnet.com.br/pix/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:09.175567+00:00",
+      "sha256": "54d1c78def04d8d24b2404bb34a8e78f1e75549df3da8524cdc574b0cd327955",
+      "chars": 1861
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-habilitar-o-recebimento-de-vendas-via-pix-no-aplicativo-getnet-brasil/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:10.147521+00:00",
+      "sha256": "018618194cc36360b6722ddf8875c45797db5de3f4fe1a1aac0326255dbec20a",
+      "chars": 1486
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-fazer-uma-venda-com-pix-na-maquininha/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:11.145124+00:00",
+      "sha256": "314e4bd739dfd41095913cf42c0d5b8aab32e039bbf070fa533dfaf374ef1ae7",
+      "chars": 1232
+    },
+    {
+      "url": "https://site.getnet.com.br/conta-digital/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:12.147557+00:00",
+      "sha256": "47b12cbe60bcc65dfdd9a835f8b7efc8fdd733c1a95f9fe342e169d71b027422",
+      "chars": 1207
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/o-que-e-a-get-conta/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:13.150004+00:00",
+      "sha256": "e6e8bcc6e09039c6ebc8637c9b23eb80746138993759bcd452ec34206b609e06",
+      "chars": 2803
+    },
+    {
+      "url": "https://site.getnet.com.br/crediario/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:14.123755+00:00",
+      "sha256": "a35faa6f803da817bc1b77d9f451a710f53bfc900aba1957dc7a7e564e1d58f5",
+      "chars": 5466
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento/",
+      "status": "no_content",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:15.139787+00:00",
+      "sha256": null,
+      "chars": 0
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-pelo-whatsapp/",
+      "status": "no_content",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:16.183916+00:00",
+      "sha256": null,
+      "chars": 0
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:17.316133+00:00",
+      "sha256": "412d1d3f9544fa73b8c4b29dfb12eacec21adfa0210b8052443921aa631e6bec",
+      "chars": 681
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:18.163805+00:00",
+      "sha256": "2c9f9e715248c7a5b300e0e586d6e43fb6d4572bd1e2c651e318d48a820beca9",
+      "chars": 1520
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-habilitar-antecipacao-automatica-pelo-app/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:19.131896+00:00",
+      "sha256": "f42597cedc2cb904157eb5ee949bdfa38ffa61af739519b7fa7efe87b3eac641",
+      "chars": 1483
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/como-configurar-o-wi-fi-na-sua-maquininha-getnet/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:20.145957+00:00",
+      "sha256": "a0274ab9b8bacfcd4807e0601f33b2681a68c6587cef9c6a1156191f112988ac",
+      "chars": 2009
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/configuracoes-da-sua-maquininha/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:21.159757+00:00",
+      "sha256": "75a823f71e23bfe0caa514be173d5310e0d152fc8d9f9a472d4c920848383729",
+      "chars": 1171
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:22.143626+00:00",
+      "sha256": "fab5fe4f26cb90a833ef0a98c6fcb959e9c405421ab546ab13429d682f2515a2",
+      "chars": 679
+    },
+    {
+      "url": "https://site.getnet.com.br/taxas/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:23.152123+00:00",
+      "sha256": "a3f0bd3abeb02237ddd1cab98b3a64df286080462eec09fda95c47db38f950d5",
+      "chars": 1058
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-taxas/taxas-por-transacao/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:24.190109+00:00",
+      "sha256": "081b9925942a1e6aae78e36ac65dddce87fdae801fb1ce5b26b305c002800c8f",
+      "chars": 2838
+    },
+    {
+      "url": "https://site.getnet.com.br/get-tap/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:26.702403+00:00",
+      "sha256": "b3cf4c4a6da6ab297b083b71eb5ddaf09989791b40a5ed21d6baf80bac17daf3",
+      "chars": 5104
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:26.855537+00:00",
+      "sha256": "28851a0d386e6fc800b3ffc43b9dd72fcf840be33840ff6778ed7b1df1bf3d8e",
+      "chars": 2357
+    },
+    {
+      "url": "https://site.getnet.com.br/conversor-de-moedas/",
+      "status": "ok",
+      "http_status": 200,
+      "fetched_at": "2026-11-07T01:37:27.817619+00:00",
+      "sha256": "96da15e4cbd0f93a493a3d08b9e8eb56805006c3ad3f7d33cda1fd3c539c9b68",
+      "chars": 2089
+    }
+  ]
+}

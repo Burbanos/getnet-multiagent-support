@@ -158,6 +158,19 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 * **Limiar de Abstenção Explícito**: Ao realizar a busca vetorial combinada, se o score for inferior ao limiar ou não houver correspondência temática com os produtos Getnet, o sistema abstém-se de responder com documentos divergentes:
   > *"Não foram encontradas informações oficiais sobre este assunto nos manuais e documentações cadastrados da Getnet."*
 
+### Fontes de Dados e Corpus Oficial (Fase 3A)
+* **Política de Fontes Oficiais**:
+  * **getnet.net/en**: Conteúdo global institucional, soluções presenciais, e-commerce, omnichannel e APIs.
+  * **site.getnet.com.br**: Conteúdo de produtos e serviços Getnet para o mercado brasileiro (maquininhas, Pix, taxas, antecipação e manuais). O domínio `www.santander.com.br` foi removido porque sua CDN (Akamai) bloqueia o User-Agent do projeto com HTTP 403 no `robots.txt`; já o `site.getnet.com.br` não possui `robots.txt` (retorna HTTP 404), o que pela RFC 9309 indica ausência de restrições de rastreamento.
+  * **getnet.com.br**: Portal institucional brasileiro condicionado ao cumprimento estrito das regras do `robots.txt`.
+  * **getnet.net/pt**: Expressamente excluído do escopo por pertencer ao mercado de Portugal.
+* **Armazenamento do Corpus**: Os documentos e auditoria de coleta ficam persistidos no diretório `data/corpus` (`pages.jsonl` e `manifest.json`).
+* **Como Regenerar o Corpus**: A coleta pode ser executada respeitando taxa limite e `robots.txt` com:
+  ```bash
+  python -m src.rag.ingest
+  ```
+* **Transição Gradual**: O retriever em produção continua consultando `data/getnet_kb.json` até a implementação da nova indexação vetorial e chunking na Fase 3B.
+
 ### Transbordo Humano Real com SQLite (tickets.db)
 * **Zero Falsas Promessas**: Eliminação de frases enganosas como *"Tempo estimado de espera: Menos de 5 minutos"* ou *"Fila prioritária"*.
 * **Persistência Relacional**: A ferramenta `escalate_to_human` grava o chamado na tabela `tickets` do banco SQLite local (`data/tickets.db`) contendo `ticket_id` único no formato `GET-TKT-YYYYMMDD-XXXX`, `user_id`, `reason`, `status='open'` e `created_at`.

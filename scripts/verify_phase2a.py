@@ -182,6 +182,8 @@ NO_NETWORK_PLUGIN = textwrap.dedent('''
 
 
 def suite_checks() -> None:
+    if os.environ.get("VERIFY_NESTED") == "1":  # called by a later verifier: skip suite and recursion
+        return
     ruff = run([sys.executable, "-m", "ruff", "check", "."])
     check("Q1.ruff_clean", ruff.returncode == 0, (ruff.stdout + ruff.stderr).strip()[-300:])
     before = run(["git", "status", "--porcelain"]).stdout

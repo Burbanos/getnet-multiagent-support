@@ -4,53 +4,78 @@
 
 ---
 
-### Fase 2E: Tokens Reais e Tools sem Valores Inventados
+### Fase 3A: Coleta das Fontes Oficiais e Conformidade com robots.txt (Fase 3A e 3A.1)
 
-#### Verificação Fase 2E (`python scripts/verify_phase2e.py`):
+#### Nota sobre Ajuste de Fonte Oficial (Fase 3A.1):
+- Na execução inicial da Fase 3A, o domínio `www.santander.com.br` retornou HTTP 403 Forbidden (bloqueio por CDN Akamai para o `USER_AGENT` público do projeto) mesmo na consulta ao `/robots.txt`. Em estrita conformidade com as regras de coleta ética (sem falsificação de User-Agent nem contorno de bloqueios), o domínio foi descontinuado da lista de fontes.
+- Conforme alinhamento na Fase 3A.1, o domínio brasileiro foi substituído por `site.getnet.com.br` (site oficial direto da Getnet Brasil). Sua rota `/robots.txt` retorna HTTP 404, o que pela RFC 9309 significa ausência de restrições de rastreamento.
+- A lista oficial `data/sources.yaml` foi atualizada para 33 fontes oficiais (10 globais em `getnet.net/en` e 23 nacionais em `site.getnet.com.br`).
+- A coleta real via rede (`python -m src.rag.ingest`) resultou em:
+  - `ok`: 30 páginas coletadas e higienizadas com sucesso (10 globais, 20 nacionais).
+  - `no_content`: 3 páginas com conteúdo renderizado estritamente no navegador via JavaScript (`site.getnet.com.br/`, `site.getnet.com.br/link-de-pagamento/`, `site.getnet.com.br/pagamentos-pelo-whatsapp/`), registradas fielmente sem texto.
+  - `robots_disallowed`: 0
+  - `http_error`: 0
+  - `off_allowlist`: 0
+
+#### Verificação Fase 3A (`python scripts/verify_phase3a.py`):
 ```text
-PASS S1.no_generic_decline_text
-PASS S2.terminal_no_hardcoded_specifics
-PASS S3.fixed_sampling_warning_filtered
-PASS R1.tokens_total
-PASS R1.tokens_by_agent
-PASS R1.cost_still_null
-PASS R2.tokens_per_turn
-PASS R3.tokens_null_when_unmeasured
-PASS R4.api_tokens
-PASS R5.no_decline_no_invented_code
-PASS R6.unknown_code_not_invented
-PASS R6.known_code_kept
-PASS R7.terminal_reflects_data_healthy
-PASS R8.terminal_reflects_data_weak
-PASS R8.terminal_no_other_operator
-PASS Q0.verify_phase2a_regressions
-PASS Q0.verify_phase2b_regressions
-PASS Q0.verify_phase2c_regressions
-PASS Q0.verify_phase2d_regressions
+PASS C1.sources_yaml
+PASS C1.no_portugal_market
+PASS C1.no_blocked_santander
+PASS C2.one_record_per_source
+PASS C2.statuses_valid
+PASS C3.ok_records_integrity
+PASS C3.non_ok_without_text
+PASS C4.corpus_size
+PASS C5.manifest
+PASS C6.attribution
+PASS C6.readme_sources
+PASS M1.user_agent
+PASS M1.allowed_domains
+PASS M2.robots_disallow
+PASS M3.robots_404_allows
+PASS M3.ua_header
+PASS M4.extraction
+PASS M4.record_fields
+PASS M5.robots_5xx_disallows
+PASS M6.http_error
+PASS M6.no_content
+PASS M7.redirect_off_allowlist
+PASS M7.unknown_host_no_request
+PASS M8.robots_cached
+PASS M8.rate_limit
+PASS M9.run_writes_outputs
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 88 passed in 12.95s
+PASS Q2.pytest_offline_no_key :: 100 passed in 14.97s
 PASS Q3.tree_unchanged
 
-SUMMARY: 22/22 passed
+SUMMARY: 34/34 passed
 ```
 
-#### Commit Base da Fase 2E:
+#### Commit Base da Fase 3A:
 ```text
-7076a57b352ffa18ba87488aecb8e59d5af4bd66
+e08c1f7644bc687146f627666f470f7f2700ef4d
 ```
 
-#### Testes Alterados e Criados na Fase 2E:
-1. `tests/test_tokens_and_tools.py` (novo, 9 testes):
-   - `test_token_accumulation_supervisor_and_support`: soma de tokens por agente (`SupervisorAgent`, `SupportAgent`) e total num turno com múltiplos agentes.
-   - `test_tokens_per_turn_counts_only_current_turn`: contagem estrita por turno (tokens zerados a cada novo turno na mesma sessão).
-   - `test_tokens_null_when_unmeasured`: `tokens` e `tokens_by_agent` retornam `None` quando nenhuma resposta traz `usage_metadata` (sem estimativas inventadas).
-   - `test_chat_endpoint_reports_tokens_in_metadata`: exposição fiel de `tokens` e `tokens_by_agent` no schema de metadados da API `/chat`.
-   - `test_declined_transaction_no_declines_and_no_code`: lojista sem recusas recentes e sem código informado retorna campos nulos (`queried_code=None`, `code_known=None`, `code_details=None`), sem forçar "51".
-   - `test_declined_transaction_unknown_code`: código fora do catálogo retorna `code_known=False` e `code_details=None` (remoção de "Erro Genérico").
-   - `test_declined_transaction_known_code`: código catalogado retorna `code_known=True` e detalhes completos.
-   - `test_diagnose_terminal_healthy`: terminal saudável não gera passos de erro nem cita modelos/operadoras ausentes nos dados.
-   - `test_diagnose_terminal_weak_signal_recommends_wifi`: terminal com sinal fraco e sem Wi-Fi recomenda conexão Wi-Fi e cita a operadora real do chip.
-2. `tests/test_unit.py::test_diagnose_terminal_connectivity`: mantido e aprovado sem alteração de asserção (o terminal de `cliente1988` possui sinal fraco e Wi-Fi desconectado, gerando 4 passos dinâmicos).
+#### Testes Alterados e Criados na Fase 3A:
+1. `tests/test_ingest.py` (novo, 12 testes unitários 100% offline via `httpx.MockTransport`):
+   - `test_extraction_clean_content_and_title`: validação da higienização HTML (remoção de tags de script, style, nav, header, footer, etc.) e extração de título.
+   - `test_robots_txt_disallow_skips_page_request`: bloqueio preventivo de requisição quando o `robots.txt` desautoriza a rota.
+   - `test_robots_txt_404_allows_page_request`: respeito à RFC 9309 onde HTTP 404 em `robots.txt` autoriza o rastreamento.
+   - `test_robots_txt_500_disallows_page_request`: respeito à RFC 9309 onde HTTP 5xx em `robots.txt` trata temporariamente como desautorizado.
+   - `test_user_agent_header_sent_on_all_requests`: envio estrito do `USER_AGENT` oficial em todas as requisições (`robots.txt` e páginas).
+   - `test_http_error_handling`: captura e classificação de erros de servidor HTTP (500) gerando registro sem texto.
+   - `test_no_content_for_short_pages`: páginas com menos de 300 caracteres úteis classificadas como `no_content`.
+   - `test_redirect_off_allowlist`: redirecionamentos que saem dos domínios da allowlist são bloqueados e classificados como `off_allowlist`.
+   - `test_unknown_host_off_allowlist_without_network_request`: URLs com host desconhecido nem chegam a disparar chamadas de rede.
+   - `test_robots_txt_cached_single_request_per_host`: cache em memória do arquivo `robots.txt` por host na mesma sessão de ingestão.
+   - `test_rate_limiting_enforced_per_host`: aplicação de intervalo mínimo (`min_delay_s`) entre requisições ao mesmo domínio.
+   - `test_ingestor_run_generates_pages_jsonl_and_manifest`: ciclo completo de ponta a ponta gerando `data/corpus/pages.jsonl` e `manifest.json`.
 
 ---
 
@@ -111,10 +136,11 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ---
 
-### 7. Higienização e Refatoração de Testes (Fases 1A a 2E)
+### 7. Higienização e Refatoração de Testes (Fases 1A a 3A)
 
-**Total atual de testes**: 88 testes aprovados e 100% offline (`verify_nonet`).
+**Total atual de testes**: 100 testes aprovados e 100% offline (`verify_nonet`).
 
+- **Fase 3A**: 12 novos testes em `tests/test_ingest.py` cobrindo conformidade ética de robots.txt, RFC 9309 (404 permitido, 5xx restrito), rate limiting por host, isolamento de domínios na allowlist, extração e limpeza de tags HTML e persistência do corpus.
 - **Fase 2E**: 9 novos testes em `tests/test_tokens_and_tools.py`.
 - **Fase 2D**: 10 novos testes em `tests/test_specialists.py` e adaptação do fluxo hierárquico nos testes de integração.
 - **Fase 2C**: 9 testes de integração de provedores em `tests/test_providers.py`.
@@ -127,37 +153,49 @@ Sistema de atendimento ao cliente em FastAPI (`src/main.py`) para lojistas Getne
 
 ### 8. Verificação e Saídas Oficiais
 
-#### Verificação Fase 2E (`python scripts/verify_phase2e.py`):
+#### Verificação Fase 3A (`python scripts/verify_phase3a.py`):
 ```text
-PASS S1.no_generic_decline_text
-PASS S2.terminal_no_hardcoded_specifics
-PASS S3.fixed_sampling_warning_filtered
-PASS R1.tokens_total
-PASS R1.tokens_by_agent
-PASS R1.cost_still_null
-PASS R2.tokens_per_turn
-PASS R3.tokens_null_when_unmeasured
-PASS R4.api_tokens
-PASS R5.no_decline_no_invented_code
-PASS R6.unknown_code_not_invented
-PASS R6.known_code_kept
-PASS R7.terminal_reflects_data_healthy
-PASS R8.terminal_reflects_data_weak
-PASS R8.terminal_no_other_operator
-PASS Q0.verify_phase2a_regressions
-PASS Q0.verify_phase2b_regressions
-PASS Q0.verify_phase2c_regressions
-PASS Q0.verify_phase2d_regressions
+PASS C1.sources_yaml
+PASS C1.no_portugal_market
+PASS C1.no_blocked_santander
+PASS C2.one_record_per_source
+PASS C2.statuses_valid
+PASS C3.ok_records_integrity
+PASS C3.non_ok_without_text
+PASS C4.corpus_size
+PASS C5.manifest
+PASS C6.attribution
+PASS C6.readme_sources
+PASS M1.user_agent
+PASS M1.allowed_domains
+PASS M2.robots_disallow
+PASS M3.robots_404_allows
+PASS M3.ua_header
+PASS M4.extraction
+PASS M4.record_fields
+PASS M5.robots_5xx_disallows
+PASS M6.http_error
+PASS M6.no_content
+PASS M7.redirect_off_allowlist
+PASS M7.unknown_host_no_request
+PASS M8.robots_cached
+PASS M8.rate_limit
+PASS M9.run_writes_outputs
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 88 passed in 12.95s
+PASS Q2.pytest_offline_no_key :: 100 passed in 14.97s
 PASS Q3.tree_unchanged
 
-SUMMARY: 22/22 passed
+SUMMARY: 34/34 passed
 ```
 
 #### Execução da Suíte Pytest (`python -m pytest -q`):
 ```text
-88 passed in 12.95s
+100 passed in 14.97s
 ```
 
 #### Linting (`python -m ruff check .`):
@@ -167,8 +205,9 @@ All checks passed!
 
 ---
 
-### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3
+### 9. Perguntas / divergências com o SPEC e apontamentos para a Fase 3B
 
 1. **Geração de `requirements.lock` no Linux**: O arquivo de lock final permanece delegado para ser gerado em ambiente Linux/container pelo usuário para compatibilidade com bibliotecas dependentes de SO (`uvloop`).
 2. **Custo Estimado (`estimated_cost_usd`)**: Mantido explicitamente como `None` conforme instrução do SPEC/prompt, ficando a precificação por milhão de tokens para a Fase 7.
-3. **Próxima Fase (Fase 3: RAG e Ingestão de Documentos)**: Expansão e calibração da base de conhecimento da Getnet, enriquecimento de metadados dos artigos e rigor na recuperação semântica e lexical.
+3. **Corpus de Conhecimento e Páginas JavaScript**: Das 33 fontes oficiais (10 globais, 23 BR), 30 páginas foram indexadas com conteúdo superior a 300 caracteres úteis (`ok`), e 3 páginas institucionais com renderização puramente client-side via JavaScript (`https://site.getnet.com.br/`, `https://site.getnet.com.br/link-de-pagamento/`, `https://site.getnet.com.br/pagamentos-pelo-whatsapp/`) foram catalogadas sem texto como `no_content`.
+4. **Próxima Fase (Fase 3B: Chunking, Enriquecimento e Indexação Vetorial)**: Implementar chunking hierárquico sobre `data/corpus/pages.jsonl`, preservação rigorosa de metadados (`url`, `title`, `market`) e substituição do retriever em memória para a nova coleção ChromaDB baseada nos documentos oficiais ingeridos.

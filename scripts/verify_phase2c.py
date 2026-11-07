@@ -207,6 +207,8 @@ NO_NETWORK_PLUGIN = textwrap.dedent('''
 
 
 def suite_checks() -> None:
+    if os.environ.get("VERIFY_NESTED") == "1":  # called by a later verifier: skip suite and recursion
+        return
     env0 = {k: v for k, v in os.environ.items() if k not in ("TICKETS_DB_PATH", "GEMINI_API_KEY")}
     env0["GEMINI_API_KEY"] = ""
     a = run([sys.executable, "scripts/verify_phase2a.py"], env=env0)

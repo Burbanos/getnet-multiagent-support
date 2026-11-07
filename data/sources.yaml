@@ -1,0 +1,70 @@
+# Allowlist of official sources for the knowledge base (see docs/SPEC.md, Phase 3).
+# market: BR = Getnet Brasil (site.getnet.com.br); global = Getnet group (getnet.net/en).
+# www.santander.com.br is not used: its CDN denies the project user agent (403 on robots.txt).
+sources:
+  - url: https://www.getnet.net/en/
+    market: global
+  - url: https://www.getnet.net/en/our-solutions/in-person-payments
+    market: global
+  - url: https://www.getnet.net/en/our-solutions/online-payments
+    market: global
+  - url: https://www.getnet.net/en/our-solutions/omnichannel
+    market: global
+  - url: https://www.getnet.net/en/our-solutions/value-added-solutions
+    market: global
+  - url: https://www.getnet.net/en/our-solutions/agentic-commerce
+    market: global
+  - url: https://www.getnet.net/en/corporate/about-us
+    market: global
+  - url: https://www.getnet.net/en/developers
+    market: global
+  - url: https://www.getnet.net/en/partners
+    market: global
+  - url: https://www.getnet.net/en/resources/blog/the-mobile-payment-revolution-in-latin-america
+    market: global
+  - url: https://site.getnet.com.br/
+    market: BR
+  - url: https://site.getnet.com.br/todas-as-maquininhas/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-maquininha/solucoes-get-smart/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-maquininha/como-fazer-uma-venda-na-maquininha-getnet/
+    market: BR
+  - url: https://site.getnet.com.br/pix/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-pix/como-habilitar-o-recebimento-de-vendas-via-pix-no-aplicativo-getnet-brasil/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-pix/como-fazer-uma-venda-com-pix-na-maquininha/
+    market: BR
+  - url: https://site.getnet.com.br/conta-digital/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-get-conta/o-que-e-a-get-conta/
+    market: BR
+  - url: https://site.getnet.com.br/crediario/
+    market: BR
+  - url: https://site.getnet.com.br/link-de-pagamento/
+    market: BR
+  - url: https://site.getnet.com.br/pagamentos-pelo-whatsapp/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-habilitar-antecipacao-automatica-pelo-app/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-configuracoes/como-configurar-o-wi-fi-na-sua-maquininha-getnet/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-configuracoes/configuracoes-da-sua-maquininha/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-erros-maquininha/
+    market: BR
+  - url: https://site.getnet.com.br/taxas/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-taxas/taxas-por-transacao/
+    market: BR
+  - url: https://site.getnet.com.br/get-tap/
+    market: BR
+  - url: https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/
+    market: BR
+  - url: https://site.getnet.com.br/conversor-de-moedas/
+    market: BR
