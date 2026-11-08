@@ -25,6 +25,7 @@ from src.core.llm import (
     get_fallback_model,
     invoke_model_with_fallback,
 )
+from src.core.pii import sanitize_pii
 from src.core.state import AgentRole, AgentState, SupervisorState
 from src.core.tickets_db import get_tickets_repository, transcript_snapshot
 from src.tools.agent_tools import (
@@ -720,6 +721,10 @@ class OrchestrationGraph:
         """
         if not user_id or not user_id.strip():
             raise ValueError("user_id is required")
+
+        # Mask card numbers and CPFs before the message enters the graph: the checkpointer writes the
+        # input state before any node runs, so masking only inside the guardrail left raw values on disk.
+        safe_message, _ = sanitize_pii(message)
         start_time = time.perf_counter()
         active_session_id = session_id or str(uuid.uuid4())
         active_trace_id = trace_id or f"trc-{uuid.uuid4().hex[:12]}"
@@ -729,7 +734,7 @@ class OrchestrationGraph:
 
         with bind(active_trace_id, active_session_id, user_id):
             initial_state: SupervisorState = {
-                "messages": [HumanMessage(content=message, id=msg_id)],
+                "messages": [HumanMessage(content=safe_message, id=msg_id)],
                 "user_id": user_id,
                 "session_id": active_session_id,
                 "trace_id": active_trace_id,
@@ -800,7 +805,7 @@ class OrchestrationGraph:
             # Map to backward-compatible AgentState
             agent_state = AgentState(
                 user_id=user_id,
-                message=message,
+                message=safe_message,
                 session_id=active_session_id,
                 trace_id=active_trace_id,
                 is_safe=result.get("is_safe", True),

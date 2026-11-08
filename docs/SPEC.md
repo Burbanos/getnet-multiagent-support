@@ -192,6 +192,13 @@ not an independent review (the same candidate drives both tools); never describe
   reason; the image has no `APP_ENV`, so a plain `docker run` accepts the public development keys. Also confirmed:
   the masked card swallows the following space (`****1111]foi`; the pattern `(?:\d[ -]?){13,19}` consumes it).
 
+- 9A (`6c809bc`; reviewer reran `verify_phase9a.py`: 46/46 on Python 3.11.18 and 3.13.18, `compileall` clean on both;
+  reviewer files in the commit identical to the reviewer's copy), no review issues. STATUS records the run on the local
+  Python 3.13.3. CI result to be confirmed by the user (Actions screenshot).
+- Found while planning 9B: the raw values are also in `checkpoints.db-wal` (WAL mode), not only in the two tables, so the
+  9B checks scan every file of the database directory; follow-ups appended to a pending ticket were already masked
+  (the guardrail runs before `handoff_gate`).
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -225,8 +232,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9A** (verifiers reproducible on Python 3.11, true authorship), prompt `docs/phase-prompts/9A.md`,
-verifier `scripts/verify_phase9a.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+**Current phase: 9B** (card and CPF masked before the message enters the graph), prompt `docs/phase-prompts/9B.md`,
+verifier `scripts/verify_phase9b.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
 the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 

@@ -4,6 +4,100 @@
 
 ---
 
+### Fase 9B: Cartão e CPF Mascarados Antes do Grafo
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9B (`python scripts/verify_phase9b.py`):
+```text
+INFO python 3.13.3
+PASS B0.py311_syntax
+PASS B4.persistence_tests
+PASS B5.readme_pii
+PASS B6.readme_guardrails_toggle
+PASS R1.claims_table_9b
+PASS S1.status_9b
+PASS E2.scope
+PASS B1.pattern
+PASS B2.model_sees_mask
+PASS B3.state_message_masked
+PASS B7.blocked_turn
+PASS B8.guardrails_off_still_masks
+PASS B9.ticket_flow
+PASS B10.model_never_raw
+PASS B11.no_raw_bytes_on_disk :: scanned ['checkpoints.db', 'checkpoints.db-shm', 'checkpoints.db-wal', 'tickets.db']
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 225 passed in 22.19s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 50/50 passed
+```
+
+#### Commit Base da Fase 9B (`git rev-parse HEAD`):
+```text
+6c809bc463b4c1d7407b6043904a940ca4f513b7
+```
+
+#### Não feito:
+- Nenhum. Todos os checks da Fase 9B passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. O mascaramento de cartão e CPF é aplicado antes do ingresso da mensagem no grafo, protegendo o checkpointer e banco de dados SQLite.
+
+#### Limpeza de Banco Local:
+- O arquivo `data/checkpoints.db` proveniente de testes locais anteriores foi detectado e excluído com sucesso.
+
+#### Alterações Realizadas na Fase 9B:
+- **Expressão Regular de Cartão de Crédito (`src/core/pii.py`)**:
+  - Atualizado `CARD_PATTERN` para `\b\d(?:[ -]?\d){12,18}\b`, restringindo separadores (`-` ou espaço) estritamente entre dígitos e preservando espaços subsequentes na frase.
+- **Mascaramento Prévio ao Ingresso no Grafo (`src/core/graph.py`)**:
+  - Em `run_sync()`, aplicada a sanitização `safe_message, _ = sanitize_pii(message)` antes da gravação do estado inicial pelo checkpointer `SqliteSaver`.
+  - Passado `safe_message` tanto para o `HumanMessage` quanto para o retorno do `AgentState`, garantindo que cartões e CPFs crus nunca cheguem ao modelo, ao `checkpoints.db` (tabelas e `-wal`) nem ao `tickets.db`.
+- **Testes de Persistência e Não-Vazamento PII (`tests/test_pii_persistence.py`)**:
+  - Criado módulo com 5 testes verificando que espaços subsequentes são mantidos, cartões/CPFs nunca chegam ao SQLite, mensagens bloqueadas por injeção não deixam vestígios crus, o mascaramento permanece ativo mesmo com `ENABLE_GUARDRAILS=False`, e o fluxo de chamados (`tickets.db`) também nunca grava dados sensíveis desprotegidos.
+- **Documentação Técnica (`README.md`)**:
+  - Atualizada a descrição do algoritmo de Luhn na seção de segurança detalhando que a máscara é aplicada em `run_sync` antes da gravação de checkpoint.
+  - Acrescentado aviso sobre bancos antigos criados antes da Fase 9B e a necessidade de exclusão / `docker compose down -v`.
+  - Atualizada a especificação de `ENABLE_GUARDRAILS` destacando que o toggle controla apenas injeção de prompt, sem desativar a máscara de cartões e CPFs.
+  - Atualizada a linha de evidências na tabela da Seção 9 apontando para `tests/test_pii_persistence.py` e `scripts/verify_phase9b.py`.
+
+---
+
 ### Fase 9A: Verificadores Reproduzíveis em Python 3.11 e Autoria
 
 #### Versão do Python (`python --version`):

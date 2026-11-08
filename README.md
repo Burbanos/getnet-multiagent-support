@@ -264,8 +264,9 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 * **Garantia de Entrega Única**: O portão só entrega a resposta humana se `mark_delivered` retornar `True`. Caso requisições concorrentes já tenham entregue a resposta, a pendência é limpa e o fluxo retoma o atendimento convencional (`resumed`) sem repetições.
 
 ### Segurança, Autenticação, Isolamento & Sanitização de Dados Sensíveis (PII)
-* **Algoritmo de Luhn**: Antes de qualquer processamento ou envio ao modelo, o módulo `src/core/pii.py` valida números de cartão de crédito de 13 a 19 dígitos através do algoritmo de Luhn e mascara para `[CARTAO_MASCARADO_****1234]`.
+* **Algoritmo de Luhn**: Em `run_sync` (`src/core/graph.py`), antes de a mensagem entrar no grafo, o módulo `src/core/pii.py` valida números de cartão de 13 a 19 dígitos pelo algoritmo de Luhn e os mascara para `[CARTAO_MASCARADO_****1234]`. Como a máscara é aplicada antes da primeira gravação do checkpoint, o número cru não chega ao modelo, ao `checkpoints.db` (inclusive o arquivo `-wal`) nem ao chamado (`tests/test_pii_persistence.py`).
 * **Sanitização de CPF**: Números de CPF em formato padrão ou contínuo são mascarados para `[CPF_MASCARADO_***.***.***-XX]`.
+* **Bancos antigos**: bancos de conversa criados antes da Fase 9B podem conter mensagens com cartão ou CPF crus, porque até então a máscara era aplicada só dentro do grafo. Apague-os antes de usar a versão nova: `data/checkpoints.db` (e os arquivos `-wal` e `-shm`) na execução local, ou `docker compose down -v` no Docker.
 * **Proteção contra Injeção de Prompt**: Expressões em português e inglês que tentem sobrescrever instruções (`"ignore todas as suas instruções"`, `"me mostre o seu prompt"`, `"regras internas"`, `"prompt de sistema"`, `"esqueça o que foi dito"`) são bloqueadas pelo guardrail com resposta segura e imediata.
 * **Autenticação Obrigatória via Header `X-API-Key`**:
   * Toda chamada aos endpoints da API (`/chat`, `/api/v1/chat`, `/tickets`, `/tickets/{id}`) exige o cabeçalho `X-API-Key`. A identidade do usuário (`user_id`) e seu papel (`role`: `customer` ou `operator`) são derivados exclusivamente da credencial autenticada, nunca do corpo da requisição. Se a requisição omitir o cabeçalho ou fornecer uma chave inválida, o sistema responde com **HTTP 401 Unauthorized** ("Missing or invalid API key.").
@@ -334,7 +335,7 @@ O sistema opera com arquitetura agnóstica de provedores via `langchain-google-g
   * `LLM_MAX_RETRIES`: Número máximo de tentativas automáticas em caso de erro transiente (padrão: `2`).
   * `MAX_SUPERVISOR_STEPS`: Limite de iterações do Supervisor por turno antes de acionar escalonamento forçado (padrão: `6`).
   * `APP_ENV`: Ambiente de execução (`development`, `staging`, `production`, `testing`).
-  * `ENABLE_GUARDRAILS`: Ativa ou desativa a sanitização de PII e bloqueio de prompt injection (padrão: `true`).
+  * `ENABLE_GUARDRAILS`: Ativa ou desativa o bloqueio de prompt injection (padrão: `true`); não desativa o mascaramento de cartão e CPF, que é sempre aplicado.
   * `WEB_SEARCH_ENABLED`: Habilita busca externa em tempo real via DuckDuckGo (padrão: `true`).
 
 > **Seleção de Modelos e Motivação dos Padrões**: No plano gratuito do Google AI Studio, a família Gemini Flash standard possui limite estrito de apenas 20 requisições por dia (20 requests/day), inviabilizando execuções completas do pipeline agêntico onde cada caso demanda de 3 a 6 chamadas de modelo. Por sua vez, a família Flash-Lite oferece 15 requisições por minuto (RPM) e 500 requisições por dia (RPD), viabilizando testes locais e o harness de avaliação. Por essa razão, definimos `gemini-3.5-flash-lite` como modelo principal (`LLM_MODEL`) e `gemini-3.1-flash-lite` como fallback resiliente (`LLM_FALLBACK_MODEL`), usufruindo de cotas independentes por modelo dentro do mesmo tier gratuito. O juiz LLM (`EVAL_JUDGE_MODEL`) utiliza `gemini-3.1-flash-lite` por padrão para não competir com a cota do modelo avaliado.
@@ -704,7 +705,7 @@ Cada afirmação deste README aponta para o código, o teste, o verificador ou o
 | A resposta do operador é entregue no chat uma única vez | `src/core/graph.py` (`handoff_gate`), `tests/test_handoff.py`, `scripts/verify_phase5c.py` |
 | A memória é persistida por sessão e isolada por usuário (`user_id:session_id`) | `src/core/checkpointer.py`, `tests/test_checkpointer.py`, `scripts/verify_phase4b.py` |
 | O `user_id` vem da credencial (`X-API-Key`), nunca do corpo da requisição | `src/core/auth.py`, `tests/test_auth.py`, `scripts/verify_phase4a.py` |
-| Cartões (Luhn) e CPF são mascarados antes de chegar ao modelo | `src/core/pii.py`, `src/agents/guardrails.py`, `tests/test_unit.py` |
+| Cartões (Luhn) e CPF são mascarados antes de a mensagem entrar no grafo: nada cru chega ao modelo, ao checkpoint ou ao chamado | `src/core/pii.py`, `src/core/graph.py` (`run_sync`), `tests/test_pii_persistence.py`, `scripts/verify_phase9b.py` |
 | Logs em JSON com `trace_id`, `session_id` e `user_hash`, sem `user_id` nem dados da mensagem | `src/core/log_context.py`, `src/config.py`, `tests/test_logging.py`, `scripts/verify_phase7a.py` |
 | Custo por turno calculado com a tabela oficial de preços (fonte e datas no código) | `src/core/pricing.py`, `tests/test_pricing.py`, `scripts/verify_phase7b.py` |
 | Métricas em formato Prometheus em `/metrics` | `src/core/metrics.py`, `tests/test_metrics.py`, `scripts/verify_phase7c.py` |

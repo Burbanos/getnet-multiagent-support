@@ -42,7 +42,7 @@ def mask_cpf(match: re.Match) -> str:
 
 
 # Patterns
-CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+CARD_PATTERN = re.compile(r"\b\d(?:[ -]?\d){12,18}\b")
 FORMATTED_CPF_PATTERN = re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")
 UNFORMATTED_CPF_PATTERN = re.compile(r"\b\d{11}\b")
 
