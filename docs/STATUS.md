@@ -4,6 +4,64 @@
 
 ---
 
+### Fase 6E: Resultados da Avaliação no Repositório e no README
+
+#### Verificação Fase 6E (`python scripts/verify_phase6e.py`):
+```text
+PASS D1.run_file_unchanged
+PASS D2.judge_file_unchanged
+PASS D3.report_matches_raw
+PASS S1.readme_numbers_match_report
+PASS S2.readme_caveats
+PASS S3.readme_wording
+PASS S4.status
+PASS Q0.runner_judge_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 194 passed in 17.65s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 30/30 passed
+```
+
+#### Commit Base da Fase 6E (`git rev-parse HEAD`):
+```text
+ab87a46a5e2e6b402baee21059e02cdbc61b0847
+```
+
+#### Alterações Realizadas na Fase 6E:
+- **Relatório Final da Avaliação (`reports/eval_full-1.json` e `reports/eval_full-1.md`)**:
+  - Regenerado o relatório estruturado integrando a segunda rodada do juiz (`reports/eval_runs/full-1.judge.jsonl`), executada sobre os trechos integrais do índice sem truncamento.
+  - Consolidada a seção do juiz: 63 casos julgados (0 erros), `grounded_mean = 4.95`, `answers_mean = 4.68`, `abstention_precision = 76.9%`, `abstention_recall = 76.9%`, com mapeamento de discordâncias (`k07, k16, k17`) e erros de abstenção.
+- **Documentação de Métricas no README (`README.md`)**:
+  - Incorporada a tabela exata de resultados da avaliação recalculada pelo revisor a partir dos dados brutos.
+  - Documentados os limites e falhas conhecidas (execução única, limitações do juiz compacto, falta de registro para chamadas web e falhas determinísticas).
+  - Ajustada a frase sobre os resultados de `search_web` ("não ficam no registro da execução").
+
+#### Status do Projeto e Próximos Passos:
+- A **Fase 6** está formalmente concluída com todos os critérios de aceitação aprovados e dados brutos de avaliação comitados no repositório.
+- A próxima etapa é a **Fase 7: Observabilidade e Governança de Custos** (tabela de precificação de tokens em USD, telemetria detalhada e governança financeira).
+
+---
+
 ### Fase 6D: Trechos Completos no Juiz e Correções de Documentação
 
 #### Verificação Fase 6D (`python scripts/verify_phase6d.py`):
@@ -906,4 +964,5 @@ All checks passed!
 9. **Fase 6B Concluída (Executor com Modelo Real e Juiz LLM)**: O harness e o executor com modelo real (`run`), juiz LLM (`judge`) e gerador de relatórios (`report`) foram implementados e validados com testes unitários e de integração.
 10. **Fase 6C Concluída (Correções do Juiz, Padrões no Tier Gratuito e Execução full-1 Registrada)**: O modelo padrão foi atualizado para `gemini-3.5-flash-lite` (com fallback `gemini-3.1-flash-lite` e juiz `gemini-3.1-flash-lite`), mitigando o teto diário de 20 requisições do Flash standard no tier gratuito; o juiz agora suporta respostas em lista de blocos (Gemini 3) e aborta preventivamente em 3 erros consecutivos; a execução `full-1` (69/69 casos bem-sucedidos) foi validada e comitada como baseline de avaliação.
 11. **Fase 6D Concluída (Trechos Completos no Juiz e Correções de Cota)**: O juiz agora acessa o texto completo de cada passagem a partir de `data/index/chunks.jsonl` via `load_chunk_texts`; `observe_turn` preserva até 2000 caracteres no log; a documentação de cota do Flash-Lite foi corrigida para 500 RPD e os limites do juiz foram documentados.
-12. **Próxima Fase (Fase 6E: Execução Final do Juiz e Publicação dos Números)**: O usuário executará o juiz com a chave de API sobre a run `full-1` e a Fase 6E comitará as avaliações, o relatório final e os números no README.
+12. **Fase 6E Concluída (Resultados da Avaliação Consolidados no Repositório e README)**: O relatório completo com a segunda rodada do juiz foi regenerado e integrado em `reports/eval_full-1.*`; os números oficiais e limitações conhecidas foram documentados no `README.md`; a Fase 6 está encerrada.
+13. **Próxima Fase (Fase 7: Observabilidade e Custos)**: Precificação de tokens por modelo, cálculo financeiro em USD e governança de custos no pipeline.

@@ -1,6 +1,6 @@
 {
   "run_id": "full-1",
-  "generated_at": "2026-11-08T01:26:49.382306+00:00",
+  "generated_at": "2026-11-08T01:52:36.686251+00:00",
   "cases_sha256": "2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07",
   "complete": true,
   "n_cases": 69,
@@ -1398,6 +1398,29 @@
   "answer_models": [
     "gemini-3.5-flash-lite"
   ],
-  "judge": null,
+  "judge": {
+    "n_judged": 63,
+    "n_judge_errors": 0,
+    "grounded_mean": 4.9523809523809526,
+    "answers_mean": 4.682539682539683,
+    "abstention_precision": 0.7692307692307693,
+    "abstention_recall": 0.7692307692307693,
+    "abstention_errors": [
+      "k16",
+      "o02",
+      "o04",
+      "s04",
+      "s06",
+      "u01"
+    ],
+    "disagreements": [
+      "k07",
+      "k16",
+      "k17"
+    ],
+    "judge_models": [
+      "gemini-3.1-flash-lite"
+    ]
+  },
   "cost_note": "Token pricing arrives in Phase 7; cost calculation is not active yet."
 }

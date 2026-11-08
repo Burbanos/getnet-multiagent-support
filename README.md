@@ -424,6 +424,30 @@ A avaliação completa do sistema sobre os 69 casos de teste utiliza o modelo re
 #### Execução de Referência Registrada (`full-1`)
 O repositório já inclui uma execução integral e validada realizada em 2026-11-07 utilizando o modelo primário `gemini-3.5-flash-lite` (run `full-1`). Todos os 69 casos foram executados com sucesso (0 erros de execução), estando o log bruto preservado em `reports/eval_runs/full-1.jsonl` e o relatório completo em `reports/eval_full-1.md` (e `reports/eval_full-1.json`).
 
+### Resultados da avaliação (execução `full-1`, 2026-11-07)
+
+Execução única dos 69 casos de `data/eval/cases.jsonl` com o modelo `gemini-3.5-flash-lite` (respostas) e o juiz `gemini-3.1-flash-lite`. Dados brutos em `reports/eval_runs/full-1.jsonl` e `reports/eval_runs/full-1.judge.jsonl`; relatório completo em `reports/eval_full-1.md`.
+
+| Métrica | Valor |
+| :--- | :--- |
+| Casos aprovados em todas as checagens determinísticas | 62/69 (89,9%) |
+| Cenários oficiais do desafio | 9/10 |
+| Roteamento correto / ferramentas corretas | 94,6% / 95,1% |
+| Fatos esperados presentes / fonte oficial citada | 91,7% / 92,0% |
+| Resposta no idioma da pergunta | 98,4% |
+| Abstenção (juiz): precisão / cobertura | 76,9% / 76,9% |
+| Fundamentação (juiz, 1 a 5) / responde à pergunta (juiz, 1 a 5) | 4,95 / 4,68 |
+| Latência por caso: mediana / p95 | 6,3 s / 20,4 s |
+| Tokens | 422.393 no total (~6,7 mil por caso); custo entra na Fase 7 |
+
+Limites e falhas conhecidas:
+- É uma execução única, sem estimativa de variância; os rótulos foram escritos pelo revisor externo.
+- A categoria `uncovered` aparece com 100% nas checagens determinísticas apenas porque nenhuma delas se aplica a abstenção; a medida real é a do juiz: 7 de 8 se abstiveram, e `u01` afirmou algo que não está no corpus (que não é preciso cadastrar chave Pix).
+- Fora do tema: `o04` escreveu o poema pedido e `o02` respondeu com busca web; só o juiz detectou o `o04`.
+- A nota de fundamentação está perto do teto e discrimina pouco: o juiz é um modelo pequeno e aceitou a inferência do `u01`.
+- Os resultados de `search_web` não ficam no registro da execução, então o juiz não confere respostas vindas da web.
+- Falhas determinísticas: `s04` e `s06` (código de recusa roteado para a base de conhecimento), `o02`, `k07`, `k16` (bateria da Get Mini, problema de ranking), `k17` e `off08` (idioma).
+
 #### 1. Injeção Segura da Chave de API
 A chave de API do Google Gemini nunca deve ser gravada em arquivos de configuração ou histórico de comandos:
 ```powershell
@@ -446,7 +470,7 @@ python -m src.eval judge --run-id full-1
 ```
 - **Modelo do Juiz (`EVAL_JUDGE_MODEL`)**: O juiz é configurado por padrão com `gemini-3.1-flash-lite` para não concorrer com a cota do modelo avaliado. Em situações de indisponibilidade de serviço (HTTP 503), o usuário pode alternativamente invocar o juiz com `EVAL_JUDGE_MODEL=gemini-3.5-flash-lite` (o mesmo modelo gerador das respostas, com a ressalva de possível viés complacente, registrado transparentemente em `judge_models`).
 - **Acesso aos Trechos Completos (`data/index/chunks.jsonl`)**: O juiz lê o texto completo de cada passagem a partir do arquivo `data/index/chunks.jsonl` (o mesmo índice utilizado pelo agente), evitando falsas penalizações de alucinação por truncamento de log.
-- **Limites do Juiz**: Os resultados obtidos por ferramentas externas como `search_web` não ficam registrados no índice, portanto o juiz não consegue auditar ou conferir respostas vindas da web; além disso, o juiz é um modelo pequeno (`gemini-3.1-flash-lite`), sujeito a limites naturais de capacidade analítica.
+- **Limites do Juiz**: Os resultados obtidos por ferramentas externas como `search_web` não ficam no registro da execução, portanto o juiz não consegue auditar ou conferir respostas vindas da web; além disso, o juiz é um modelo pequeno (`gemini-3.1-flash-lite`), sujeito a limites naturais de capacidade analítica.
 - **Resiliência e Interrupção por Erros**: O juiz para automaticamente após 3 erros consecutivos de qualquer natureza (como respostas não-analisáveis ou indisponibilidade da API), registrando no arquivo JSONL o código HTTP correspondente (`error_code`, ex.: 503 ou 429) sem expor mensagens de erro internas.
 - **Isolamento de Expectativas**: O prompt do juiz (`src/prompts/judge.md`) nunca recebe o identificador do caso, categoria nem as expectativas (`expect`); ele avalia cegamente a fidelidade das passagens (`grounded`), a resposta à dúvida (`answers_question`) e se houve abstenção (`abstained`).
 - **Retomabilidade**: Salva em `reports/eval_runs/<run_id>.judge.jsonl`, pulando casos já julgados com sucesso.

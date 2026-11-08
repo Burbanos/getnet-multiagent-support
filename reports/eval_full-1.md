@@ -1,6 +1,6 @@
 # Relatório de Avaliação: full-1
 
-- **Gerado em**: `2026-11-08T01:26:49.382306+00:00`
+- **Gerado em**: `2026-11-08T01:52:36.686251+00:00`
 - **Cases SHA256**: `2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07`
 - **Status de Conclusão (`complete`)**: `True`
 - **Modelos Avaliados (`answer_models`)**: `gemini-3.5-flash-lite`
@@ -31,6 +31,20 @@
 | `estimated_cost_usd` | - |
 
 > *Nota de Custo*: Token pricing arrives in Phase 7; cost calculation is not active yet.
+
+## Avaliação do Juiz LLM
+
+- **Casos Julgados**: 63 (Erros: 0)
+- **Modelos do Juiz**: `gemini-3.1-flash-lite`
+- **Erros de Abstenção (`abstention_errors`)**: `k16, o02, o04, s04, s06, u01`
+- **Discordâncias entre Juiz e Fatos (`disagreements`)**: `k07, k16, k17`
+
+| Métrica do Juiz | Valor |
+| :--- | :--- |
+| `grounded_mean` | 4.95 / 5.0 |
+| `answers_mean` | 4.68 / 5.0 |
+| `abstention_precision` | 76.92% |
+| `abstention_recall` | 76.92% |
 
 ## Performance por Categoria
 

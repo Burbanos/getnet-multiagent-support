@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `636c9ba` (phase 6C, CI green) plus
-this SPEC/prompt update for 6D. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `ab87a46` (phase 6D, CI green) plus
+this SPEC/prompt update for 6E. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -81,6 +81,9 @@ this SPEC/prompt update for 6D. CI (lint, tests, docker build + /health smoke) r
   Flash-Lite (AI Studio shows 500); it suggested `run --run-id full-1`, which now skips every case; STATUS named a
   "Phase 7: prompt calibration to maximise the pass rate" as next (the next step is 6D, and tuning prompts against
   the eval set is overfitting).
+- 6D the judge reads full passages from the index by `chunk_id`; runs store up to 2000 characters; README quota and
+  judge limits fixed. Review note: README says `search_web` results are not recorded "in the index" (it is the run
+  record); fixed in 6E. `observe_turn` now stores `None` instead of `""`/`0.0` for a missing chunk id or score.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -115,9 +118,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 6D (the judge sees full passages; README fixes; no real call inside the phase)**, prompt
-`docs/phase-prompts/6D.md`, verifier `scripts/verify_phase6d.py`. Then the user re-runs the judge on `full-1` with the
-key and 6E commits the judgments, the final report and the README numbers.
+**Current phase: 6E (judge run 2 and the final report committed, README results section; no real call inside the
+phase)**, prompt `docs/phase-prompts/6E.md`, verifier `scripts/verify_phase6e.py`. Phase 6 ends with 6E; next is Phase 7.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -156,6 +158,13 @@ must be stated next to the numbers (`judge_models` records it).
   in `k03`; the R$ 50 advance minimum in `k04`/`k15`). Not published; the file is deleted in 6D and the judge re-run.
   The run records keep only the specialist's answer for `search_web`, not the search results, so the judge cannot
   check web answers (it scored them as general knowledge).
+- Judge run 2 on `full-1` (after 6D, full passages; `full-1.judge.jsonl` sha256 of the LF-normalised bytes
+  `62b743f9…3dd6`), recomputed by the reviewer with the 6B reference: 63 judged, 0 errors; grounded mean 4.95,
+  answers 4.68; abstention precision 10/13 and recall 10/13 (0.769); abstention errors `k16`, `o02`, `o04`, `s04`,
+  `s06`, `u01`; disagreements `k07`, `k16`, `k17`. The six false "invented" verdicts of run 1 disappeared; the only
+  grounded 3 is `m01` (gave the Get Clássica price, omitted the Get Smart one). `u01` claims "no Pix key needs to be
+  registered", which no chunk says (no chunk mentions "chave Pix"); the judge accepted it: grounded is near the
+  ceiling and the small judge is lenient.
 
 **Design change kept from 5B:** the handoff gate replaced `interrupt()` (see AC5.2); the user can still ask to revert.
 
@@ -600,9 +609,12 @@ without network. Topics with no official coverage must be answered with abstenti
   `R1.observe_turn`). README: no false quota, a new run id in the `run` example, the judge's limits (full passages
   from the index; `search_web` results are not visible to it). The 600-character `full-1.judge.jsonl` is deleted and
   `reports/eval_full-1.*` regenerated without a judge section.
-- 6E: the user's judge run 2 on `full-1` (raw `.judge.jsonl` committed), final report, README numbers copied from
-  the report with the answering and judge models and the limits above; the reviewer recomputes every number from
-  the raw files.
+- 6E (checked by `scripts/verify_phase6e.py`): judge run 2 committed unchanged, `reports/eval_full-1.*` regenerated
+  with the judge section (must equal `aggregate(cases, full-1, judge run 2)`), README section "Resultados da
+  avaliação" with the numbers formatted from the report (pt-BR decimals) and the limits: single run, reviewer-written
+  labels, `uncovered` only measured by the judge (`u01`), off-topic failures (`o04`, `o02`), grounded near the ceiling,
+  `search_web` results not recorded. Supersedes 6C `D2`/`D3` and 6D `D1` (they required no judge file / no judge
+  section).
 **Acceptance:**
 - AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold URLs and literal facts), abstention, multi-turn, safety, escalation, PT and EN.
 - AC6.2 `python -m src.eval run` executes against the real model and `report` outputs `reports/eval_<run_id>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost (null until Phase 7).
