@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `6aa2cbd` (phase 6E, CI green) plus
-this SPEC/prompt update for 6F. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `6295a63` (phase 6F, CI green) plus
+this SPEC/prompt update for 7A. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -94,6 +94,11 @@ this SPEC/prompt update for 6F. CI (lint, tests, docker build + /health smoke) r
   `session_id` in the glossary (it is `SqliteSaver` with `user_id:session_id`); "separação ideal" / "100% off-topic
   rejected" from the retriever-only 3D set presented without the end-to-end failures; token field names
   `prompt_tokens`/`completion_tokens` (they are `input_tokens`/`output_tokens`).
+- 6F README and /demo cleaned (verified 32/32). Leftovers for Phase 8: "Trace ID UUID" label, "tokens em todas as
+  respostas" (blocked and handoff turns have none), the demo cost label still says "Gemini Flash".
+- Found while planning 7A: logs carry `trace_id` only inside message text (no field), several log calls print the
+  raw `user_id`, and `run_sync` logs the first 60 characters of the RAW message before the guardrail masks it, so a
+  card number or CPF typed by the merchant reaches the logs.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -128,8 +133,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 6F (README and /demo stop claiming confidence, cost and stale results; text only)**, prompt
-`docs/phase-prompts/6F.md`, verifier `scripts/verify_phase6f.py`. Next: Phase 7.
+**Current phase: 7A (structured logs: trace_id, session_id and hashed user on every record; node and tool events;
+no raw user id or message in logs)**, prompt `docs/phase-prompts/7A.md`, verifier `scripts/verify_phase7a.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -636,6 +641,21 @@ without network. Topics with no official coverage must be answered with abstenti
 - AC6.4 CI runs a deterministic offline subset (no model may be called) as regression; real-model report committed with model name and date.
 
 ### Phase 7 — Observability and cost
+**Split:**
+- 7A (checked by `scripts/verify_phase7a.py`): `src/core/log_context.py` with contextvars and `user_hash(user_id)`
+  (`"u_" + sha256(LOG_HASH_SALT + user_id)[:16]`), `bind(trace_id, session_id, user_id)` (context manager, resets on
+  exit) and `current()`; `JsonFormatter` adds `trace_id`, `session_id`, `user_hash` from the context and the extras
+  `agent`, `node`, `tool`, `status`, `latency_ms`, `execution_time_ms`, and never writes a raw `user_id`;
+  `run_sync` runs inside `bind` (trace and session generated before binding); every graph node logs one
+  `"node finished"` record (`node`, `latency_ms`); every supervisor tool call and every specialist tool call logs one
+  `"tool finished"` record (`tool`, `agent`, `status` ok|error, `latency_ms`); no log call formats the raw user id or
+  the merchant's message. `LOG_HASH_SALT` setting (default empty).
+- 7B: cost from provider usage with a price table (source URL and date) per model; `estimated_cost_usd` per turn and
+  in the eval report; `/metrics` in Prometheus format (requests, latency histogram, tool calls, escalations,
+  abstentions).
+- 7C: record `search_web` results (url, title, snippet) in the turn for the judge; mark internal failures in the
+  state (`error`) instead of the fixed Portuguese "instabilidade" text, and answer fixed messages (instability,
+  forced escalation, handoff) in the merchant's language.
 **Acceptance:**
 - AC7.1 JSON logs per node with `trace_id`, `session_id`, `user_id` (hashed), node, tool, latency.
 - AC7.2 Tokens and cost from provider `usage_metadata`; price table in config with source and date.

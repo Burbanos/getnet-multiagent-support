@@ -56,7 +56,7 @@ class GuardrailAgent:
         # 1. Apply PII Sanitization
         sanitized_msg, pii_found = self.sanitize_input(message)
         if pii_found:
-            logger.info(f"PII masked in input for user {state.user_id}")
+            logger.info("PII masked in input")
             state.message = sanitized_msg
 
         lower_msg = sanitized_msg.lower()
@@ -64,7 +64,7 @@ class GuardrailAgent:
         # 2. Check for Prompt Injections / Jailbreaks
         for pattern in self.INJECTION_PATTERNS:
             if re.search(pattern, lower_msg, re.IGNORECASE):
-                logger.warning(f"Prompt injection pattern detected: '{pattern}' in user {state.user_id}")
+                logger.warning(f"Prompt injection pattern detected: '{pattern}'")
                 state.is_safe = False
                 state.safety_violations.append("Tentativa de injeção de prompt ou violação de segurança detectada.")
                 state.agent_response = (
@@ -77,7 +77,7 @@ class GuardrailAgent:
         # 3. Check for Malicious Exploitation Terms
         for pattern in self.TOXIC_PATTERNS:
             if re.search(pattern, lower_msg, re.IGNORECASE):
-                logger.warning(f"Security threat term detected: '{pattern}' in user {state.user_id}")
+                logger.warning(f"Security threat term detected: '{pattern}'")
                 state.is_safe = False
                 state.safety_violations.append("Termo de segurança malicioso detectado.")
                 state.agent_response = "Solicitação bloqueada devido a termos não permitidos."

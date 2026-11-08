@@ -4,6 +4,79 @@
 
 ---
 
+### Fase 7A: Logs Estruturados com trace_id, Sessão e Usuário em Hash
+
+#### Verificação Fase 7A (`python scripts/verify_phase7a.py`):
+```text
+PASS L0.no_identifiers_in_log_calls
+PASS L0.salt_setting
+PASS L0.readme
+PASS L1.api
+PASS L1.user_hash
+PASS L1.bind_and_reset
+PASS L2.no_pii_in_logs
+PASS L3.context_on_every_record
+PASS L3.context_cleared
+PASS L4.node_events
+PASS L5.tool_events
+PASS L6.run_still_works
+PASS Q0.logging_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 198 passed in 18.30s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 37/37 passed
+```
+
+#### Commit Base da Fase 7A (`git rev-parse HEAD`):
+```text
+6295a6300a54bc8a4cacf6866a124c0a69c5e8bb
+```
+
+#### Alterações Realizadas na Fase 7A:
+- **Módulo de Contexto de Log (`src/core/log_context.py`)**:
+  - Implementadas ContextVars para `trace_id`, `session_id` e `user_hash`.
+  - Função `user_hash(user_id)` com hash SHA-256 truncado em 16 hexadecimais prefixado com `"u_"` e salgado via `settings.LOG_HASH_SALT`.
+  - Context manager `bind(trace_id, session_id, user_id)` para escopo de requisição com restauração garantida de tokens.
+  - Função `current()` expondo apenas os identificadores ativos.
+- **Configuração e Formatação JSON (`src/config.py`, `.env.example`)**:
+  - Adicionado parâmetro `LOG_HASH_SALT: str = ""` em `Settings` e modelo no `.env.example`.
+  - `JsonFormatter` atualizado para injetar automaticamente os campos de `current()` e os extras `agent`, `node`, `tool`, `status`, `latency_ms` e `execution_time_ms`. Se um registro trouxer o extra `user_id`, grava `user_hash` no lugar.
+- **Instrumentação do Grafo LangGraph (`src/core/graph.py`)**:
+  - `run_sync` gera `active_trace_id` e `active_session_id` antes da execução e encapsula todo o ciclo com `with bind(...)`.
+  - Log inicial substituído por `logger.info("workflow started")`.
+  - Nós encapsulados via `_wrap_node` para emissão de evento `logger.info("node finished", extra={"node": <nome>, "latency_ms": <ms>})`.
+  - Ferramentas no Supervisor emitindo `logger.info("tool finished", extra={"tool": ..., "agent": "SupervisorAgent", "status": ..., "latency_ms": ...})`.
+- **Instrumentação de Especialistas (`src/agents/specialists.py`)**:
+  - Ferramentas em especialistas emitindo `logger.info("tool finished", extra={"tool": ..., "agent": self.name, "status": ..., "latency_ms": ...})`. Em caso de erro na ferramenta, grava somente o nome da classe da exceção.
+- **Higienização de Identificadores Crus nos Logs**:
+  - Removida interpolação de `user_id`, `session_id` e texto de mensagens em chamadas de log em `src/tools/agent_tools.py`, `src/core/tickets_db.py`, `src/agents/guardrails.py` e `src/main.py`.
+- **Testes Unitários (`tests/test_logging.py`)**:
+  - Criados 4 novos testes unitários cobrindo estabilidade de hash/sal, binding de ContextVars, prevenção de vazamento de PII/usuário cru e emissão de eventos de latência de nós e ferramentas.
+
+---
+
 ### Fase 6F: Alinhamento de Documentação e Interface com Capacidades Reais
 
 #### Verificação Fase 6F (`python scripts/verify_phase6f.py`):
@@ -1030,4 +1103,5 @@ All checks passed!
 11. **Fase 6D Concluída (Trechos Completos no Juiz e Correções de Cota)**: O juiz agora acessa o texto completo de cada passagem a partir de `data/index/chunks.jsonl` via `load_chunk_texts`; `observe_turn` preserva até 2000 caracteres no log; a documentação de cota do Flash-Lite foi corrigida para 500 RPD e os limites do juiz foram documentados.
 12. **Fase 6E Concluída (Resultados da Avaliação Consolidados no Repositório e README)**: O relatório completo com a segunda rodada do juiz foi regenerado e integrado em `reports/eval_full-1.*`; os números oficiais e limitações conhecidas foram documentados no `README.md`.
 13. **Fase 6F Concluída (Alinhamento Honesto de Capacidades no README e /demo)**: Removida qualquer afirmação de "Confiança Dinâmica" e "100% de precisão" (sem cálculo que a sustente), clarificado que `estimated_cost_usd` permanece `null` até a Fase 7, atualizado o formato de tickets para `GET-TKT-YYYYMMDD-<10 hexadecimais>`, documentada a margem real de 0.04 no retrieval e alinhadas as respostas do glossário e da matriz de cenários com as medições reais de `full-1`.
-14. **Próxima Fase (Fase 7: Observabilidade e Custos)**: Precificação de tokens por modelo, cálculo financeiro em USD e governança de custos no pipeline.
+14. **Fase 7A Concluída (Logs Estruturados com trace_id, Sessão e Usuário em Hash)**: Implementado `log_context.py` com ContextVars e hashing de `user_id` (`u_<hex16>`) com sal configurável `LOG_HASH_SALT`; logs formatados em JSON com contexto em todos os registros sem vazamento de identificador cru nem PII; eventos de latência de nós (`node finished`) e ferramentas (`tool finished`) implementados.
+15. **Próxima Fase (Fase 7B: Precificação e Métricas)**: Precificação de tokens por modelo a partir da tabela oficial, `estimated_cost_usd` por turno e no relatório de avaliação, e endpoint `/metrics` em formato Prometheus.

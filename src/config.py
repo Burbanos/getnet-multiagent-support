@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     APP_HOST: str = "0.0.0.0"
     LOG_LEVEL: str = "INFO"
+    LOG_HASH_SALT: str = ""
 
     GEMINI_API_KEY: str = ""
     LLM_PROVIDER: str = "google_genai"
@@ -58,18 +59,36 @@ class JsonFormatter(logging.Formatter):
     """Structured JSON log formatter for production observability."""
 
     def format(self, record: logging.LogRecord) -> str:
-        log_obj = {
+        log_obj: dict[str, object] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
         }
-        if hasattr(record, "agent"):
-            log_obj["agent"] = record.agent
-        if hasattr(record, "user_id"):
-            log_obj["user_id"] = record.user_id
-        if hasattr(record, "execution_time_ms"):
-            log_obj["execution_time_ms"] = record.execution_time_ms
+
+        # Add request-scoped context: trace_id, session_id, user_hash
+        try:
+            from src.core.log_context import current, user_hash
+
+            ctx = current()
+            for k, v in ctx.items():
+                log_obj[k] = v
+        except ImportError:
+            pass
+
+        # Add supported extras when present
+        for field in ("agent", "node", "tool", "status", "latency_ms", "execution_time_ms"):
+            if hasattr(record, field):
+                log_obj[field] = getattr(record, field)
+
+        # Never log raw user_id: if user_id extra is passed, map to user_hash
+        if hasattr(record, "user_id") and "user_hash" not in log_obj:
+            from src.core.log_context import user_hash
+
+            raw_uid = record.user_id
+            if raw_uid is not None:
+                log_obj["user_hash"] = user_hash(str(raw_uid))
+
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_obj, ensure_ascii=False)

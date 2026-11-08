@@ -116,16 +116,27 @@ class OrchestrationGraph:
         bound_primary, _ = self._get_bound_models()
         return bound_primary
 
+    def _wrap_node(self, node_name: str, fn: Any) -> Any:
+        def wrapped(state: SupervisorState) -> dict[str, Any]:
+            t0 = time.perf_counter()
+            try:
+                return fn(state)
+            finally:
+                ms = round((time.perf_counter() - t0) * 1000, 2)
+                logger.info("node finished", extra={"node": node_name, "latency_ms": ms})
+
+        return wrapped
+
     def _build_graph(self):
         builder = StateGraph(SupervisorState)
 
         # 1. Register Graph Nodes
-        builder.add_node("guardrail", self._guardrail_node)
-        builder.add_node("handoff_gate", self._handoff_gate_node)
-        builder.add_node("supervisor", self._supervisor_node)
-        builder.add_node("tools", self._tools_node)
-        builder.add_node("force_escalation", self._force_escalation_node)
-        builder.add_node("abstention_check", self._abstention_check_node)
+        builder.add_node("guardrail", self._wrap_node("guardrail", self._guardrail_node))
+        builder.add_node("handoff_gate", self._wrap_node("handoff_gate", self._handoff_gate_node))
+        builder.add_node("supervisor", self._wrap_node("supervisor", self._supervisor_node))
+        builder.add_node("tools", self._wrap_node("tools", self._tools_node))
+        builder.add_node("force_escalation", self._wrap_node("force_escalation", self._force_escalation_node))
+        builder.add_node("abstention_check", self._wrap_node("abstention_check", self._abstention_check_node))
 
         # 2. Add Edges
         builder.add_edge(START, "guardrail")
@@ -520,6 +531,8 @@ class OrchestrationGraph:
             tool_name = call.get("name")
             tool_args = call.get("args", {})
             call_id = call.get("id", str(uuid.uuid4()))
+            call_start = time.perf_counter()
+            call_status = "ok"
 
             if tool_name == "ask_knowledge_agent":
                 if "KnowledgeAgent" not in agents_used:
@@ -527,6 +540,8 @@ class OrchestrationGraph:
                 question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
                 spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
                 knowledge_outcomes.append(bool(spec_res.get("sources")))
+                if spec_res.get("status") == "error":
+                    call_status = "error"
 
                 spec_usage = spec_res.get("usage")
                 if spec_usage:
@@ -558,11 +573,24 @@ class OrchestrationGraph:
                 sources.extend(spec_res["sources"])
                 retrieved_docs.extend(spec_res["retrieved_docs"])
 
+                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+                logger.info(
+                    "tool finished",
+                    extra={
+                        "tool": tool_name,
+                        "agent": "SupervisorAgent",
+                        "status": call_status,
+                        "latency_ms": latency_ms,
+                    },
+                )
+
             elif tool_name == "ask_support_agent":
                 if "SupportAgent" not in agents_used:
                     agents_used.append("SupportAgent")
                 request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
                 spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
+                if spec_res.get("status") == "error":
+                    call_status = "error"
 
                 spec_usage = spec_res.get("usage")
                 if spec_usage:
@@ -594,6 +622,17 @@ class OrchestrationGraph:
                 sources.extend(spec_res["sources"])
                 retrieved_docs.extend(spec_res["retrieved_docs"])
 
+                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+                logger.info(
+                    "tool finished",
+                    extra={
+                        "tool": tool_name,
+                        "agent": "SupervisorAgent",
+                        "status": call_status,
+                        "latency_ms": latency_ms,
+                    },
+                )
+
             elif tool_name == "escalate_to_human":
                 escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
                 if escalate_fn:
@@ -609,7 +648,8 @@ class OrchestrationGraph:
                             },
                         )
                     except Exception as e:  # noqa: BLE001
-                        logger.error(f"Error executing escalate_to_human: {e}")
+                        call_status = "error"
+                        logger.error(f"Error executing escalate_to_human: {type(e).__name__}")
                         result_str = json.dumps({"status": "error", "error": "ticket_persistence_failed"})
 
                     tools_used.append("escalate_to_human")
@@ -619,17 +659,40 @@ class OrchestrationGraph:
                     try:
                         parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
                         if isinstance(parsed, dict):
+                            if parsed.get("status") == "error" or "error" in parsed:
+                                call_status = "error"
                             if parsed.get("ticket_id"):
                                 ticket = parsed
                             tool_results.append(parsed)
                     except (json.JSONDecodeError, TypeError):
                         pass
 
+                    latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+                    logger.info(
+                        "tool finished",
+                        extra={
+                            "tool": tool_name,
+                            "agent": "SupervisorAgent",
+                            "status": call_status,
+                            "latency_ms": latency_ms,
+                        },
+                    )
+
             else:
                 logger.warning(f"Tool '{tool_name}' not available to SupervisorAgent.")
                 err_payload = json.dumps({"error": f"tool {tool_name} not available to SupervisorAgent"})
                 t_msg = ToolMessage(content=err_payload, tool_call_id=call_id, name=tool_name)
                 tool_messages.append(t_msg)
+                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+                logger.info(
+                    "tool finished",
+                    extra={
+                        "tool": tool_name,
+                        "agent": "SupervisorAgent",
+                        "status": "error",
+                        "latency_ms": latency_ms,
+                    },
+                )
 
         tokens = None
         if tba:
@@ -672,92 +735,93 @@ class OrchestrationGraph:
         active_trace_id = trace_id or f"trc-{uuid.uuid4().hex[:12]}"
         msg_id = str(uuid.uuid4())
 
-        initial_state: SupervisorState = {
-            "messages": [HumanMessage(content=message, id=msg_id)],
-            "user_id": user_id,
-            "session_id": active_session_id,
-            "trace_id": active_trace_id,
-            "is_safe": True,
-            "safety_violations": [],
-            "agents_used": ["SupervisorAgent"],
-            "tools_used": [],
-            "tool_calls": [],
-            "tool_results": [],
-            "sources": [],
-            "retrieved_docs": [],
-            "ticket": None,
-            "handoff": None,
-            "knowledge_outcomes": [],
-            "final_response": "",
-            "supervisor_steps": 0,
-            "llm_model": None,
-            "execution_time_ms": 0.0,
-            "tokens": None,
-            "tokens_by_agent": None,
-            "estimated_cost_usd": None,
-        }
+        from src.core.log_context import bind
 
-        # Checkpointer thread configuration
-        config = {"configurable": {"thread_id": f"{user_id}:{active_session_id}"}}
+        with bind(active_trace_id, active_session_id, user_id):
+            initial_state: SupervisorState = {
+                "messages": [HumanMessage(content=message, id=msg_id)],
+                "user_id": user_id,
+                "session_id": active_session_id,
+                "trace_id": active_trace_id,
+                "is_safe": True,
+                "safety_violations": [],
+                "agents_used": ["SupervisorAgent"],
+                "tools_used": [],
+                "tool_calls": [],
+                "tool_results": [],
+                "sources": [],
+                "retrieved_docs": [],
+                "ticket": None,
+                "handoff": None,
+                "knowledge_outcomes": [],
+                "final_response": "",
+                "supervisor_steps": 0,
+                "llm_model": None,
+                "execution_time_ms": 0.0,
+                "tokens": None,
+                "tokens_by_agent": None,
+                "estimated_cost_usd": None,
+            }
 
-        logger.info(
-            f"Invoking Supervisor ReAct workflow for user '{user_id}' [Session: {active_session_id}]: '{message[:60]}...'"
-        )
+            # Checkpointer thread configuration
+            config = {"configurable": {"thread_id": f"{user_id}:{active_session_id}"}}
 
-        try:
-            result = self.graph.invoke(initial_state, config=config)
-        except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError):
-            raise
-        except Exception:
-            logger.exception("Error in LangGraph execution")
-            result = initial_state
-            result["final_response"] = (
-                "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
+            logger.info("workflow started")
+
+            try:
+                result = self.graph.invoke(initial_state, config=config)
+            except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError):
+                raise
+            except Exception:
+                logger.exception("Error in LangGraph execution")
+                result = initial_state
+                result["final_response"] = (
+                    "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
+                )
+
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            # Extract final reply
+            final_text = result.get("final_response", "")
+            if not final_text and result.get("messages"):
+                for m in reversed(result["messages"]):
+                    if isinstance(m, AIMessage) and m.content:
+                        final_text = m.content if isinstance(m.content, str) else str(m.content)
+                        break
+
+            # Map to backward-compatible AgentState
+            agent_state = AgentState(
+                user_id=user_id,
+                message=message,
+                session_id=active_session_id,
+                trace_id=active_trace_id,
+                is_safe=result.get("is_safe", True),
+                safety_violations=result.get("safety_violations", []),
+                agents_used=result.get("agents_used", ["SupervisorAgent"]),
+                tools_used=result.get("tools_used", []),
+                tool_calls=result.get("tool_calls", []),
+                tool_results=result.get("tool_results", []),
+                sources=result.get("sources", []),
+                retrieved_docs=result.get("retrieved_docs", []),
+                context_docs=result.get("retrieved_docs", []),
+                ticket=result.get("ticket"),
+                handoff=result.get("handoff"),
+                llm_model=result.get("llm_model"),
+                agent_response=final_text,
+                final_agent=AgentRole.SUPERVISOR,
+                escalate_to_human=bool(result.get("ticket")),
+                escalation_ticket_id=result.get("ticket", {}).get("ticket_id") if result.get("ticket") else None,
+                intent="dynamic_react",
+                execution_time_ms=elapsed_ms,
+                tokens=result.get("tokens"),
+                tokens_by_agent=result.get("tokens_by_agent"),
+                estimated_cost_usd=None,
             )
 
-        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-
-        # Extract final reply
-        final_text = result.get("final_response", "")
-        if not final_text and result.get("messages"):
-            for m in reversed(result["messages"]):
-                if isinstance(m, AIMessage) and m.content:
-                    final_text = m.content if isinstance(m.content, str) else str(m.content)
-                    break
-
-        # Map to backward-compatible AgentState
-        agent_state = AgentState(
-            user_id=user_id,
-            message=message,
-            session_id=active_session_id,
-            trace_id=active_trace_id,
-            is_safe=result.get("is_safe", True),
-            safety_violations=result.get("safety_violations", []),
-            agents_used=result.get("agents_used", ["SupervisorAgent"]),
-            tools_used=result.get("tools_used", []),
-            tool_calls=result.get("tool_calls", []),
-            tool_results=result.get("tool_results", []),
-            sources=result.get("sources", []),
-            retrieved_docs=result.get("retrieved_docs", []),
-            context_docs=result.get("retrieved_docs", []),
-            ticket=result.get("ticket"),
-            handoff=result.get("handoff"),
-            llm_model=result.get("llm_model"),
-            agent_response=final_text,
-            final_agent=AgentRole.SUPERVISOR,
-            escalate_to_human=bool(result.get("ticket")),
-            escalation_ticket_id=result.get("ticket", {}).get("ticket_id") if result.get("ticket") else None,
-            intent="dynamic_react",
-            execution_time_ms=elapsed_ms,
-            tokens=result.get("tokens"),
-            tokens_by_agent=result.get("tokens_by_agent"),
-            estimated_cost_usd=None,
-        )
-
-        logger.info(
-            f"Workflow finished in {elapsed_ms}ms. Tools: {agent_state.tools_used}"
-        )
-        return agent_state
+            logger.info(
+                f"Workflow finished in {elapsed_ms}ms. Tools: {agent_state.tools_used}"
+            )
+            return agent_state
 
     async def run(
         self,

@@ -166,7 +166,7 @@ class TicketsRepository:
             """, (ticket_id, clean_user_id, session_id, clean_reason, priority, transcript_json, now, now))
             conn.commit()
 
-        logger.info(f"Persisted escalation ticket {ticket_id} for user {clean_user_id}")
+        logger.info(f"Persisted escalation ticket {ticket_id}")
 
         message = (
             f"Chamado registrado com sucesso sob o protocolo **{ticket_id}**. "

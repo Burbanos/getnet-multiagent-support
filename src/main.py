@@ -397,7 +397,7 @@ def chat_endpoint(
             headers={"X-Trace-Id": trace_id},
         ) from exc
     except Exception as exc:
-        logger.exception(f"Unhandled error processing message from user '{principal.user_id}' [trace_id={trace_id}]: {exc}")
+        logger.exception(f"Unhandled error processing message: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error. Reference: {trace_id}",

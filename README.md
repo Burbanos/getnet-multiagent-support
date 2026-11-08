@@ -272,6 +272,12 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 * **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
 * **Métricas de Tokens**: Medição dinâmica de `input_tokens`, `output_tokens` e `total_tokens` (também `tokens_by_agent`) em todas as respostas.
 * **Cálculo de Custo Financeiro**: Custo estimado em USD: ainda não calculado (campo `estimated_cost_usd` vem `null`; tabela de preços entra na Fase 7).
+* **Logs Estruturados e Privacidade (Fase 7A)**:
+  * **Campos Contextuais em Todo Registro**: Através de `ContextVar` e `JsonFormatter`, cada registro de log gerado no ciclo de atendimento inclui automaticamente `trace_id`, `session_id` e `user_hash`. O identificador cru `user_id` e a mensagem original não sanitizada do lojista nunca são impressos no log, prevenindo vazamento de dados confidenciais, números de cartão de crédito ou CPF.
+  * **Cálculo de `user_hash` e Salting**: O hash do usuário é computado como `"u_" + sha256((settings.LOG_HASH_SALT + user_id).encode("utf-8")).hexdigest()[:16]`. Sem sal, o hash de um identificador conhecido pode ser recalculado por força bruta; em ambientes de produção, defina um sal secreto na variável `LOG_HASH_SALT`.
+  * **Eventos de Execução com Latência**:
+    * Evento `node finished`: emitido ao término de cada nó do grafo (`guardrail`, `handoff_gate`, `supervisor`, `tools`, `force_escalation`, `abstention_check`) contendo os campos `node` e `latency_ms`.
+    * Evento `tool finished`: emitido ao término de cada ferramenta (seja no `SupervisorAgent` ou nos especialistas `KnowledgeAgent` e `SupportAgent`), contendo `tool`, `agent`, `status` (`"ok"` ou `"error"`) e `latency_ms`.
 
 ---
 

@@ -29,7 +29,7 @@ def get_settlement_status(config: RunnableConfig) -> str:
     - Saldo disponível para antecipação
     """
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: get_settlement_status] invoked for user_id={user_id}")
+    logger.info("[Tool: get_settlement_status] invoked")
     result = get_settlement_and_sales_status(user_id=user_id)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -47,7 +47,7 @@ def diagnose_declined_transaction(error_code: str | None = None, config: Runnabl
         error_code: Código numérico opcional da recusa (ex: '51').
     """
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: diagnose_declined_transaction] invoked for user_id={user_id}, error_code={error_code}")
+    logger.info(f"[Tool: diagnose_declined_transaction] invoked for error_code={error_code}")
     result = get_declined_transaction_details(user_id=user_id, error_code=error_code)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -66,7 +66,7 @@ def diagnose_terminal(serial_number: str | None = None, config: RunnableConfig =
         serial_number: Número de série do terminal (opcional).
     """
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: diagnose_terminal] invoked for user_id={user_id}, serial={serial_number}")
+    logger.info(f"[Tool: diagnose_terminal] invoked for serial={serial_number}")
     result = diagnose_terminal_connectivity(user_id=user_id, terminal_serial=serial_number)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -140,8 +140,7 @@ def escalate_to_human(
     transcript = cfg.get("transcript")
 
     logger.info(
-        f"[Tool: escalate_to_human] user_id={user_id}, session_id={session_id}, "
-        f"priority={priority}, reason='{reason}'"
+        f"[Tool: escalate_to_human] priority={priority}, reason='{reason}'"
     )
     try:
         repo = get_tickets_repository()
@@ -154,7 +153,7 @@ def escalate_to_human(
         )
         return json.dumps(ticket, ensure_ascii=False, indent=2)
     except Exception:
-        logger.exception(f"Failed to persist escalation ticket for user {user_id}")
+        logger.exception("Failed to persist escalation ticket")
         return json.dumps({"status": "error", "error": "ticket_persistence_failed"}, ensure_ascii=False)
 
 

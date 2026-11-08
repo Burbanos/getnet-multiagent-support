@@ -1,6 +1,7 @@
 """Specialist sub-agents (KnowledgeAgent, SupportAgent) with isolated execution contexts."""
 import json
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -126,17 +127,31 @@ class SpecialistAgent:
                     err_msg = json.dumps({"error": f"tool {tool_name} not available to {self.name}"})
                     t_msg = ToolMessage(content=err_msg, tool_call_id=call_id, name=tool_name)
                     messages.append(t_msg)
+                    logger.info(
+                        "tool finished",
+                        extra={
+                            "tool": tool_name,
+                            "agent": self.name,
+                            "status": "error",
+                            "latency_ms": 0.0,
+                        },
+                    )
                     continue
 
                 tool_fn = self.tools_by_name[tool_name]
+                t0 = time.perf_counter()
+                status = "ok"
                 try:
                     result_str = tool_fn.invoke(
                         tool_args,
                         config={"configurable": {"user_id": user_id}},
                     )
                 except Exception as e:  # noqa: BLE001
-                    logger.error(f"Error executing tool {tool_name} in {self.name}: {e}")
-                    result_str = json.dumps({"error": f"tool {tool_name} failed: {e}"})
+                    status = "error"
+                    logger.error(f"Error executing tool {tool_name} in {self.name}: {type(e).__name__}")
+                    result_str = json.dumps({"error": f"tool {tool_name} failed: {type(e).__name__}"})
+
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
                 tools_used.append(tool_name)
                 t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
@@ -145,6 +160,8 @@ class SpecialistAgent:
                 try:
                     parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
                     if isinstance(parsed, dict):
+                        if parsed.get("status") == "error" or "error" in parsed:
+                            status = "error"
                         if tool_name == "search_knowledge_base":
                             docs = parsed.get("documents", [])
                             for d in docs:
@@ -158,6 +175,16 @@ class SpecialistAgent:
                                     sources.append(r.get("url"))
                 except (json.JSONDecodeError, TypeError, KeyError):
                     pass
+
+                logger.info(
+                    "tool finished",
+                    extra={
+                        "tool": tool_name,
+                        "agent": self.name,
+                        "status": status,
+                        "latency_ms": latency_ms,
+                    },
+                )
 
         return {
             "agent": self.name,
