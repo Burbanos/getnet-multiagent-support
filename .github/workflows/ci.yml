@@ -49,4 +49,5 @@ jobs:
           done
           echo "Health check succeeded!"
           test "$(docker exec app id -u)" != "0"
+          docker exec app sh -c '! test -w /app/data/index/chunks.jsonl && ! test -w /app/src/main.py && test -w /app/state'
           docker logs app

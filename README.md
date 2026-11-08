@@ -17,7 +17,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 * **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
 * **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento; a qualidade com o modelo real é medida pela avaliação (`reports/eval_full-1.md`);
 * **Base de conhecimento**: Base oficial ingerida e vetorizada (`gemini-embedding-2`), com avaliação de retrieval e limiar calibrado na Fase 3D;
-* **Persistência e Isolamento de Memória**: O histórico de sessões é persistido em SQLite via `SqliteSaver` no arquivo `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`, preservado no volume Docker), sobrevivendo a reinícios e isolado por `user_id:session_id`. Limitações honestas: não há expiração/limpeza automática de conversas antigas; cada réplica utiliza seu próprio arquivo SQLite (sem memória compartilhada entre instâncias sem banco compartilhado); o rate limit é controlado em memória por processo; o app não sobe com `API_KEYS` inválido ou banco inacessível (e responde 503 se a configuração ficar inválida em execução).
+* **Persistência e Isolamento de Memória**: O histórico de sessões é persistido em SQLite via `SqliteSaver` no arquivo `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`; no Docker, `/app/state/checkpoints.db` no volume `getnet_app_state`), sobrevivendo a reinícios e isolado por `user_id:session_id`. Limitações honestas: não há expiração/limpeza automática de conversas antigas; cada réplica utiliza seu próprio arquivo SQLite (sem memória compartilhada entre instâncias sem banco compartilhado); o rate limit é controlado em memória por processo; o app não sobe com `API_KEYS` inválido ou banco inacessível (e responde 503 se a configuração ficar inválida em execução).
 
 ---
 
@@ -198,8 +198,8 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   ```
 
 ### Transbordo Humano Real com SQLite e Ciclo de Vida de Tickets (Fase 5A)
-* **Zero Falsas Promessas**: Eliminação de frases enganosas ou previsões não verificadas (sem promessas de tempo de espera, fila ou prazos como "em breve" ou "em menos de 5 minutos").
-* **Estrutura e Dados Persistidos**: A ferramenta `escalate_to_human` grava o chamado no banco SQLite configurado em `TICKETS_DB_PATH` (padrão: `data/tickets.db`, persistido em volume Docker). Cada registro armazena:
+* **Sem prazos nem filas**: o prompt do supervisor proíbe prometer prazo, posição na fila ou expressões como "em breve"; é uma instrução ao modelo, não uma garantia (a avaliação mede o comportamento).
+* **Estrutura e Dados Persistidos**: A ferramenta `escalate_to_human` grava o chamado no banco SQLite configurado em `TICKETS_DB_PATH` (padrão: `data/tickets.db`; no Docker, `/app/state/tickets.db` no volume `getnet_app_state`). Cada registro armazena:
   * `ticket_id`: Identificador único no formato `GET-TKT-YYYYMMDD-<10 hexadecimais>`.
   * `user_id`: Identificador do lojista autenticado.
   * `session_id`: Identificador da sessão em que o transbordo foi acionado.

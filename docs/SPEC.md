@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `a4c57df` (phase 8B, CI docker job RED) plus
-this SPEC/prompt update for 8C. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `a70b60b` (phase 8C, CI green) plus
+this SPEC/prompt update for 8D. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -130,6 +130,17 @@ this SPEC/prompt update for 8C. CI (lint, tests, docker build + /health smoke) r
   in the now read-only `/app/data`, failed fast and never answered `/health`. The reviewer's 8B spec and verifier
   missed it (static checks only; this workspace has no Docker daemon). Fixed in 8C by setting both paths to
   `state/` in the image's `ENV`.
+- 8C (verified 34/34; CI docker job green again). AC8.1 verified by the user in Codespaces (2026-11-08): `docker
+  compose up --build` healthy, `uid=999(appuser)`, both databases in `/app/state` owned by `appuser`, `/chat` 401
+  without a key and 503 with a valid key and no `GEMINI_API_KEY`, `/metrics` counted both, healthy again after
+  `docker compose restart`. Found there: the files inside `/app/data` (`corpus`, `eval`, `index`, `sources.yaml`)
+  are world-writable in the image (`COPY` keeps the checkout's permissions), so `appuser` could alter the index.
+- Final audit (reviewer, whole repository): no API key anywhere in git history; no `.env` or SQLite file tracked;
+  the nine review criteria are backed by the "Afirmações e evidências" table. Last README issues: "Limitações"
+  and the tickets section still say the databases live in `data/` "preserved in the Docker volume"; "Zero Falsas
+  Promessas" reads as a guarantee (it is a prompt instruction). Fixed in 8D with the `/app/data` permissions.
+  Open product failures stay documented (not tuned away): `k16` ranking, off-topic `o02`/`o04`, decline-code
+  routing `s04`/`s06`, language `off08`, unsupported inference `u01`.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -164,9 +175,9 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 8C (the image defaults the databases to `/app/state`; fixes the CI docker job)**, prompt
-`docs/phase-prompts/8C.md`, verifier `scripts/verify_phase8c.py`. The CI docker job is the real acceptance test.
-After 8C: the user runs `docker compose up` in Codespaces (AC8.1) and the reviewer does a final audit.
+**Current phase: 8D (read-only image files; last README claims)**, prompt `docs/phase-prompts/8D.md`, verifier
+`scripts/verify_phase8d.py`. The CI docker job (now probing write permissions) is the acceptance test. 8D closes the
+plan.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -726,7 +737,10 @@ without network. Topics with no official coverage must be answered with abstenti
   and the reviewer-written "9. Afirmações e evidências" table (every path must exist).
 - 8C (checked by `scripts/verify_phase8c.py` and by the CI docker job): `ENV CHECKPOINT_DB_PATH=state/checkpoints.db`
   and `TICKETS_DB_PATH=state/tickets.db` in the Dockerfile runner stage. Then the user verifies `docker compose up`
-  in Codespaces (AC8.1) and the reviewer does a final audit.
+  in Codespaces (AC8.1, done) and the reviewer does a final audit (done).
+- 8D (checked by `scripts/verify_phase8d.py` and by the CI docker job): `chmod -R go-w /app/data /app/src
+  /app/README.md` before `USER appuser`; CI probes that `appuser` cannot write the index or the code but can write
+  `/app/state`; README database paths in Docker and "Sem prazos nem filas" wording.
 **Acceptance:**
 - AC8.1 `docker compose up` verified (output pasted), healthcheck green, non-root.
 - AC8.2 README (pt-BR) covers build/run/test, architecture, workflow, RAG pipeline, tools, eval, limitations.

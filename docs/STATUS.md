@@ -4,6 +4,71 @@
 
 ---
 
+### Fase 8D: Arquivos da Imagem Só para Leitura e Últimas Frases do README
+
+#### Verificação Fase 8D (`python scripts/verify_phase8d.py`):
+```text
+PASS E1.dockerfile_read_only
+PASS E2.ci_write_probe
+PASS E3.readme_claims
+PASS E4.status
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 213 passed in 17.94s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 35/35 passed
+```
+
+#### Commit Base da Fase 8D (`git rev-parse HEAD`):
+```text
+a70b60b8dc9622f342bfe32be1ae42d5723ff57a
+```
+
+#### Alterações Realizadas na Fase 8D:
+- **Proteção de Escrita de Arquivos na Imagem (`Dockerfile`)**:
+  - Ajustada a camada de permissões para remover explicitamente permissão de escrita de grupo e outros (`chmod -R go-w /app/data /app/src /app/README.md`) antes da declaração `USER appuser`.
+  - Garante que o `appuser` (não-root) não consiga alterar o índice vetorial, corpus ou código-fonte da aplicação em runtime dentro do container.
+- **Sonda de Escrita no CI do Docker (`.github/workflows/ci.yml`)**:
+  - Adicionado comando de validação no job do Docker:
+    `docker exec app sh -c '! test -w /app/data/index/chunks.jsonl && ! test -w /app/src/main.py && test -w /app/state'`
+  - Assegura na esteira de integração que `/app/data` e `/app/src` são estritamente somente-leitura enquanto `/app/state` permite escrita.
+- **Ajustes de Alegações no README (`README.md`)**:
+  - Em "Limitações atuais", referenciado que no Docker o banco é `/app/state/checkpoints.db` no volume `getnet_app_state`.
+  - Na seção de transbordo (Fase 5A), atualizado para `/app/state/tickets.db` no volume `getnet_app_state`.
+  - Substituída a frase "Zero Falsas Promessas" pela declaração honesta "Sem prazos nem filas", explicitando que o prompt do supervisor proíbe tais promessas como instrução ao modelo, e não uma garantia matemática, cujo comportamento é aferido pela avaliação.
+- **Conclusão do Plano do SPEC**:
+  - O CI do Docker precisa ficar verde neste commit com a verificação de permissões e healthcheck. Com isso, todo o plano de especificação técnica de todas as fases (Fases 1 a 8) do `docs/SPEC.md` está formalmente concluído.
+
+---
+
 ### Fase 8C: A Imagem Aponta os Bancos para /app/state (Correção do CI do Docker)
 
 #### Verificação Fase 8C (`python scripts/verify_phase8c.py`):
@@ -1543,5 +1608,6 @@ All checks passed!
 17. **Fase 7D Concluída (Registro de Busca Web, Tratamento de Erros Internos e Mensagens Bilíngues)**: Gravação de resultados de busca web (url, title, snippet limitado a 600 caracteres) propagados para passagens do juiz LLM; marcação de exceções internas não tratadas como `error="internal_error"` contabilizadas como erro pelo runner de avaliação; e mensagens de instabilidade e escalonamento forçado padronizadas de forma bilíngue (PT/EN). A Fase 7 está oficialmente concluída.
 18. **Fase 8A Concluída (/agents Gerado pelo Código, /demo com Campos Reais e Sobras do README)**: O endpoint `GET /agents` agora gera toda a arquitetura, agentes, ferramentas e argumentos diretamente dos objetos em memória e configurações ativas (eliminando nomes fictícios e referências antigas a `MemorySaver`); a interface `/demo` reflete os metadados reais de tokens, custo e score de similaridade; o README foi alinhado removendo referências obsoletas à Fase 6, detalhando a pipeline de CI e a obrigatoriedade de `API_KEYS` no Docker Compose.
 19. **Fase 8B Concluída (Volume Docker em Subdiretório de Estado, Tabela de Afirmações e README Final)**: O volume Docker foi isolado em `/app/state` (`getnet_app_state`), mantendo corpus e índice na imagem; permissões e `.dockerignore` higienizados; asserção de usuário não-root adicionada ao CI; tabela de alegações e evidências integrada no README.
-20. **Fase 8C Concluída (Padrões de Estado na Imagem Docker e Correção do CI)**: Adicionadas variáveis `CHECKPOINT_DB_PATH=state/checkpoints.db` e `TICKETS_DB_PATH=state/tickets.db` diretamente no estágio runner do Dockerfile, permitindo que o container suba saudavelmente em execuções via `docker run` puro no CI e passe no healthcheck. Falta unicamente a verificação manual de `docker compose up` pelo usuário no Codespaces e a auditoria final independente do revisor.
-21. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1) e auditoria final independente pelo revisor.
+20. **Fase 8C Concluída (Padrões de Estado na Imagem Docker e Correção do CI)**: Adicionadas variáveis `CHECKPOINT_DB_PATH=state/checkpoints.db` e `TICKETS_DB_PATH=state/tickets.db` diretamente no estágio runner do Dockerfile, permitindo que o container suba saudavelmente em execuções via `docker run` puro no CI e passe no healthcheck.
+21. **Fase 8D Concluída (Arquivos da Imagem Só para Leitura e Últimas Frases do README)**: Permissões de escrita de grupo e outros removidas em `/app/data`, `/app/src` e `README.md` no Dockerfile; validação de sonda de escrita de não-root adicionada ao CI do Docker; últimas frases do README alinhadas aos caminhos e volumes de Docker reais (`getnet_app_state`) e declaração de "Sem prazos nem filas" adotada. O plano do SPEC está oficialmente concluído.
+22. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1), execução verde do CI e encerramento da auditoria final independente pelo revisor.

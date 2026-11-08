@@ -37,8 +37,8 @@ COPY src ./src
 COPY data ./data
 COPY README.md .
 
-# Create state directory owned by appuser for persistent databases
-RUN mkdir -p /app/state && chown -R appuser:appgroup /app/state
+# Create state directory owned by appuser for persistent databases and ensure read-only files
+RUN chmod -R go-w /app/data /app/src /app/README.md && mkdir -p /app/state && chown -R appuser:appgroup /app/state
 
 USER appuser
 
