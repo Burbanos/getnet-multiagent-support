@@ -6,6 +6,7 @@ from pathlib import Path
 from src.config import settings
 from src.eval.cases import load_cases
 from src.eval.checks import evaluate_case
+from src.eval.compare import write_comparison
 from src.eval.judge import load_judgments, run_judge
 from src.eval.offline import run_offline
 from src.eval.report import write_report
@@ -71,6 +72,18 @@ def main() -> int:
     p_report.add_argument("--run-id", required=True, help="Evaluation run ID")
     p_report.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
     p_report.add_argument("--out-dir", default="reports", help="Output directory for reports")
+
+    # 5. compare
+    p_compare = subparsers.add_parser("compare", help="Compare multiple evaluation runs")
+    p_compare.add_argument("--name", required=True, help="Comparison report name")
+    p_compare.add_argument(
+        "--group",
+        required=True,
+        action="append",
+        help="Group definition in format LABEL=run1,run2,...",
+    )
+    p_compare.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_compare.add_argument("--out-dir", default="reports", help="Output directory for reports")
 
     args = parser.parse_args()
 
@@ -158,6 +171,41 @@ def main() -> int:
             judgments=judgments,
         )
         print(f"Generated report at {out_json} and {out_md}")
+        return 0
+
+    if args.subcommand == "compare":
+        runs_dir = Path(args.runs_dir)
+        groups = []
+        for g_str in args.group:
+            if "=" not in g_str:
+                print(f"Error: invalid group format '{g_str}'. Expected LABEL=run1,run2,...", file=sys.stderr)
+                return 1
+            label, runs_str = g_str.split("=", 1)
+            run_ids = [r.strip() for r in runs_str.split(",") if r.strip()]
+            runs_data = []
+            for rid in run_ids:
+                res_file = runs_dir / f"{rid}.jsonl"
+                if not res_file.exists():
+                    print(f"Error: results file not found at {res_file}", file=sys.stderr)
+                    return 1
+                judge_file = runs_dir / f"{rid}.judge.jsonl"
+                results = list(load_results(res_file).values())
+                judgments = list(load_judgments(judge_file).values()) if judge_file.exists() else None
+                runs_data.append((rid, results, judgments))
+            groups.append((label, runs_data))
+
+        out_dir = Path(args.out_dir)
+        out_json = out_dir / f"eval_{args.name}.json"
+        out_md = out_dir / f"eval_{args.name}.md"
+
+        write_comparison(
+            cases=cases,
+            groups=groups,
+            out_json=out_json,
+            out_md=out_md,
+            name=args.name,
+        )
+        print(f"Generated comparison report at {out_json} and {out_md}")
         return 0
 
     return 1

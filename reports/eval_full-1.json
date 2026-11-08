@@ -1,6 +1,6 @@
 {
   "run_id": "full-1",
-  "generated_at": "2026-11-08T01:52:36.686251+00:00",
+  "generated_at": "2026-11-08T20:30:07.493452+00:00",
   "cases_sha256": "2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07",
   "complete": true,
   "n_cases": 69,
@@ -24,7 +24,7 @@
     "latency_ms_p95": 20431.4,
     "tokens_total": 422393,
     "tokens_mean_per_case": 6704.650793650793,
-    "estimated_cost_usd": null
+    "estimated_cost_usd": 0.169534
   },
   "by_category": {
     "escalation": {
@@ -1422,5 +1422,5 @@
       "gemini-3.1-flash-lite"
     ]
   },
-  "cost_note": "Token pricing arrives in Phase 7; cost calculation is not active yet."
+  "cost_note": "Estimated answer cost from src/core/pricing.py (paid tier, Standard); null when no turn has tokens or any turn with tokens has no price. Excludes judge calls and query embeddings."
 }

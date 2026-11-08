@@ -2,7 +2,13 @@
 import math
 from typing import Any
 
+from src.core.pricing import cost_usd
 from src.eval.checks import CHECKS, evaluate_case
+
+COST_NOTE = (
+    "Estimated answer cost from src/core/pricing.py (paid tier, Standard); null when no turn has tokens or any "
+    "turn with tokens has no price. Excludes judge calls and query embeddings."
+)
 
 
 def rate(vals: list[Any]) -> float | None:
@@ -74,7 +80,21 @@ def aggregate(
     ]
     m["tokens_total"] = sum(tok) if tok else None
     m["tokens_mean_per_case"] = (sum(tok) / len(tok)) if tok else None
-    m["estimated_cost_usd"] = None
+    priced: list[float | None] = []
+    for _, r, _ in ok:
+        for t in r.get("turns", []):
+            tk = t.get("tokens")
+            if not tk:
+                continue
+            priced.append(
+                cost_usd(t.get("llm_model"), tk.get("input_tokens"), tk.get("output_tokens"))
+            )
+
+    m["estimated_cost_usd"] = (
+        round(sum(c for c in priced if c is not None), 6)
+        if priced and all(c is not None for c in priced)
+        else None
+    )
 
     groups: dict[str, dict[str, Any]] = {}
     for key in ("category", "lang"):
@@ -162,5 +182,5 @@ def aggregate(
         "per_case": per_case,
         "answer_models": answer_models,
         "judge": judge_section,
-        "cost_note": "Token pricing arrives in Phase 7; cost calculation is not active yet.",
+        "cost_note": COST_NOTE,
     }

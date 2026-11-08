@@ -6,7 +6,7 @@ import pytest
 
 from src.eval.cases import cases_sha256, load_cases
 from src.eval.checks import detect_language, evaluate_case
-from src.eval.metrics import aggregate
+from src.eval.metrics import COST_NOTE, aggregate
 from src.eval.report import write_report
 
 
@@ -218,7 +218,7 @@ def test_aggregate_percentiles_tokens_and_cost():
     assert m["tokens_total"] == 150
     assert m["tokens_mean_per_case"] == 30.0
     assert m["estimated_cost_usd"] is None
-    assert "Phase 7" in agg["cost_note"]
+    assert agg["cost_note"] == COST_NOTE
 
 
 def test_write_report_json_and_markdown(tmp_path: Path):
@@ -264,3 +264,51 @@ def test_cases_sha256_stability():
     case_a = _base_case()
     case_b = {k: case_a[k] for k in sorted(case_a.keys())}
     assert cases_sha256([case_a]) == cases_sha256([case_b])
+
+
+def test_aggregate_estimated_cost_usd():
+    """Verify aggregate calculates estimated_cost_usd as sum of turn costs, or None if missing price."""
+    case = _base_case()
+
+    # Case 1: valid turns with pricing
+    res_ok = [
+        {
+            "id": "c01",
+            "status": "ok",
+            "turns": [
+                {
+                    "llm_model": "gemini-3.5-flash-lite",
+                    "tokens": {"input_tokens": 1_000_000, "output_tokens": 1_000_000},
+                },
+                {
+                    "llm_model": "gemini-3.8-flash",
+                    "tokens": {"input_tokens": 2_000_000, "output_tokens": 1_000_000},
+                },
+            ],
+        }
+    ]
+    # gemini-3.5-flash-lite: 1M in ($0.30) + 1M out ($2.50) = 2.80
+    # gemini-3.8-flash: 2M in (2 * $0.75 = $1.50) + 1M out ($3.75) = 5.25
+    # total = 8.05
+    agg_ok = aggregate([case], res_ok)
+    assert agg_ok["metrics"]["estimated_cost_usd"] == 8.05
+
+    # Case 2: a turn has tokens but model has no price
+    res_unpriced = [
+        {
+            "id": "c01",
+            "status": "ok",
+            "turns": [
+                {
+                    "llm_model": "gemini-3.5-flash-lite",
+                    "tokens": {"input_tokens": 1_000_000, "output_tokens": 1_000_000},
+                },
+                {
+                    "llm_model": "unknown-model",
+                    "tokens": {"input_tokens": 1_000, "output_tokens": 1_000},
+                },
+            ],
+        }
+    ]
+    agg_unpriced = aggregate([case], res_unpriced)
+    assert agg_unpriced["metrics"]["estimated_cost_usd"] is None

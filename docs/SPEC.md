@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `a70b60b` (phase 8C, CI green) plus
-this SPEC/prompt update for 8D. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `34fc9e1` (phase 8D, CI green) plus
+this SPEC/prompt update for 8E. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -141,6 +141,26 @@ this SPEC/prompt update for 8D. CI (lint, tests, docker build + /health smoke) r
   Promessas" reads as a guarantee (it is a prompt instruction). Fixed in 8D with the `/app/data` permissions.
   Open product failures stay documented (not tuned away): `k16` ranking, off-topic `o02`/`o04`, decline-code
   routing `s04`/`s06`, language `off08`, unsupported inference `u01`.
+- 8D (verified 35/35, CI green), no review issues.
+- Multi-run evaluation (2026-11-08, user's terminal, paid Tier 1 key; code of 8D; judge `gemini-3.6-flash` for all six
+  runs): `full-2`, `full-4`, `full-5` with the default `gemini-3.5-flash-lite`; `full-3`, `full-6`, `full-7` with
+  `LLM_MODEL=gemini-3.8-flash` (fallback `gemini-3.6-flash`, never used). 69/69 `ok` and 63/63 judged in every run.
+  Reviewer recomputation (mean, min–max of three runs), flash-lite vs 3.8-flash: pass 86.0% (84.1–89.9) vs 88.9%
+  (88.4–89.9); official 8.7/10 vs 9/10; language 94.7% vs 100%; abstention precision 0.749 vs 0.696, recall 0.769
+  vs 0.744; latency p50 4.3 s vs 15.4 s, p95 8.8 s vs 31.6 s; estimated cost per run US$ 0.167 vs 0.640. Decision:
+  the default stays `gemini-3.5-flash-lite` (the pass-rate gap is within run-to-run variance; 3.5x latency and ~4x
+  cost; evaluators are likely on the free tier). Failed in every run of both models: `k16`, `o02`, `s04`, `s06`.
+  3.8-flash only, every run: `off01` (official; abstained although the answer is in the index), `u03` and `u05`
+  answered instead of abstaining (decline-code meaning for a network-screen error; Stone fees from web search),
+  `k09`, `m04` (answered the follow-up from the previous turn without a new search; the routing label requires one;
+  labels are NOT changed after seeing results). In `full-2`, `search_web` returned no results for `off02`/`off07`
+  (transient; the same call worked later), kept as failures. Raw files on the user's machine, LF-normalised sha256
+  pinned in `scripts/verify_phase8e.py`.
+- Price research for 8E (2026-11-08): the pricing page now redirects to https://aistudio.google.com/docs/pricing; it
+  lists, paid tier, Standard, per 1M tokens, `gemini-3.6-flash` and `gemini-3.8-flash` at $0.75 in / $3.75 out
+  through 2026-12-31 and $1.50 / $7.50 from 2027-01-01 (also in Google's 3.8 Flash launch post, 2026-09-02), and
+  `gemini-3.5-flash-lite` unchanged at $0.30 / $2.50. A fetch of the old URL returned a stale copy without these
+  models (the same caching problem as in 7B).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -175,9 +195,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 8D (read-only image files; last README claims)**, prompt `docs/phase-prompts/8D.md`, verifier
-`scripts/verify_phase8d.py`. The CI docker job (now probing write permissions) is the acceptance test. 8D closes the
-plan.
+**Current phase: 8E (multi-run evaluation and model comparison)**, prompt `docs/phase-prompts/8E.md`, verifier
+`scripts/verify_phase8e.py`. 8E commits the six new runs, prices the evaluation and publishes the comparison.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -741,8 +760,18 @@ without network. Topics with no official coverage must be answered with abstenti
 - 8D (checked by `scripts/verify_phase8d.py` and by the CI docker job): `chmod -R go-w /app/data /app/src
   /app/README.md` before `USER appuser`; CI probes that `appuser` cannot write the index or the code but can write
   `/app/state`; README database paths in Docker and "Sem prazos nem filas" wording.
+- 8E (checked by `scripts/verify_phase8e.py`): commit the raw runs `full-2`..`full-7` and their judge files unchanged;
+  `gemini-3.6-flash` and `gemini-3.8-flash` ($0.75 / $3.75) added to `PRICES_USD_PER_1M` with `PRICE_NOTES` (retrieved
+  2026-11-08, price change on 2027-01-01; supersedes 7B `P1.price_table`, re-checked as P1); `aggregate` computes
+  `estimated_cost_usd` = round(sum of `cost_usd(turn.llm_model, input, output)` over every turn with tokens of the
+  `ok` results, 6), `null` if no turn has tokens or any such turn is unpriced, with `COST_NOTE`; reports regenerated
+  for `full-1`..`full-7`; `src/eval/compare.py` (`compare_runs`, `write_comparison`, CLI `compare --name --group
+  LABEL=run,run`) with mean/min/max per metric (`null` if any run lacks the value), `failed_in_all_runs` and
+  `judge_abstention_errors_in_all_runs`; `reports/eval_models.{json,md}`; README comparison section (reviewer text)
+  before the `full-1` section, cost text updated, claims row. The default answer model stays `gemini-3.5-flash-lite`.
 **Acceptance:**
 - AC8.1 `docker compose up` verified (output pasted), healthcheck green, non-root.
 - AC8.2 README (pt-BR) covers build/run/test, architecture, workflow, RAG pipeline, tools, eval, limitations.
 - AC8.3 README "Claims → evidence" table: every claim links to file/test/report.
 - AC8.4 `demo.html` shows only real fields.
+- AC8.5 Results reported as mean and range over at least three runs per model, from committed raw files.

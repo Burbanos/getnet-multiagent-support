@@ -1,6 +1,6 @@
 # Relatório de Avaliação: full-1
 
-- **Gerado em**: `2026-11-08T01:52:36.686251+00:00`
+- **Gerado em**: `2026-11-08T20:30:07.493452+00:00`
 - **Cases SHA256**: `2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07`
 - **Status de Conclusão (`complete`)**: `True`
 - **Modelos Avaliados (`answer_models`)**: `gemini-3.5-flash-lite`
@@ -28,9 +28,9 @@
 | `latency_ms_p95` | 20431.4 ms |
 | `tokens_total` | 422393 |
 | `tokens_mean_per_case` | 6704.650793650793 |
-| `estimated_cost_usd` | - |
+| `estimated_cost_usd` | 0.169534 |
 
-> *Nota de Custo*: Token pricing arrives in Phase 7; cost calculation is not active yet.
+> *Nota de Custo*: Estimated answer cost from src/core/pricing.py (paid tier, Standard); null when no turn has tokens or any turn with tokens has no price. Excludes judge calls and query embeddings.
 
 ## Avaliação do Juiz LLM
 

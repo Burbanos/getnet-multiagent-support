@@ -10,6 +10,17 @@ PRICES_USD_PER_1M: dict[str, dict[str, float]] = {
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
     "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
     "gemini-embedding-2": {"input": 0.20, "output": 0.0},
+    "gemini-3.6-flash": {"input": 0.75, "output": 3.75},
+    "gemini-3.8-flash": {"input": 0.75, "output": 3.75},
+}
+
+PRICE_NOTES: dict[str, str] = {
+    "gemini-3.6-flash": (
+        "Retrieved 2026-11-08. Price valid through 2026-12-31; from 2027-01-01: $1.50 input / $7.50 output per 1M tokens."
+    ),
+    "gemini-3.8-flash": (
+        "Retrieved 2026-11-08. Price valid through 2026-12-31; from 2027-01-01: $1.50 input / $7.50 output per 1M tokens."
+    ),
 }
 
 

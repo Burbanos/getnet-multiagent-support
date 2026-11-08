@@ -33,6 +33,14 @@ def test_cost_usd_supported_models():
     c4 = cost_usd("gemini-embedding-2", 1_000_000, 0)
     assert c4 == 0.20
 
+    # gemini-3.8-flash: $0.75 in / $3.75 out per 1M
+    c5 = cost_usd("models/gemini-3.8-flash", 2_000_000, 1_000_000)
+    assert c5 == 5.25
+
+    # gemini-3.6-flash: $0.75 in / $3.75 out per 1M
+    c6 = cost_usd("gemini-3.6-flash", 1_000_000, 0)
+    assert c6 == 0.75
+
 
 def test_cost_usd_unlisted_models_and_none_tokens():
     """Verify that unlisted models and missing token counts evaluate to None."""

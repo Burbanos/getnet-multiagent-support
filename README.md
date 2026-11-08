@@ -276,8 +276,8 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   * O custo por turno (`estimated_cost_usd`) é calculado a partir da tabela oficial definida em `src/core/pricing.py`.
   * **Fonte e Referência**: Tabela oficial do Google Gemini em `https://ai.google.dev/gemini-api/docs/pricing`, com data da página de **2026-10-30** e data de coleta em **2026-11-07**.
   * **Plano e Nível**: Calculado para o plano pago (*paid tier*), nível *Standard*, com base nos tokens de entrada e saída informados pelo modelo. O nível gratuito (*free tier*) não é cobrado comercialmente, portanto o valor representa uma estimativa do equivalente no plano pago.
-  * **Modelos Suportados e Não Listados**: Modelos fora da tabela oficial (como `gemini-3.5-flash` ou identificadores customizados) ou chamadas sem tokens retornam `estimated_cost_usd` como `null`.
-  * **Premissas e Limitações**: O custo por turno assume que todas as chamadas do turno utilizaram o mesmo modelo do supervisor e não contabiliza os tokens de embeddings das consultas vetoriais (`gemini-embedding-2`). O relatório consolidado de avaliação (`src/eval/`) permanece sem estimativa de custo financeiro (o cálculo de custo individual por caso na avaliação fica para etapas posteriores).
+  * **Modelos Suportados e Não Listados**: A tabela inclui `gemini-3.6-flash` e `gemini-3.8-flash` (US$ 0,75 e US$ 3,75 por milhão de tokens até 2026-12-31; US$ 1,50 e US$ 7,50 a partir de 2027-01-01, em `PRICE_NOTES`), coletados em 2026-11-08 de https://aistudio.google.com/docs/pricing. Modelos fora da tabela oficial (como `gemini-3.5-flash` ou identificadores customizados) ou chamadas sem tokens retornam `estimated_cost_usd` como `null`.
+  * **Premissas e Limitações**: O custo por turno assume que todas as chamadas do turno utilizaram o mesmo modelo do supervisor e não contabiliza os tokens de embeddings das consultas vetoriais (`gemini-embedding-2`). O relatório da avaliação traz `estimated_cost_usd` por execução: a soma do custo de cada turno pelo modelo registrado no turno; fica `null` se algum turno com tokens não tiver preço, e não inclui o juiz nem os embeddings.
 * **Logs Estruturados e Privacidade (Fase 7A)**:
   * **Campos Contextuais em Todo Registro**: Através de `ContextVar` e `JsonFormatter`, cada registro de log gerado no ciclo de atendimento inclui automaticamente `trace_id`, `session_id` e `user_hash`. O identificador cru `user_id` e a mensagem original não sanitizada do lojista nunca são impressos no log, prevenindo vazamento de dados confidenciais, números de cartão de crédito ou CPF.
   * **Cálculo de `user_hash` e Salting**: O hash do usuário é computado como `"u_" + sha256((settings.LOG_HASH_SALT + user_id).encode("utf-8")).hexdigest()[:16]`. Sem sal, o hash de um identificador conhecido pode ser recalculado por força bruta; em ambientes de produção, defina um sal secreto na variável `LOG_HASH_SALT`.
@@ -454,6 +454,40 @@ A avaliação completa do sistema sobre os 69 casos de teste utiliza o modelo re
 #### Execução de Referência Registrada (`full-1`)
 O repositório já inclui uma execução integral e validada realizada em 2026-11-07 utilizando o modelo primário `gemini-3.5-flash-lite` (run `full-1`). Todos os 69 casos foram executados com sucesso (0 erros de execução), estando o log bruto preservado em `reports/eval_runs/full-1.jsonl` e o relatório completo em `reports/eval_full-1.md` (e `reports/eval_full-1.json`).
 
+### Resultados da avaliação: comparação de modelos (3 execuções por modelo, 2026-11-08)
+
+Seis execuções completas dos 69 casos de `data/eval/cases.jsonl`: três com o modelo padrão `gemini-3.5-flash-lite` e três com `gemini-3.8-flash`. Todas usaram o código da Fase 8D e o mesmo juiz, `gemini-3.6-flash`, diferente dos dois modelos avaliados. Nenhuma execução teve erro, e o modelo reserva não foi acionado. Cada célula mostra a média das três execuções e, entre parênteses, o mínimo e o máximo. Os dados brutos estão em `reports/eval_runs/` (`full-2` a `full-7`, cada uma com o `.judge.jsonl`), o relatório de cada execução em `reports/eval_full-N.md`, e esta tabela é gerada por `python -m src.eval compare` em `reports/eval_models.md`.
+
+| Métrica | flash-lite | 3.8-flash |
+| :--- | :--- | :--- |
+| Execuções | full-2, full-4, full-5 | full-3, full-6, full-7 |
+| Modelo das respostas | gemini-3.5-flash-lite | gemini-3.8-flash |
+| Casos aprovados (checagens determinísticas) | 86,0% (84,1–89,9) | 88,9% (88,4–89,9) |
+| Cenários oficiais aprovados | 86,7% (80,0–100,0) | 90,0% (90,0–90,0) |
+| Roteamento correto | 93,5% (92,9–94,6) | 91,7% (91,1–92,9) |
+| Ferramentas corretas | 93,4% (91,8–95,1) | 95,6% (95,1–96,7) |
+| Escalonamento correto | 98,4% (96,7–100,0) | 100,0% (100,0–100,0) |
+| Fatos esperados presentes | 93,5% (88,9–97,2) | 90,7% (88,9–94,4) |
+| Fonte oficial citada | 96,0% (96,0–96,0) | 92,0% (92,0–92,0) |
+| Idioma da resposta | 94,7% (93,7–96,8) | 100,0% (100,0–100,0) |
+| Juiz: fundamentação (1 a 5) | 4,98 (4,95–5,00) | 4,94 (4,94–4,94) |
+| Juiz: responde à pergunta (1 a 5) | 4,67 (4,65–4,68) | 4,61 (4,48–4,70) |
+| Juiz: precisão da abstenção | 74,9% (69,2–78,6) | 69,6% (64,7–72,7) |
+| Juiz: cobertura da abstenção | 76,9% (69,2–84,6) | 74,4% (61,5–84,6) |
+| Latência por caso, mediana | 4,3 s (4,2–4,3) | 15,4 s (15,0–15,8) |
+| Latência por caso, p95 | 8,8 s (8,1–9,7) | 31,6 s (29,8–33,2) |
+| Tokens por execução | 421.140 (413.563–426.999) | 566.646 (549.248–581.298) |
+| Custo estimado por execução (USD, plano pago) | US$ 0,167 (0,163–0,170) | US$ 0,640 (0,622–0,654) |
+
+- **O modelo padrão continua `gemini-3.5-flash-lite`.** O `gemini-3.8-flash` aprovou cerca de 3 pontos a mais de casos, uma diferença do tamanho da variação entre execuções do mesmo modelo, e respondeu sempre no idioma da pergunta. Em troca, levou cerca de 3,5 vezes mais tempo e custou quase 4 vezes mais por execução.
+- **Variação entre execuções:** com o mesmo modelo e os mesmos casos, a taxa de aprovação do flash-lite variou de 84,1% a 89,9%. Uma execução isolada não basta para comparar modelos nem para medir o efeito de uma mudança.
+- **Falharam em todas as execuções dos dois modelos:** `k16` (a bateria da Get Mini está num trecho mal ranqueado), `o02` (pedido fora do tema atendido em vez de recusado), `s04` e `s06` (pergunta sobre código de recusa roteada para a base de conhecimento em vez de `diagnose_declined_transaction`). São defeitos do sistema, não do modelo, e não foram corrigidos ajustando prompts contra estes casos.
+- **Só no `gemini-3.8-flash`, nas três execuções:** em `off01` (cenário oficial: diferença entre Get Clássica e Get Smart), ele buscou na base e respondeu que não encontrou a informação, que está lá. Em `u03` e `u05`, que deveriam ser abstenções, ele respondeu: tratou o "erro 05" da tela de rede como código de recusa e informou taxas da Stone a partir de uma busca web. Também falharam nas três execuções `k09` e `m04` (`m04` respondeu a pergunta de continuação com o contexto do turno anterior, sem nova busca, e a checagem de roteamento exige a busca).
+- **Só no flash-lite:** respostas em português para perguntas em inglês (idioma 94,7%) e `u01` respondido sem fonte nas três execuções.
+- **Busca web fora do ar na `full-2`:** em `off02` e `off07`, `search_web` não devolveu resultados durante a execução, e as respostas disseram que o serviço estava indisponível. A busca voltou a funcionar no mesmo dia. Os dois casos contam como falha nessa execução e não foram removidos.
+- **Custo:** estimativa do plano pago a partir dos tokens de cada turno e da tabela de `src/core/pricing.py`. Não inclui o juiz nem os embeddings das consultas. O preço do `gemini-3.8-flash` (US$ 0,75 por milhão de tokens de entrada e US$ 3,75 de saída) vale até 2026-12-31; a partir de 2027-01-01, passa a US$ 1,50 e US$ 7,50.
+- **Os rótulos foram escritos pelo revisor externo, e o juiz é um modelo:** a fundamentação perto de 5 discrimina pouco, e é a abstenção que separa os modelos.
+
 ### Resultados da avaliação (execução `full-1`, 2026-11-07)
 
 Execução única dos 69 casos de `data/eval/cases.jsonl` com o modelo `gemini-3.5-flash-lite` (respostas) e o juiz `gemini-3.1-flash-lite`. Dados brutos em `reports/eval_runs/full-1.jsonl` e `reports/eval_runs/full-1.judge.jsonl`; relatório completo em `reports/eval_full-1.md`.
@@ -468,7 +502,7 @@ Execução única dos 69 casos de `data/eval/cases.jsonl` com o modelo `gemini-3
 | Abstenção (juiz): precisão / cobertura | 76,9% / 76,9% |
 | Fundamentação (juiz, 1 a 5) / responde à pergunta (juiz, 1 a 5) | 4,95 / 4,68 |
 | Latência por caso: mediana / p95 | 6,3 s / 20,4 s |
-| Tokens | 422.393 no total (~6,7 mil por caso); cálculo de custo por caso na avaliação fica para depois |
+| Tokens | 422.393 no total (~6,7 mil por caso); custo estimado US$ 0,170 (plano pago) |
 
 Limites e falhas conhecidas:
 - É uma execução única, sem estimativa de variância; os rótulos foram escritos pelo revisor externo.
@@ -511,6 +545,11 @@ Gera os relatórios estruturados em JSON e Markdown:
 python -m src.eval report --run-id full-1
 ```
 Gera os arquivos `reports/eval_full-1.json` e `reports/eval_full-1.md` consolidando métricas determinísticas, taxas de acerto, tempos de resposta, métricas do juiz e a lista de discordâncias.
+
+Gera média, mínimo e máximo de cada métrica por grupo de execuções em `reports/eval_<name>.md`:
+```bash
+python -m src.eval compare --name models --group "flash-lite=full-2,full-4,full-5" --group "3.8-flash=full-3,full-6,full-7"
+```
 
 #### 5. Limpeza da Sessão
 Após a execução, remova a chave de API da memória:
@@ -657,3 +696,4 @@ Cada afirmação deste README aponta para o código, o teste, o verificador ou o
 | Nenhuma métrica, resposta ou confiança fixa no código | `src/static/demo.html`, `scripts/verify_phase1.py`, `scripts/verify_phase6f.py` |
 | `/agents` é gerado a partir do código | `src/main.py`, `tests/test_agents_endpoint.py`, `scripts/verify_phase8a.py` |
 | Container sem root, com healthcheck, e o índice vem da imagem (o volume guarda só os bancos) | `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `scripts/verify_phase8b.py` |
+| Comparação de modelos com 3 execuções cada (média, mínimo e máximo) | `src/eval/compare.py`, `reports/eval_models.md`, `tests/test_eval_compare.py`, `scripts/verify_phase8e.py` |

@@ -4,6 +4,138 @@
 
 ---
 
+### Fase 8E: Seis Execuções Commitadas, Custo na Avaliação e Comparação de Modelos
+
+#### Verificação Fase 8E (`python scripts/verify_phase8e.py`):
+```text
+PASS R1.no_stale_cost_claims
+PASS R2.readme_comparison_section
+PASS R3.readme_claims_row
+PASS E1.status
+PASS E2.default_model_kept.src/config.py
+PASS E2.default_model_kept..env.example
+PASS P1.price_table
+PASS P2.price_notes
+PASS P3.cost_new_models
+PASS D1.raw_runs_unchanged
+PASS C0.cost_note
+PASS C1.aggregate_cost
+PASS C2.cost_note_in_aggregate
+PASS D2.reports_match_raw
+PASS D3.real_run_cost
+PASS K1.compare_runs_matches_reference
+PASS K2.comparison_report
+PASS K3.comparison_markdown_table
+PASS K4.readme_has_table
+INFO reference table:
+| Métrica | flash-lite | 3.8-flash |
+| :--- | :--- | :--- |
+| Execuções | full-2, full-4, full-5 | full-3, full-6, full-7 |
+| Modelo das respostas | gemini-3.5-flash-lite | gemini-3.8-flash |
+| Casos aprovados (checagens determinísticas) | 86,0% (84,1–89,9) | 88,9% (88,4–89,9) |
+| Cenários oficiais aprovados | 86,7% (80,0–100,0) | 90,0% (90,0–90,0) |
+| Roteamento correto | 93,5% (92,9–94,6) | 91,7% (91,1–92,9) |
+| Ferramentas corretas | 93,4% (91,8–95,1) | 95,6% (95,1–96,7) |
+| Escalonamento correto | 98,4% (96,7–100,0) | 100,0% (100,0–100,0) |
+| Fatos esperados presentes | 93,5% (88,9–97,2) | 90,7% (88,9–94,4) |
+| Fonte oficial citada | 96,0% (96,0–96,0) | 92,0% (92,0–92,0) |
+| Idioma da resposta | 94,7% (93,7–96,8) | 100,0% (100,0–100,0) |
+| Juiz: fundamentação (1 a 5) | 4,98 (4,95–5,00) | 4,94 (4,94–4,94) |
+| Juiz: responde à pergunta (1 a 5) | 4,67 (4,65–4,68) | 4,61 (4,48–4,70) |
+| Juiz: precisão da abstenção | 74,9% (69,2–78,6) | 69,6% (64,7–72,7) |
+| Juiz: cobertura da abstenção | 76,9% (69,2–84,6) | 74,4% (61,5–84,6) |
+| Latência por caso, mediana | 4,3 s (4,2–4,3) | 15,4 s (15,0–15,8) |
+| Latência por caso, p95 | 8,8 s (8,1–9,7) | 31,6 s (29,8–33,2) |
+| Tokens por execução | 421.140 (413.563–426.999) | 566.646 (549.248–581.298) |
+| Custo estimado por execução (USD, plano pago) | US$ 0,167 (0,163–0,170) | US$ 0,640 (0,622–0,654) |
+INFO flash-lite: failed in all runs ['k16', 'o02', 's04', 's06']; abstention errors in all runs ['k16', 'o02', 's04', 's06', 'u01']
+INFO 3.8-flash: failed in all runs ['k09', 'k16', 'm04', 'o02', 'off01', 's04', 's06']; abstention errors in all runs ['k16', 'off01', 'u03', 'u05']
+PASS Q0.compare_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 219 passed in 21.00s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 52/52 passed
+```
+
+#### Commit Base da Fase 8E (`git rev-parse HEAD`):
+```text
+34fc9e1ff393ca75947fc8b13cb349cf6731e37b
+```
+
+#### Não feito:
+- Nenhum. Todos os 52 checks da Fase 8E passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. A implementação atende rigorosamente a todas as especificações e regras da Fase 8E.
+
+#### Testes Criados e Alterados (conferidos com `git diff`):
+- **Criados em `tests/test_eval_compare.py`**:
+  - `test_compare_runs_mean_min_max`: validação estatística de agregação de métricas (`mean`, `min`, `max`) entre execuções.
+  - `test_compare_runs_none_handling`: propagação estrita de `None` quando alguma execução não possui métrica calculada.
+  - `test_compare_runs_failed_intersection`: interseção de casos com reprovação determinística e erros de abstenção pelo juiz.
+  - `test_markdown_table_formatting_pct_and_usd`: formatação de tabela Markdown com vírgula decimal, en-dash (`–`), porcentagem, moeda (`US$`) e milhar.
+  - `test_write_comparison_artifacts`: escrita física de arquivos `.json` e `.md` gerados por `write_comparison`.
+- **Alterados em `tests/test_eval_harness.py`**:
+  - `test_aggregate_percentiles_tokens_and_cost`: atualização de assert para conferir `agg["cost_note"] == COST_NOTE`.
+  - `test_aggregate_estimated_cost_usd`: teste da agregação do custo estimado em USD somando turnos tarifados e retornando `None` quando houver modelo sem preço.
+- **Alterados em `tests/test_pricing.py`**:
+  - `test_cost_usd_supported_models`: adição de checagens de cálculo tarifário para `gemini-3.8-flash` ($0.75/$3.75) e `gemini-3.6-flash`.
+
+#### Alterações Realizadas na Fase 8E:
+- **Tabela de Preços e Notas de Custo (`src/core/pricing.py`)**:
+  - Adicionados os modelos `gemini-3.6-flash` e `gemini-3.8-flash` à tabela `PRICES_USD_PER_1M` com US$ 0,75 para entrada e US$ 3,75 para saída por milhão de tokens.
+  - Registrado dicionário `PRICE_NOTES` com data de coleta (2026-11-08) e vigência dos preços (válidos até 2026-12-31, passando para US$ 1,50 entrada e US$ 7,50 saída a partir de 2027-01-01).
+- **Custo Financeiro na Avaliação (`src/eval/metrics.py`)**:
+  - Criada constante `COST_NOTE` documentando premissas de custo do plano pago (excluindo juiz e embeddings).
+  - Atualizada a função `aggregate()` para calcular `estimated_cost_usd` a partir da soma dos custos de cada turno com tokens em resultados com status `"ok"`. Retorna `None` se algum turno com tokens não tiver modelo tarifado.
+- **Módulo de Comparação de Execuções (`src/eval/compare.py`)**:
+  - Implementada a lista `COMPARE_METRICS` com as 16 métricas consolidadas.
+  - Implementada função `compare_runs()` para agregação estatística com média aritmética, mínimo e máximo, interseção de falhas determinísticas (`failed_in_all_runs`) e erros de abstenção do juiz (`judge_abstention_errors_in_all_runs`).
+  - Implementada função `write_comparison()` para persistência em JSON (`reports/eval_<name>.json`) e tabela Markdown formatada (`reports/eval_<name>.md`) com locale decimal em vírgula, traço en-dash (`–`) e prefixos/sufixos adequados (`%`, `s`, `US$`).
+- **Subcomando CLI Compare (`src/eval/__main__.py`)**:
+  - Adicionado subcomando `compare` com opções `--name`, `--group` (repetível no formato `ROTULO=run1,run2`), `--runs-dir` e `--out-dir`.
+- **Relatórios Gerados e Comparação de Modelos (`reports/`)**:
+  - Executados os relatórios `full-1` a `full-7` e a comparação `eval_models` entre `flash-lite` (`full-2,full-4,full-5`) e `3.8-flash` (`full-3,full-6,full-7`).
+  - Comprovada consistência exata dos dados e da tabela de comparação contra a especificação e os hashes dos arquivos brutos.
+- **Documentação Técnica (`README.md`)**:
+  - Inserida seção de comparação de modelos (`### Resultados da avaliação: comparação de modelos (3 execuções por modelo, 2026-11-08)`) imediatamente antes dos resultados da `full-1`.
+  - Atualizada linha de tokens da `full-1` com o custo estimado de US$ 0,170.
+  - Atualizada seção de observabilidade com informações dos novos modelos, notas de preços e cálculo de custo em `src/eval/`.
+  - Documentado o comando `compare` na seção de execução de avaliação.
+  - Acrescentada linha de evidência para comparação de modelos na tabela de "9. Afirmações e evidências".
+
+---
+
 ### Fase 8D: Arquivos da Imagem Só para Leitura e Últimas Frases do README
 
 #### Verificação Fase 8D (`python scripts/verify_phase8d.py`):
