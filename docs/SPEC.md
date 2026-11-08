@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `ab87a46` (phase 6D, CI green) plus
-this SPEC/prompt update for 6E. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `6aa2cbd` (phase 6E, CI green) plus
+this SPEC/prompt update for 6F. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -84,6 +84,16 @@ this SPEC/prompt update for 6E. CI (lint, tests, docker build + /health smoke) r
 - 6D the judge reads full passages from the index by `chunk_id`; runs store up to 2000 characters; README quota and
   judge limits fixed. Review note: README says `search_web` results are not recorded "in the index" (it is the run
   record); fixed in 6E. `observe_turn` now stores `None` instead of `""`/`0.0` for a missing chunk id or score.
+- 6E judge run 2 and the final report committed; README "Resultados da avaliação". Review of the WHOLE README
+  (earlier reviews only read each phase's diff) found older claims the code does not support, fixed in 6F: a
+  "confidence" metric in the UI and README ("Confiança Dinâmica", "100% de precisão determinística") although no
+  confidence is computed anywhere (the demo card always shows n/a); cost "estimated in USD from the official token
+  table" although `estimated_cost_usd` is always null; a routing evaluation on `data/eval_dataset.json` (removed in
+  6A); the official-scenario matrix marking 10/10 "Aprovado" with sources from the deleted hand-written KB
+  (`kb_pix_getnet`, ...) while `full-1` measured 9/10; ticket format `XXXX` (it is 10 hex); `MemorySaver` keyed by
+  `session_id` in the glossary (it is `SqliteSaver` with `user_id:session_id`); "separação ideal" / "100% off-topic
+  rejected" from the retriever-only 3D set presented without the end-to-end failures; token field names
+  `prompt_tokens`/`completion_tokens` (they are `input_tokens`/`output_tokens`).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -118,8 +128,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 6E (judge run 2 and the final report committed, README results section; no real call inside the
-phase)**, prompt `docs/phase-prompts/6E.md`, verifier `scripts/verify_phase6e.py`. Phase 6 ends with 6E; next is Phase 7.
+**Current phase: 6F (README and /demo stop claiming confidence, cost and stale results; text only)**, prompt
+`docs/phase-prompts/6F.md`, verifier `scripts/verify_phase6f.py`. Next: Phase 7.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -615,6 +625,10 @@ without network. Topics with no official coverage must be answered with abstenti
   labels, `uncovered` only measured by the judge (`u01`), off-topic failures (`o04`, `o02`), grounded near the ceiling,
   `search_web` results not recorded. Supersedes 6C `D2`/`D3` and 6D `D1` (they required no judge file / no judge
   section).
+- 6F (checked by `scripts/verify_phase6f.py`): README text and the /demo confidence card only. Banned README phrases
+  (list in the verifier), the official-scenario matrix and glossary answers 1, 3, 4, 5 exactly as given in
+  `docs/phase-prompts/6F.md` (statuses from `full-1`), the real ticket format, `estimated_cost_usd` null until Phase
+  7, real token fields, the 3D statement limited to the retriever; the "Resultados da avaliação" section unchanged.
 **Acceptance:**
 - AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold URLs and literal facts), abstention, multi-turn, safety, escalation, PT and EN.
 - AC6.2 `python -m src.eval run` executes against the real model and `report` outputs `reports/eval_<run_id>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost (null until Phase 7).

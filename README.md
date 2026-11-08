@@ -25,14 +25,13 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 
 O sistema disponibiliza uma console visual interativa em 3 colunas acessível diretamente pelo navegador em [`/demo`](http://localhost:8000/demo):
 
-* **Coluna Esquerda (Cenários 1-Click)**: Catálogo com os 12 cenários de teste pré-configurados (10 cenários oficiais de referência do desafio Getnet + testes de injeção de prompt e transbordo humano). Dispara qualquer teste com um único clique.
+* **Coluna Esquerda (Cenários 1-Click)**: Catálogo com os cenários de teste pré-configurados (os 10 oficiais do desafio e testes de injeção e transbordo). Dispara qualquer teste com um único clique.
 * **Coluna Central (Chat Interativo Multi-Turn)**: Interface de conversação em tempo real com controle de `Session ID` para teste de memória contextual contínua, balões de diálogo com identificação do modelo, ferramentas acionadas e latência.
 * **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com:
-  * **Trace ID UUID** único gerado por ciclo de vida da requisição (`trc-<uuid12>`).
+  * **Trace ID UUID** único gerado por ciclo de vida da requisição (`trc-<hex12>`).
   * **Consumo Estimado de Tokens** dividido em `Prompt`, `Completion` e `Total`.
-  * **Custo Financeiro Estimado em USD** baseado na tabela oficial de tokens.
+  * **Custo estimado em USD**: ainda não calculado (campo `estimated_cost_usd` vem `null`; tabela de preços entra na Fase 7).
   * **Latência em milissegundos** (`execution_time_ms`) com alta performance.
-  * **Confiança Dinâmica** por similaridade de embeddings ou execução de tool.
   * **Auditoria de Guardrails** (`is_safe`, detecção de PII mascarada e injeção de prompt).
   * **Rastreabilidade de Chamados SQLite** com link direto para o endpoint `GET /tickets/{ticket_id}`.
   * **Payload JSON Integral** colapsável para inspeção por avaliadores técnicos.
@@ -65,7 +64,7 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
   - [Dataset de Avaliação (data/eval/cases.jsonl)](#dataset-de-avaliação-dataevalcasesjsonl)
   - [Checagens Determinísticas](#checagens-determinísticas)
   - [Subconjunto Offline no CI](#subconjunto-offline-no-ci-python--m-srceval-offline)
-  - [Medições com Modelo Real (Fase 6B)](#medições-com-modelo-real-fase-6b)
+  - [Resultados da avaliação](#resultados-da-avaliação-execução-full-1-2026-11-07)
 - [5. Testes Automatizados e CI/CD](#5-testes-automatizados-e-cicd)
 - [6. Matriz de Cobertura dos Cenários Oficiais](#6-matriz-de-cobertura-dos-cenários-oficiais)
 - [7. Glossário de Defesa Técnica (Perguntas de Entrevista)](#7-glossário-de-defesa-técnica-perguntas-de-entrevista)
@@ -149,7 +148,6 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 ## 2. Pilares de Engenharia e Diferenciais
 
 ### Orquestração Agêntica ReAct
-* **Métrica de Confiança**: A métrica de confiança exibida na telemetria reflete o score calculado sobre os vetores de contexto recuperados ou a precisão da ferramenta especializada acionada.
 * **Ciclo ReAct Estruturado**: O Supervisor emite chamadas estruturadas de ferramentas no estado do grafo, o ToolNode executa a ferramenta populando ToolMessage e retorna ao Supervisor para observação e síntese.
 
 ### Memória Persistente Multi-Turn (LangGraph SqliteSaver)
@@ -182,9 +180,7 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   | **answer_hit@3** | 0.900 | 0.952 | 0.778 |
 
 * **Limiar Escolhido (`RAG_MIN_SCORE = 0.61`) e Métricas de Abstenção**:
-  * **Balanced Accuracy**: 1.000 (separação ideal entre consultas respondíveis e fora do domínio).
-  * **Taxa de Resposta (Answerable)**: 1.000 (100% das perguntas respondíveis são respondidas).
-  * **Abstenção Off-Topic**: 1.000 (100% das perguntas fora de domínio são rejeitadas com abstenção).
+  * No conjunto de calibração do retrieval (48 consultas; as 8 fora do domínio são fáceis, como receitas e futebol), o limiar 0.61 deixa passar as 30 respondíveis e barra as 8 fora do domínio, com margem de apenas 0.04. Isso mede só o retriever: na avaliação ponta a ponta (`full-1`), dois pedidos fora do tema não foram recusados (`o02`, `o04`).
   * **Abstenção Uncovered**: 0.000 (perguntas *uncovered* estão próximas do vocabulário do domínio Getnet por construção e não são filtradas apenas pelo limiar de similaridade vetorial, dependendo do Knowledge Agent para reconhecer a ausência de resposta no trecho e responder "não encontrado nas fontes oficiais").
   * **Avisos do Relatório**: `[!WARNING]` `uncovered_not_filtered` (comportamento esperado e documentado na especificação).
 
@@ -203,7 +199,7 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 ### Transbordo Humano Real com SQLite e Ciclo de Vida de Tickets (Fase 5A)
 * **Zero Falsas Promessas**: Eliminação de frases enganosas ou previsões não verificadas (sem promessas de tempo de espera, fila ou prazos como "em breve" ou "em menos de 5 minutos").
 * **Estrutura e Dados Persistidos**: A ferramenta `escalate_to_human` grava o chamado no banco SQLite configurado em `TICKETS_DB_PATH` (padrão: `data/tickets.db`, persistido em volume Docker). Cada registro armazena:
-  * `ticket_id`: Identificador único no formato `GET-TKT-YYYYMMDD-XXXX`.
+  * `ticket_id`: Identificador único no formato `GET-TKT-YYYYMMDD-<10 hexadecimais>`.
   * `user_id`: Identificador do lojista autenticado.
   * `session_id`: Identificador da sessão em que o transbordo foi acionado.
   * `reason`: Motivo detalhado do encaminhamento ao operador.
@@ -274,12 +270,8 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 
 ### Observabilidade Técnica, Trace ID e Custo por Tokens
 * **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
-* **Métricas de Tokens**: Medição dinâmica de `prompt_tokens`, `completion_tokens` e `total_tokens` em todas as respostas.
-* **Cálculo de Custo Financeiro**: Estimativa automática em USD com base na tabela de tokens, viabilizando governança de custos em produção.
-
-### Avaliação Automatizada de Roteamento
-* **Dataset Rotulado (`data/eval_dataset.json`)**: Conjunto de 12 pares de avaliação contendo `id`, `question`, `expected_tool`, `ground_truth_context` e `ideal_answer`, cobrindo os cenários de avaliação.
-* **Acurácia de Roteamento no Dataset**: Avaliação automatizada em `tests/test_eval_judge.py` verificando que a seleção de ferramentas atende às ferramentas esperadas.
+* **Métricas de Tokens**: Medição dinâmica de `input_tokens`, `output_tokens` e `total_tokens` (também `tokens_by_agent`) em todas as respostas.
+* **Cálculo de Custo Financeiro**: Custo estimado em USD: ainda não calculado (campo `estimated_cost_usd` vem `null`; tabela de preços entra na Fase 7).
 
 ---
 
@@ -506,37 +498,38 @@ O repositório possui pipeline automatizado configurado em `.github/workflows/ci
 
 ## 6. Matriz de Cobertura dos Cenários Oficiais
 
-| ID | Pergunta de Avaliação | Ferramenta Acionada (ReAct) | Fonte / Evidência | Status |
-| :-: | :--- | :--- | :--- | :-: |
-| 1 | *"What's the difference between the Get Clássica and the Get Smart?"* | `search_knowledge_base` | Índice oficial `site.getnet.com.br` | Aprovado |
-| 2 | *"What's the weather forecast in Porto Alegre tomorrow?"* | `search_web` | DuckDuckGo Real-Time Search | Aprovado |
-| 3 | *"When will the money from yesterday's sales be deposited?"* | `get_settlement_status` | R$ 3.367,20 líquido, depósito Hoje Santander D+1 | Aprovado |
-| 4 | *"Do I need a bank account to receive my sales via Pix?"* | `search_knowledge_base` | Artigo `kb_pix_getnet` (QR Code Dinâmico) | Aprovado |
-| 5 | *"My card machine won't connect to the internet, what should I do?"* | `diagnose_terminal` | Passo a passo de reboot, Wi-Fi e chip Get Smart | Aprovado |
-| 6 | *"How does receivables advance (antecipação) work with Getnet?"* | `search_knowledge_base` | Artigo `kb_antecipacao_recebiveis` (Automática vs Avulsa) | Aprovado |
-| 7 | *"What's the euro exchange rate today?"* | `search_web` | DuckDuckGo Real-Time Search | Aprovado |
-| 8 | *"My card machine is showing a transaction decline error."* | `diagnose_declined_transaction` | Código 51 (Saldo Insuficiente) no emissor | Aprovado |
-| 9 | *"How many installments can I split a sale into with the crediário?"* | `search_knowledge_base` | Índice oficial (Parcelamento em até 48x) | Aprovado |
-| 10 | *"Can I sell through WhatsApp using the Payment Link?"* | `search_knowledge_base` | Artigo `kb_link_pagamento_whatsapp` (App Getnet) | Aprovado |
+Resultado medido na execução `full-1` (2026-11-07, `gemini-3.5-flash-lite`), pelas checagens determinísticas de `src/eval/checks.py`; detalhes por caso em `reports/eval_full-1.md`.
 
+| ID | Pergunta de Avaliação | Ferramenta acionada (`full-1`) | Fonte / evidência | Status (`full-1`) |
+| :-: | :--- | :--- | :--- | :-: |
+| 1 | *"What's the difference between the Get Clássica and the Get Smart?"* | `search_knowledge_base` | `site.getnet.com.br/todas-as-maquininhas/` | Aprovado |
+| 2 | *"What's the weather forecast in Porto Alegre tomorrow?"* | `search_web` | Busca DuckDuckGo (resultados não registrados) | Aprovado |
+| 3 | *"When will the money from yesterday's sales be deposited?"* | `get_settlement_status` | Dados simulados da conta (`cliente1988`) | Aprovado |
+| 4 | *"Do I need a bank account to receive my sales via Pix?"* | `search_knowledge_base` | `site.getnet.com.br/get-ajuda-pix/` | Aprovado |
+| 5 | *"My card machine won't connect to the internet, what should I do?"* | `diagnose_terminal` | Dados simulados do terminal | Aprovado |
+| 6 | *"How does receivables advance (antecipação) work with Getnet?"* | `search_knowledge_base` | `site.getnet.com.br/get-ajuda-antecipacao-de-venda/` | Aprovado |
+| 7 | *"What's the euro exchange rate today?"* | `search_web` | Busca DuckDuckGo (resultados não registrados) | Aprovado |
+| 8 | *"My card machine is showing a transaction decline error."* | `diagnose_declined_transaction` | Dados simulados da transação | Reprovado (respondeu em português) |
+| 9 | *"How many installments can I split a sale into with the crediário?"* | `search_knowledge_base` | `site.getnet.com.br/crediario/` (até 48x) | Aprovado |
+| 10 | *"Can I sell through WhatsApp using the Payment Link?"* | `search_knowledge_base` | `site.getnet.com.br` (páginas de ajuda) | Aprovado |
 ---
 
 ## 7. Glossário de Defesa Técnica (Perguntas de Entrevista)
 
 ### 1. "A UI mostra uma confiança na resposta. Como esse número é calculado?"
-> **Defesa**: *"A métrica de confiança exibida no inspetor de telemetria reflete o score calculado sobre os vetores de contexto recuperados. Quando o lojista faz uma pergunta operacional atendida por ferramentas transacionais (como liquidação financeira ou diagnóstico do POS), a confiança reflete 100% de precisão determinística oriunda do banco de dados oficial."*
+> **Resposta**: *"Não mostra. Removemos a métrica de confiança: não existe um cálculo que a sustente, e um número fixo ou inventado seria enganoso. O que o sistema expõe é verificável: as fontes com URL e data de coleta, a nota de similaridade de cada trecho recuperado (`retrieved_docs[].score`), o limiar `RAG_MIN_SCORE` e as métricas da avaliação em `reports/eval_full-1.md`."*
 
 ### 2. "O que o modelo/Supervisor decide no sistema, além de sintetizar a resposta?"
 > **Defesa**: *"O Supervisor é o tomador de decisão do loop ReAct. Ele consome o histórico da conversa e os schemas tipados das ferramentas, decide qual ferramenta invocar com quais argumentos, avalia a observação retornada no estado do grafo e decide se necessita de novos passos ou se já possui evidências suficientes para emitir a resposta final."*
 
 ### 3. "De onde veio a base de conhecimento e como é garantido que ela não inventa dados fora de domínio?"
-> **Defesa**: *"O corpus em `data/corpus/` reúne páginas oficiais da Getnet coletadas eticamente com conformidade estrita de robots.txt, fragmentadas em chunks e indexadas com embeddings normalizados em `data/index/`. Implementamos um limiar de abstenção paramétrico: se a pergunta for fora de domínio ou a melhor pontuação não atingir o limiar, o retriever e o agente abstêm-se explicitamente de opinar."*
+> **Resposta**: *"O corpus em `data/corpus/` reúne páginas oficiais da Getnet coletadas respeitando o robots.txt, fragmentadas e indexadas em `data/index/`. Se a melhor similaridade não atinge `RAG_MIN_SCORE`, o retriever devolve `abstain` e o Knowledge Agent diz que a informação não está nas fontes oficiais. Isso não é uma garantia: na avaliação `full-1`, 7 de 8 perguntas sem cobertura geraram abstenção, uma (`u01`) recebeu uma afirmação que não está no corpus, e um pedido fora do tema (`o04`, um poema) foi atendido."*
 
 ### 4. "O que acontece quando o usuário pede atendimento humano? Onde o caso é gravado e quem o recebe?"
-> **Defesa**: *"Não prometemos filas fictícias nem tempos de espera irreais de 'menos de 5 minutos'. A ferramenta `escalate_to_human` grava um registro real no banco SQLite `data/tickets.db` com protocolo estruturado `GET-TKT-YYYYMMDD-XXXX`, status aberto, motivo e timestamp. Qualquer operador ou sistema de atendimento pode auditar e consumir o ticket em tempo real via endpoint `GET /tickets/{ticket_id}`."*
+> **Resposta**: *"Não prometemos fila nem prazo. A ferramenta `escalate_to_human` grava o chamado em SQLite (`TICKETS_DB_PATH`, padrão `data/tickets.db`) com protocolo `GET-TKT-YYYYMMDD-<10 hexadecimais>`, status `open`, prioridade, sessão e transcrição mascarada. Um operador responde via `PATCH /tickets/{ticket_id}` e a resposta é entregue no chat no turno seguinte do cliente; o cliente consulta o chamado via `GET /tickets/{ticket_id}`."*
 
 ### 5. "Como você garante que o sistema mantém o contexto em conversas longas?"
-> **Defesa**: *"Implementamos o checkpointer `MemorySaver` nativo do LangGraph, que armazena a sequência de mensagens agrupada por `thread_id` (o `session_id` da requisição HTTP). Isso permite que o lojista faça perguntas de acompanhamento de forma natural e que o Supervisor recupere as variáveis e decisões tomadas nos turnos anteriores da mesma sessão."*
+> **Resposta**: *"O grafo usa o checkpointer `SqliteSaver` do LangGraph (`CHECKPOINT_DB_PATH`), com `thread_id` igual a `user_id:session_id`: a memória sobrevive a reinícios e fica isolada por usuário mesmo com `session_id` repetido. Não há limpeza automática de conversas antigas nem memória compartilhada entre réplicas."*
 
 ---
 

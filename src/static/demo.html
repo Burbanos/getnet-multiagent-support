@@ -309,16 +309,11 @@
         </div>
 
         <!-- Metrics Grid -->
-        <div class="grid grid-cols-2 gap-2.5">
+        <div>
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Latência</div>
             <div id="latencyMetric" class="text-lg font-bold text-emerald-400 mt-0.5">0.0 ms</div>
             <div class="text-[10px] text-slate-500">tempo de ciclo total</div>
-          </div>
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-            <div class="text-[10px] text-slate-400 uppercase font-semibold">Confiança</div>
-            <div id="confidenceMetric" class="text-lg font-bold text-sky-400 mt-0.5">n/a</div>
-            <div class="text-[10px] text-slate-500">score de roteamento</div>
           </div>
         </div>
 
@@ -619,8 +614,6 @@
 
       // Metrics
       document.getElementById('latencyMetric').innerText = `${meta.execution_time_ms ? meta.execution_time_ms.toFixed(1) : 0} ms`;
-      document.getElementById('confidenceMetric').innerText = 'n/a';
-      document.getElementById('confidenceMetric').title = 'n/a';
 
       // Trace ID, Tokens & Cost Metrics
       document.getElementById('traceIdBadge').innerText = meta.trace_id || '—';

@@ -4,6 +4,70 @@
 
 ---
 
+### Fase 6F: Alinhamento de Documentação e Interface com Capacidades Reais
+
+#### Verificação Fase 6F (`python scripts/verify_phase6f.py`):
+```text
+PASS C1.readme_no_false_claims
+PASS C2.demo_no_confidence
+PASS C3.official_matrix
+PASS C4.glossary
+PASS C5.ticket_format_and_cost
+PASS C6.retrieval_claim
+PASS C7.status
+PASS C8.results_section_kept
+PASS Q0.runner_judge_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 194 passed in 18.15s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 32/32 passed
+```
+
+#### Commit Base da Fase 6F (`git rev-parse HEAD`):
+```text
+6aa2cbd19585744a4f15b1a2e3518302435ed215
+```
+
+#### Alterações Realizadas na Fase 6F:
+- **Interface Visual (`src/static/demo.html`)**:
+  - Removido o cartão de "Confiança" (`#confidenceMetric`) e o código JavaScript associado, preservando o campo `X-API-Key` e a métrica de custo (`#costMetric`).
+- **Alinhamento do README (`README.md`)**:
+  - Removidas alegações inverídicas de "Confiança Dinâmica", "Métrica de Confiança" e "100% de precisão determinística".
+  - Corrigido o cálculo de custos em USD para clarificar que `estimated_cost_usd` é retornado como `null` e a precificação entra na Fase 7.
+  - Atualizadas as métricas de tokens no painel de observabilidade para refletir os campos reais: `input_tokens`, `output_tokens`, `total_tokens` e `tokens_by_agent`.
+  - Corrigido o padrão de identificadores de chamados no banco para `GET-TKT-YYYYMMDD-<10 hexadecimais>` (gerado como `uuid4().hex[:10]`).
+  - Removida a subseção de "Avaliação Automatizada de Roteamento" que referenciava o dataset descontinuado `eval_dataset.json`.
+  - Atualizada a seção 3D com menção explícita à margem estreita de 0.04 no limiar de retrieval e às abstenções observadas na execução `full-1`.
+  - Substituída a Seção 6 pela matriz exata com ferramentas e fontes medidas na execução `full-1` (incluindo reprovação do cenário 8 por idioma).
+  - Atualizadas as respostas do Glossário de Defesa Técnica (perguntas 1, 3, 4 e 5) com dados honestos e verificáveis.
+
+#### Status do Projeto e Próximos Passos:
+- A **Fase 6F** está formalmente concluída com todos os critérios de aceitação aprovados.
+- A próxima etapa é a **Fase 7: Observabilidade e Governança de Custos** (tabela de precificação de tokens em USD, telemetria detalhada e governança financeira).
+
+---
+
 ### Fase 6E: Resultados da Avaliação no Repositório e no README
 
 #### Verificação Fase 6E (`python scripts/verify_phase6e.py`):
@@ -964,5 +1028,6 @@ All checks passed!
 9. **Fase 6B Concluída (Executor com Modelo Real e Juiz LLM)**: O harness e o executor com modelo real (`run`), juiz LLM (`judge`) e gerador de relatórios (`report`) foram implementados e validados com testes unitários e de integração.
 10. **Fase 6C Concluída (Correções do Juiz, Padrões no Tier Gratuito e Execução full-1 Registrada)**: O modelo padrão foi atualizado para `gemini-3.5-flash-lite` (com fallback `gemini-3.1-flash-lite` e juiz `gemini-3.1-flash-lite`), mitigando o teto diário de 20 requisições do Flash standard no tier gratuito; o juiz agora suporta respostas em lista de blocos (Gemini 3) e aborta preventivamente em 3 erros consecutivos; a execução `full-1` (69/69 casos bem-sucedidos) foi validada e comitada como baseline de avaliação.
 11. **Fase 6D Concluída (Trechos Completos no Juiz e Correções de Cota)**: O juiz agora acessa o texto completo de cada passagem a partir de `data/index/chunks.jsonl` via `load_chunk_texts`; `observe_turn` preserva até 2000 caracteres no log; a documentação de cota do Flash-Lite foi corrigida para 500 RPD e os limites do juiz foram documentados.
-12. **Fase 6E Concluída (Resultados da Avaliação Consolidados no Repositório e README)**: O relatório completo com a segunda rodada do juiz foi regenerado e integrado em `reports/eval_full-1.*`; os números oficiais e limitações conhecidas foram documentados no `README.md`; a Fase 6 está encerrada.
-13. **Próxima Fase (Fase 7: Observabilidade e Custos)**: Precificação de tokens por modelo, cálculo financeiro em USD e governança de custos no pipeline.
+12. **Fase 6E Concluída (Resultados da Avaliação Consolidados no Repositório e README)**: O relatório completo com a segunda rodada do juiz foi regenerado e integrado em `reports/eval_full-1.*`; os números oficiais e limitações conhecidas foram documentados no `README.md`.
+13. **Fase 6F Concluída (Alinhamento Honesto de Capacidades no README e /demo)**: Removida qualquer afirmação de "Confiança Dinâmica" e "100% de precisão" (sem cálculo que a sustente), clarificado que `estimated_cost_usd` permanece `null` até a Fase 7, atualizado o formato de tickets para `GET-TKT-YYYYMMDD-<10 hexadecimais>`, documentada a margem real de 0.04 no retrieval e alinhadas as respostas do glossário e da matriz de cenários com as medições reais de `full-1`.
+14. **Próxima Fase (Fase 7: Observabilidade e Custos)**: Precificação de tokens por modelo, cálculo financeiro em USD e governança de custos no pipeline.
