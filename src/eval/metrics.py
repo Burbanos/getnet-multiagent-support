@@ -91,7 +91,7 @@ def aggregate(
             )
 
     m["estimated_cost_usd"] = (
-        round(sum(c for c in priced if c is not None), 6)
+        round(math.fsum(c for c in priced if c is not None), 6)
         if priced and all(c is not None for c in priced)
         else None
     )

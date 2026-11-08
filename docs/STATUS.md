@@ -4,6 +4,91 @@
 
 ---
 
+### Fase 9A: Verificadores Reproduzíveis em Python 3.11 e Autoria
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9A (`python scripts/verify_phase9a.py`):
+```text
+INFO python 3.13.3
+PASS A1.py311_syntax
+PASS A2.ci_compileall
+PASS A3.metrics_fsum_static
+PASS A4.fsum_test
+PASS A5.authorship_section
+PASS A6.toc_authorship
+PASS A7.no_independent_reviewer
+PASS R1.claims_table_9a
+PASS A8.status_8f_correction
+PASS A9.status_9a
+PASS E2.scope
+PASS M1.cost_exact_sum
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 220 passed in 21.98s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 46/46 passed
+```
+
+#### Commit Base da Fase 9A (`git rev-parse HEAD`):
+```text
+c5e2698565f23bb2bc233ee3a91c5b696ba243b9
+```
+
+#### Não feito:
+- Nenhum. Todos os 46 checks da Fase 9A passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. O cálculo de custo usa math.fsum e é idêntico em Python 3.11 e 3.12+, e a autoria e revisão foram descritas com transparência e verdade.
+
+#### Alterações Realizadas na Fase 9A:
+- **Cálculo de Custo com Precisão Exata (`src/eval/metrics.py`)**:
+  - Substituído `round(sum(...), 6)` por `round(math.fsum(...), 6)` no cálculo de `estimated_cost_usd`, garantindo exatidão de soma de ponto flutuante idêntica em Python 3.11 e Python 3.12+.
+- **Teste de Soma Exata (`tests/test_eval_harness.py`)**:
+  - Adicionado teste `test_estimated_cost_is_exact_sum` comprovando que o arredondamento na 6ª casa decimal é estável e exato.
+- **Compilação Prévia no CI (`.github/workflows/ci.yml`)**:
+  - Adicionado passo `python -m compileall -q scripts src tests` no job `test` (Python 3.11) antes da execução dos testes e linting.
+- **Autoria e Revisão Transparente (`README.md` e `docs/STATUS.md`)**:
+  - Inserida a seção "Autoria e revisão" detalhando os papéis do Google Antigravity (Gemini 3.8 Flash) na implementação, do Claude (Anthropic) no planejamento e revisão das fases, e do candidato na condução, decisões e execuções com modelo real.
+  - Substituídas as menções anteriores pela atribuição correta ao Claude.
+  - Adicionada nota de correção retrospectiva na seção da Fase 8F sobre a divergência entre Python 3.13 e 3.11.
+
+---
+
 ### Fase 8F: README Depois da Avaliação com Várias Execuções
 
 #### Verificação Fase 8F (`python scripts/verify_phase8f.py`):
@@ -53,6 +138,8 @@ PASS Q4.tests_do_not_touch_data_dbs
 
 SUMMARY: 42/42 passed
 ```
+
+> **Correção (Fase 9A):** este resultado foi obtido com o Python local (3.13). Em Python 3.11, a versão do CI e do Dockerfile, o mesmo verificador dava 40/42: `scripts/verify_phase7c.py` não compilava (f-string com barra invertida, sintaxe do Python 3.12) e o check C1 de `scripts/verify_phase8e.py` diferia na 6ª casa decimal do custo (o `sum()` de floats mudou no Python 3.12). Os dois defeitos estavam nos verificadores do revisor e foram corrigidos na Fase 9A, junto com o cálculo de custo em `src/eval/metrics.py` (`math.fsum`).
 
 #### Commit Base da Fase 8F (`git rev-parse HEAD`):
 ```text
@@ -335,7 +422,7 @@ a4c57df9267f35f7f6c0ca6f441a0b6fd31ffd55
     - `TICKETS_DB_PATH=state/tickets.db`
   - Assim, a própria imagem Docker agora direciona os bancos SQLite para o diretório `/app/state` (de propriedade de `appuser:appgroup`), seja rodando via `docker run` direto no CI ou via `docker compose`, permitindo que o CI fique verde.
 - **Status do Requisito AC8.1**:
-  - Falta exclusivamente a verificação manual do `docker compose up` pelo usuário no ambiente Codespaces para validação final em runtime real e auditoria independente pelo revisor.
+  - Falta exclusivamente a verificação manual do `docker compose up` pelo usuário no ambiente Codespaces para validação final em runtime real e auditoria pelo revisor.
 
 ---
 
@@ -1819,4 +1906,4 @@ All checks passed!
 19. **Fase 8B Concluída (Volume Docker em Subdiretório de Estado, Tabela de Afirmações e README Final)**: O volume Docker foi isolado em `/app/state` (`getnet_app_state`), mantendo corpus e índice na imagem; permissões e `.dockerignore` higienizados; asserção de usuário não-root adicionada ao CI; tabela de alegações e evidências integrada no README.
 20. **Fase 8C Concluída (Padrões de Estado na Imagem Docker e Correção do CI)**: Adicionadas variáveis `CHECKPOINT_DB_PATH=state/checkpoints.db` e `TICKETS_DB_PATH=state/tickets.db` diretamente no estágio runner do Dockerfile, permitindo que o container suba saudavelmente em execuções via `docker run` puro no CI e passe no healthcheck.
 21. **Fase 8D Concluída (Arquivos da Imagem Só para Leitura e Últimas Frases do README)**: Permissões de escrita de grupo e outros removidas em `/app/data`, `/app/src` e `README.md` no Dockerfile; validação de sonda de escrita de não-root adicionada ao CI do Docker; últimas frases do README alinhadas aos caminhos e volumes de Docker reais (`getnet_app_state`) e declaração de "Sem prazos nem filas" adotada. O plano do SPEC está oficialmente concluído.
-22. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1), execução verde do CI e encerramento da auditoria final independente pelo revisor.
+22. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1), execução verde do CI e encerramento da auditoria final pelo revisor.

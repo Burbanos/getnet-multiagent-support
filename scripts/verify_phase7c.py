@@ -152,12 +152,13 @@ def main_checks(tmp: str) -> None:
                                    AIMessage(content="Not in the official sources.")])
         OrchestrationGraph(chat_model=fake).run_sync(user_id="cliente1988", message="Shopify?", session_id="m3")
         txt = metrics.render()
+        dir_in = 'direction="input"'  # Phase 9A: Python 3.11 forbids backslashes and reused quotes in f-string expressions
         got = {t: sample(txt, "getnet_tool_calls_total", f'tool="{t}",status="ok"') for t in
                ("ask_support_agent", "get_settlement_status", "escalate_to_human", "ask_knowledge_agent")}
         check("M2.graph_counters", all(v == 1 for v in got.values()) and sample(txt, "getnet_escalations_total") == 1
               and sample(txt, "getnet_abstentions_total") == 1 and (sample(txt, "getnet_llm_tokens_total", 'direction="input"') or 0) >= 100,
               f"tools={got}, escalations={sample(txt, 'getnet_escalations_total')}, abstentions={sample(txt, 'getnet_abstentions_total')}, "
-              f"tokens_in={sample(txt, 'getnet_llm_tokens_total', 'direction=\"input\"')}")
+              f"tokens_in={sample(txt, 'getnet_llm_tokens_total', dir_in)}")
     except Exception as exc:  # noqa: BLE001
         check("M2.graph_counters", False, f"{type(exc).__name__}: {exc}")
     finally:

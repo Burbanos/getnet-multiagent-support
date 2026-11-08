@@ -25,18 +25,24 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 6. **`docs/STATUS.md` is regenerated at the end of each phase** with: phase id, commit hash,
    the exact commands run and their raw output (pytest summary, ruff, eval report path).
 7. One phase per PR/commit series; do not start phase N+1 inside phase N.
-8. **Language policy:** code, identifiers, docstrings, commit messages and this SPEC in English.
+8. **Verifiers run on Python 3.11** (CI and Docker version): no 3.12+ syntax; CI compiles `scripts/`, `src/` and
+   `tests/` with 3.11 (from 9A). Float sums that end in a rounded value use `math.fsum` (`sum()` changed in 3.12).
+9. **Language policy:** code, identifiers, docstrings, commit messages and this SPEC in English.
    `README.md` and `docs/STATUS.md` in Brazilian Portuguese (pt-BR). Customer-facing answers
    in the language of the user's message (PT or EN).
 
 ---
 
-## Current state and next steps (handoff, 2026-11-07)
+## Current state and next steps (handoff, 2026-11-08)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `c2d52e3` (phase 8E, CI green) plus
-this SPEC/prompt update for 8F. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `c5e2698` (phase 8F, CI green, run #49)
+plus this SPEC/prompt update for 9A. CI (lint, tests, docker build + /health smoke) runs on every push.
 
-**Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
+**Who is the reviewer:** Claude (Anthropic), in sessions separate from Antigravity. It writes this SPEC, the phase
+prompts, the verifiers, the labeled sets and the agent/judge prompts, and verifies each phase on its own copy. This is
+not an independent review (the same candidate drives both tools); never describe it as independent.
+
+**Done (each verified by the reviewer on its own copy with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
 - 2A LLM supervisor with function calling · 2B timeouts, error classes, step limit, `X-Trace-Id` · 2C
   provider-agnostic factory, fallback model (`gemini-3.5-flash` → `gemini-3.5-flash-lite`), account masking ·
@@ -170,6 +176,22 @@ this SPEC/prompt update for 8F. CI (lint, tests, docker build + /health smoke) r
   the six runs plus judge. The `full-1` matrix (section 6) and the claims row "62/69 na `full-1`" stay: earlier
   verifiers pin them and they are labelled as `full-1` results.
 
+- 8F (STATUS reported 42/42; CI green, run #49). Reviewer reproduction on Python 3.11 (2026-11-08): **40/42**.
+  `scripts/verify_phase7c.py` does not compile on 3.11 (backslash and reused quotes inside an f-string expression, 3.12+
+  syntax) and `verify_phase8e.py` C1 differs in the 6th decimal of the cost: Python 3.12 changed `sum()` of floats to
+  compensated summation, so the app (`sum`) and the reference (`sum`) agree on 3.13 and disagree with each other's
+  rounding on 3.11. The defects were in the reviewer's verifiers; 42/42 was obtained with the local Python 3.13. Fixed
+  in 9A (both sides use `math.fsum`, CI compiles `scripts/` on 3.11).
+- Simulated audit with the evaluator's "V4" rubric (PDF "Avaliação V4 — Burbanos (nova versão)", HEAD `c5e2698`):
+  **6.9/10** (6.94; previous version 4.23). Section 5 lists README/STATUS claims the code does not support; section 6
+  the problems by severity. Reproduced by the reviewer on its copy (2026-11-08): raw card number and CPF in both
+  SQLite tables of `checkpoints.db` (`checkpoints`, `writes`) while the model only sees the mask; a provider failure
+  after a supervisor tool call leaves `next == ('tools',)` and the AIMessage tool call without a ToolMessage, which is
+  sent to the model again on the next turn; `MockDatabase.get_user` builds an account for any user id, with serials
+  from `hash()` (random per process); `search_knowledge_base`/`search_web` log the query and `escalate_to_human` the
+  reason; the image has no `APP_ENV`, so a plain `docker run` accepts the public development keys. Also confirmed:
+  the masked card swallows the following space (`****1111]foi`; the pattern `(?:\d[ -]?){13,19}` consumes it).
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -191,7 +213,7 @@ latency 24–42 s per question.
 `docs/SPEC.md`, `docs/phase-prompts/*.md` and `src/prompts/*.md` and the labeled sets `data/eval/*.jsonl`
 (from 2026-11-07; the 3D set was still copied from the prompt), between phases, after checking that the
 local folder equals GitHub HEAD; the user types `Execute docs/phase-prompts/<phase>.md` in Antigravity, which
-commits the reviewer files unchanged; the reviewer monitors GitHub and verifies independently. Each verifier
+commits the reviewer files unchanged; the reviewer monitors GitHub and verifies on its own copy. Each verifier
 reruns earlier ones with `VERIFY_NESTED=1` (skips their suites) and lists superseded checks in `PRIOR`
 (2A: R2.single_tool_flow, R3.user_id_injected, R3.bound_tools, R4.two_tools_sequence; 2B:
 S1.default_model_config, S1.default_model_env_example, R2.model_name; 2D: R6.knowledge_flow; 3B: L1.settings,
@@ -203,9 +225,10 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 8F (README wording after 8E)**, prompt `docs/phase-prompts/8F.md`, verifier
-`scripts/verify_phase8f.py`. 8F closes the plan. Open product failures (`k16`, `o02`, `s04`, `s06` in every run;
-`off01` with 3.8-flash) stay documented; fixing them needs new held-out cases, not prompt tuning against these.
+**Current phase: 9A** (verifiers reproducible on Python 3.11, true authorship), prompt `docs/phase-prompts/9A.md`,
+verifier `scripts/verify_phase9a.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
+documented; fixing them needs new held-out cases, not prompt tuning against these.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -788,3 +811,60 @@ without network. Topics with no official coverage must be answered with abstenti
 - AC8.3 README "Claims → evidence" table: every claim links to file/test/report.
 - AC8.4 `demo.html` shows only real fields.
 - AC8.5 Results reported as mean and range over at least three runs per model, from committed raw files.
+
+### Phase 9 — Short fixes and honest claims before resubmission
+Source: the simulated V4 audit (6.9/10, HEAD `c5e2698`), sections 4–6. Goal: every README/STATUS claim backed by the
+code, and the four defects the audit reproduced (raw PII on disk, orphan tool call, invented merchant, public keys in the
+image) fixed, plus conversation text out of the logs. One verifier per sub-phase; each re-runs the earlier ones and
+lists the checks it supersedes. Each later prompt is written after the previous sub-phase is reviewed (its verifier pins
+the previous commit).
+**Out of scope until the real evaluator's feedback:** LLM-based guardrail, `interrupt()`, a write action in the support
+domain, weather/FX APIs, a larger corpus, conversation trimming/summarisation, CORS tightening. The README states the
+guardrail and corpus limits honestly instead (9F).
+**Split:**
+- 9A (checked by `scripts/verify_phase9a.py`): reproducible verifiers and true authorship. Reviewer side: `verify_phase7c.py`
+  without 3.12-only f-string syntax; `verify_phase8e.py` reference cost with `math.fsum`. Implementer side:
+  `aggregate` computes `estimated_cost_usd` with `math.fsum` (`tests/test_eval_harness.py::test_estimated_cost_is_exact_sum`
+  with five costs whose left-to-right sum rounds differently); CI test job runs `python -m compileall -q scripts src tests`
+  on 3.11 before pytest; README section "Autoria e revisão" (reviewer text: Antigravity/Gemini 3.8 Flash implements,
+  Claude/Anthropic plans and reviews in separate sessions, the candidate decides and commits, "não é uma revisão
+  independente"); every "revisor externo"/"independente" for the reviewer removed from README and STATUS; STATUS 8F
+  keeps its 42/42 output and gains a correction note (40/42 on 3.11). Supersedes 8B `R1.claims_table` (the table's
+  opening sentence changes; re-checked as R1.claims_table_9a) and 8F `E2.readme_only`.
+- 9B: card and CPF masked in `run_sync` before the `HumanMessage` enters the graph, regardless of `ENABLE_GUARDRAILS`
+  (the toggle only controls the injection check); the masked card keeps the following space (card pattern must not end
+  in a separator); test that scans every byte of the SQLite files (and `-wal`) after turns with a Luhn-valid card,
+  formatted and unformatted CPF, a blocked (injection) turn and `ENABLE_GUARDRAILS=false`; README PII sentence becomes
+  "antes de a mensagem entrar no grafo" and states that databases created before 9B may hold raw text.
+- 9C: when `graph.invoke` raises (LLM errors re-raised as 503, or the internal-error path), `run_sync` closes every
+  tool call of the thread without a ToolMessage by writing `ToolMessage(content={"status":"error","error":<class or
+  "internal_error">}, tool_call_id=...)` with `graph.update_state(..., as_node=<a node whose edge goes to END>)`; after
+  the failure `get_state(config).next == ()` and no AIMessage tool call is unanswered; the next turn's model input has no
+  orphan. Tests with `SqliteSaver` for both paths. README limitation line updated.
+- 9D: `MockDatabase.get_user` returns `None` for an unknown merchant (no generated account); no `hash()` anywhere in
+  `src/`; the three support functions return `{"status": "not_found", "error": "merchant_not_found"}` without echoing
+  the id; the support prompt says to report it and offer escalation. Tests for the three tools with an unknown id.
+- 9E: `ENV APP_ENV=production` in the Dockerfile runner stage; CI docker job asserts `/health` reports
+  `environment: production` and that `POST /chat` with `getnet-dev-key` returns 401; README Docker text for a plain
+  `docker run` (needs `API_KEYS`). Logs carry no conversation text: no query, reason, task or provider exception text
+  in any record (lengths only, as an extra field the formatter keeps); `logger.exception` with provider errors replaced
+  by `logger.error` with the class name. Test: a unique marker in the message, the specialist task, the search query,
+  the escalation reason and a provider exception never appears in captured log output.
+- 9F: README residues from audit section 5: "Fonte oficial citada" becomes "Fonte oficial recuperada" (compare.py,
+  regenerated `reports/eval_models.{json,md}`, README tables) with a sentence that it checks retrieved URLs, not
+  citations in the text; scenario 10 source is `getnet.net/en/our-solutions/online-payments` (the Brazilian payment-link
+  and WhatsApp pages were `no_content`); `getnet.com.br` removed from the source policy (README and
+  `data/corpus/README.md`); `python -m src.core.auth hash` without an argument; provider text (Gemini only in practice;
+  the openai/anthropic branches are not installed or tested; embeddings always Gemini); `MemorySaver` docstrings in
+  `graph.py`; test tree (`test_eval_judge.py` renamed `test_api_key_header.py`); "Limitações atuais" lists the regex
+  guardrail (bypassed by paraphrase, false positives), the corpus gaps and the out-of-scope items; claims table rows for
+  PII, logs, mock and Docker point to the 9B–9E tests.
+**Acceptance:**
+- AC9.1 Every verifier, including the last one, passes on Python 3.11 (CI compiles them) and on the local 3.13.
+- AC9.2 No README/STATUS sentence calls the reviewer independent; the authorship section names both tools.
+- AC9.3 No raw card or CPF byte in any SQLite file after any turn.
+- AC9.4 No unanswered tool call persists after a failed turn.
+- AC9.5 Unknown merchant → `not_found`, never data.
+- AC9.6 The image defaults to production; development keys get 401 in CI.
+- AC9.7 No log record contains conversation text.
+- AC9.8 Every claim in audit section 5 is fixed or removed.

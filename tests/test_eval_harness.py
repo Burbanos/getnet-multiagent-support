@@ -312,3 +312,26 @@ def test_aggregate_estimated_cost_usd():
     ]
     agg_unpriced = aggregate([case], res_unpriced)
     assert agg_unpriced["metrics"]["estimated_cost_usd"] is None
+
+
+def test_estimated_cost_is_exact_sum(monkeypatch):
+    """estimated_cost_usd uses math.fsum: same result on Python 3.11 and 3.12+ (sum() of floats changed in 3.12)."""
+    import src.eval.metrics as metrics_mod
+
+    costs = [0.0032063, 0.0014856, 0.0024781, 0.0003748, 0.0040997]
+    feed = iter(costs)
+    monkeypatch.setattr(metrics_mod, "cost_usd", lambda *args, **kwargs: next(feed))
+    turn = {
+        "response": "Receba em 2 dias úteis.",
+        "agents_used": ["KnowledgeAgent"],
+        "tools_used": ["search_knowledge_base"],
+        "sources": ["https://site.getnet.com.br/crediario/"],
+        "is_safe": True,
+        "latency_ms": 100.0,
+        "llm_model": "gemini-3.5-flash-lite",
+        "tokens": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+    }
+    results = [{"id": "c01", "status": "ok", "turns": [dict(turn) for _ in costs]}]
+    agg = aggregate([_base_case()], results)
+    # Left-to-right addition rounds to 0.011644; the exact sum rounds to 0.011645.
+    assert agg["metrics"]["estimated_cost_usd"] == 0.011645

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -136,7 +137,8 @@ def ref_cost(pricing, ok_results: list[dict]) -> float | None:
             p = OFFICIAL.get((t.get("llm_model") or "").removeprefix("models/"))
             i, o = tk.get("input_tokens"), tk.get("output_tokens")
             priced.append(None if p is None or i is None or o is None else round(i / 1e6 * p[0] + o / 1e6 * p[1], 8))
-    return round(sum(priced), 6) if priced and all(c is not None for c in priced) else None
+    # Phase 9A: math.fsum, because sum() of floats changed in Python 3.12 (compensated summation)
+    return round(math.fsum(priced), 6) if priced and all(c is not None for c in priced) else None
 
 
 def ref_compare(emetrics, cases: list[dict], groups: list[tuple[str, list[tuple[str, list, list | None]]]]) -> list[dict]:

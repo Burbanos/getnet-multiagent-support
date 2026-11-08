@@ -21,6 +21,18 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 
 ---
 
+## Autoria e revisão
+
+Este repositório foi construído pelo candidato com duas ferramentas de IA, em papéis separados:
+
+* **Implementação:** o código, os testes, este README e o `docs/STATUS.md` foram escritos pelo Google Antigravity (modelo Gemini 3.8 Flash), uma fase por vez, seguindo os prompts de fase em `docs/phase-prompts/`. Alguns trechos do README, como a tabela "Afirmações e evidências", vieram prontos nesses prompts.
+* **Planejamento e revisão:** o plano (`docs/SPEC.md`), os prompts de fase (`docs/phase-prompts/`), os verificadores (`scripts/verify_*.py`), os casos rotulados da avaliação (`data/eval/cases.jsonl`) e os prompts dos agentes e do juiz (`src/prompts/`) foram escritos ou revisados pelo Claude (Anthropic), em sessões separadas das do Antigravity. Como revisor, o Claude conferiu cada fase lendo o diff e rodando os verificadores numa cópia própria do repositório.
+* **Decisões:** o candidato definiu o escopo e os padrões (por exemplo, o modelo padrão), aprovou cada fase e rodou as avaliações com modelo real no próprio terminal. Os commits saem da conta do candidato, feitos pelo Antigravity ao fim de cada fase; por isso todos têm o mesmo autor.
+
+Isto não é uma revisão independente: o mesmo candidato conduz as duas ferramentas, e o Claude escreveu tanto os critérios de aceite quanto os rótulos da avaliação. O que os verificadores oferecem é reprodutibilidade: rodam sem chave de API (por exemplo, `python scripts/verify_phase9a.py`) e qualquer pessoa pode conferir o resultado.
+
+---
+
 ## Interface Visual & Observabilidade (/demo)
 
 O sistema disponibiliza uma console visual interativa em 3 colunas acessível diretamente pelo navegador em [`/demo`](http://localhost:8000/demo):
@@ -45,6 +57,7 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
 ## Sumário
 
 - [Limitações atuais](#limitações-atuais)
+- [Autoria e revisão](#autoria-e-revisão)
 - [1. Arquitetura do Sistema](#1-arquitetura-do-sistema)
   - [Padrão Supervisor ReAct](#padrão-supervisor-react)
   - [Grafo de Estados Compilado (LangGraph)](#grafo-de-estados-compilado-langgraph)
@@ -426,7 +439,7 @@ O conjunto reúne **69 casos de teste** cobrindo fluxos reais de suporte a lojis
   - `multi_intent`: 2 casos (mensagens compostas com múltiplas intenções simultâneas)
 - **Distribuição por Idioma**: 41 casos em Português (`pt`) e 28 casos em Inglês (`en`).
 - **Cenários Oficiais**: Inclui integralmente os 10 cenários oficiais de referência do desafio Getnet (`official: true`).
-- **Origem dos Rótulos e Fatos**: Todos os rótulos de expectativa (`expect`) foram redigidos pelo revisor externo independente, e os fatos esperados (`facts_any`, `facts_none`, `gold_urls`) foram conferidos diretamente contra o texto literal do corpus oficial de conhecimento em `data/corpus/pages.jsonl` (com trechos em `data/index/chunks.jsonl`).
+- **Origem dos Rótulos e Fatos**: Todos os rótulos de expectativa (`expect`) foram escritos pelo Claude (ver [Autoria e revisão](#autoria-e-revisão)), e os fatos esperados (`facts_any`, `facts_none`, `gold_urls`) foram conferidos diretamente contra o texto literal do corpus oficial de conhecimento em `data/corpus/pages.jsonl` (com trechos em `data/index/chunks.jsonl`).
 
 ### Checagens Determinísticas
 Cada caso de teste avaliado é submetido a uma bateria de 9 verificações determinísticas sobre o último turno da conversa:
@@ -488,7 +501,7 @@ Seis execuções completas dos 69 casos de `data/eval/cases.jsonl`: três com o 
 - **Só no flash-lite:** respostas em português para perguntas em inglês (idioma 94,7%) e `u01` respondido sem fonte nas três execuções.
 - **Busca web fora do ar na `full-2`:** em `off02` e `off07`, `search_web` não devolveu resultados durante a execução, e as respostas disseram que o serviço estava indisponível. A busca voltou a funcionar no mesmo dia. Os dois casos contam como falha nessa execução e não foram removidos.
 - **Custo:** estimativa do plano pago a partir dos tokens de cada turno e da tabela de `src/core/pricing.py`. Não inclui o juiz nem os embeddings das consultas. O preço do `gemini-3.8-flash` (US$ 0,75 por milhão de tokens de entrada e US$ 3,75 de saída) vale até 2026-12-31; a partir de 2027-01-01, passa a US$ 1,50 e US$ 7,50.
-- **Os rótulos foram escritos pelo revisor externo, e o juiz é um modelo:** a fundamentação perto de 5 discrimina pouco, e é a abstenção que separa os modelos.
+- **Os rótulos foram escritos pelo Claude, que também planejou o sistema, e o juiz é um modelo:** a fundamentação perto de 5 discrimina pouco, e é a abstenção que separa os modelos.
 
 ### Resultados da avaliação (execução `full-1`, 2026-11-07)
 
@@ -507,7 +520,7 @@ Execução única dos 69 casos de `data/eval/cases.jsonl` com o modelo `gemini-3
 | Tokens | 422.393 no total (~6,7 mil por caso); custo estimado US$ 0,170 (plano pago) |
 
 Limites e falhas conhecidas:
-- É uma execução única, sem estimativa de variância; os rótulos foram escritos pelo revisor externo.
+- É uma execução única, sem estimativa de variância; os rótulos foram escritos pelo Claude.
 - A categoria `uncovered` aparece com 100% nas checagens determinísticas apenas porque nenhuma delas se aplica a abstenção; a medida real é a do juiz: 7 de 8 se abstiveram, e `u01` afirmou algo que não está no corpus (que não é preciso cadastrar chave Pix).
 - Fora do tema: `o04` escreveu o poema pedido e `o02` respondeu com busca web; só o juiz detectou o `o04`.
 - A nota de fundamentação está perto do teto e discrimina pouco: o juiz é um modelo pequeno e aceitou a inferência do `u01`.
@@ -677,7 +690,7 @@ getnet-multiagent-support/
 
 ## 9. Afirmações e evidências
 
-Cada afirmação deste README aponta para o código, o teste, o verificador ou o relatório que a sustenta. Os verificadores `scripts/verify_*.py` foram escritos por um revisor externo e rodam de novo os anteriores; o CI roda lint, testes, o build da imagem e um smoke test em `/health`.
+Cada afirmação deste README aponta para o código, o teste, o verificador ou o relatório que a sustenta. Os verificadores `scripts/verify_*.py` foram escritos pelo Claude (ver [Autoria e revisão](#autoria-e-revisão)), não precisam de chave de API e rodam de novo os anteriores; o CI roda lint, testes, o build da imagem e um smoke test em `/health`.
 
 | Afirmação | Evidência |
 | :--- | :--- |
