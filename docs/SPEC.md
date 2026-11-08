@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `bb31178` (phase 7C, CI green) plus
-this SPEC/prompt update for 7D. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `fd93649` (phase 7D, CI green) plus
+this SPEC/prompt update for 8A. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -111,6 +111,17 @@ this SPEC/prompt update for 7D. CI (lint, tests, docker build + /health smoke) r
   `src/main.py` dropped `{exc}` from the text but kept `logger.exception`, whose traceback still carries the provider
   message.
 - 7C `/metrics` (verified 35/35, CI green), no review issues.
+- 7D web results, `internal_error`, bilingual fixed messages (verified 38/38, CI green), no review issues. Phase 7 done.
+- Audit for Phase 8 (whole repository): `/agents` is hand-written fiction (supervisor tools listed as the account
+  tools, invented specialists `HardwareSpecialist`/`WebSearchSpecialist`/`HumanOversightSpecialist`, guardrail
+  "tools" `sanitize_pii`/`regex_safety_evaluator`, model "Google Gemini Flash"); `/demo` still says `MemorySaver`
+  and "Gemini Flash", prints tokens and cost as a fixed `n/a` although the API returns them, and shows a missing
+  similarity as `0.000`; README leftovers ("Trace ID UUID", tokens "Prompt/Completion" and "em todas as respostas",
+  "com alta performance", routing "será avaliada na Fase 6", CI described without the Docker build and /health
+  probe, Docker Compose without the `API_KEYS` requirement of `APP_ENV=production`). Docker: the named volume is
+  mounted on `/app/data`, which also holds the committed index and corpus, so after an image update the container
+  keeps serving the OLD index from the volume (fix in 8B: mount the volume on a state sub-directory and point
+  `CHECKPOINT_DB_PATH`/`TICKETS_DB_PATH` there).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -145,8 +156,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 7D (web results recorded for the judge; internal failures flagged; bilingual fixed messages)**,
-prompt `docs/phase-prompts/7D.md`, verifier `scripts/verify_phase7d.py`. After 7D: Phase 8.
+**Current phase: 8A (`/agents` generated from the code; `/demo` shows only real fields; README leftovers)**, prompt
+`docs/phase-prompts/8A.md`, verifier `scripts/verify_phase8a.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -694,6 +705,14 @@ without network. Topics with no official coverage must be answered with abstenti
 - AC7.3 `/metrics` (Prometheus format) with request count, latency histogram, tool calls, escalations, abstentions.
 
 ### Phase 8 — Production polish and README
+**Split:**
+- 8A (checked by `scripts/verify_phase8a.py`): `KNOWLEDGE_TOOLS` and `SUPPORT_TOOLS` constants in `src/core/graph.py`
+  used to build the specialists; `/agents` generated from them, `SUPERVISOR_TOOLS` and settings (agents with their
+  tool names and prompt files, `GuardrailAgent` with no tools and no LLM, models, one row per tool with name, first
+  description line and sorted args); `/demo` without `MemorySaver`/"Gemini Flash", tokens and cost from the response
+  metadata, a missing score shown as `n/a`; README leftovers fixed.
+- 8B: Docker volume on a state sub-directory (index and corpus come from the image), `docker compose up` verified by
+  the user in Codespaces (output pasted), README "Afirmações → evidências" table, final independent audit.
 **Acceptance:**
 - AC8.1 `docker compose up` verified (output pasted), healthcheck green, non-root.
 - AC8.2 README (pt-BR) covers build/run/test, architecture, workflow, RAG pipeline, tools, eval, limitations.

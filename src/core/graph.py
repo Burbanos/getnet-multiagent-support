@@ -37,6 +37,9 @@ from src.tools.agent_tools import (
 )
 from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
+KNOWLEDGE_TOOLS = [search_knowledge_base, search_web]
+SUPPORT_TOOLS = [get_settlement_status, diagnose_declined_transaction, diagnose_terminal]
+
 logger = logging.getLogger("multiagent.orchestrator")
 
 HANDOFF_PENDING_MESSAGE = (
@@ -101,14 +104,14 @@ class OrchestrationGraph:
         self.knowledge_agent = SpecialistAgent(
             name="KnowledgeAgent",
             prompt_file="knowledge_agent.md",
-            tools=[search_knowledge_base, search_web],
+            tools=KNOWLEDGE_TOOLS,
             chat_model=chat_model,
             fallback_model=fallback_model,
         )
         self.support_agent = SpecialistAgent(
             name="SupportAgent",
             prompt_file="support_agent.md",
-            tools=[get_settlement_status, diagnose_declined_transaction, diagnose_terminal],
+            tools=SUPPORT_TOOLS,
             chat_model=chat_model,
             fallback_model=fallback_model,
         )

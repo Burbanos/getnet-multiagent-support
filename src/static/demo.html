@@ -70,7 +70,7 @@
         <i class="fa-solid fa-comments text-indigo-400"></i>
         <span class="text-slate-300">Session ID:</span>
         <input id="sessionIdInput" type="text" value="sess-2026-demo" class="bg-slate-900 border border-slate-700 text-indigo-300 font-mono px-2 py-0.5 rounded w-32 text-center text-xs focus:outline-none focus:border-indigo-500">
-        <button onclick="resetSession()" title="Nova Sessão (MemorySaver)" class="hover:text-red-400 text-slate-400 text-xs px-1">
+        <button onclick="resetSession()" title="Nova Sessão (SqliteSaver)" class="hover:text-red-400 text-slate-400 text-xs px-1">
           <i class="fa-solid fa-rotate-right"></i>
         </button>
       </div>
@@ -328,7 +328,7 @@
             <span id="tokensMetric" class="text-slate-200 font-mono text-[10px]">n/a</span>
           </div>
           <div class="flex items-center justify-between text-[11px]">
-            <span class="text-slate-400">Custo (Gemini Flash):</span>
+            <span class="text-slate-400">Custo estimado (USD):</span>
             <span id="costMetric" class="text-emerald-400 font-mono font-bold text-[10px]">n/a</span>
           </div>
         </div>
@@ -407,7 +407,7 @@
       'SupervisorAgent': {
         color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
         icon: 'fa-brain',
-        desc: 'Supervisor LangGraph (Gemini Flash Tool Calling & MemorySaver)'
+        desc: 'Supervisor LangGraph (Gemini (function calling) & SqliteSaver)'
       },
       'KnowledgeAgent': {
         color: 'bg-red-500/20 text-red-400 border-red-500/40',
@@ -439,7 +439,7 @@
     function resetSession() {
       const newSession = 'sess-' + Math.random().toString(36).substring(2, 9);
       document.getElementById('sessionIdInput').value = newSession;
-      appendMessage('agent', `Sessão de atendimento reiniciada no MemorySaver: <code>${newSession}</code>. O contexto de memória das mensagens anteriores foi resetado.`, 'SupervisorAgent');
+      appendMessage('agent', `Sessão de atendimento reiniciada no SqliteSaver: <code>${newSession}</code>. O contexto de memória das mensagens anteriores foi resetado.`, 'SupervisorAgent');
     }
 
     function runScenario(id) {
@@ -617,8 +617,20 @@
 
       // Trace ID, Tokens & Cost Metrics
       document.getElementById('traceIdBadge').innerText = meta.trace_id || '—';
-      document.getElementById('tokensMetric').innerText = 'n/a';
-      document.getElementById('costMetric').innerText = 'n/a';
+      if (meta.tokens && typeof meta.tokens.total_tokens === 'number') {
+        const inTok = meta.tokens.input_tokens ?? 0;
+        const outTok = meta.tokens.output_tokens ?? 0;
+        const totTok = meta.tokens.total_tokens ?? 0;
+        document.getElementById('tokensMetric').innerText = `${totTok} (in: ${inTok}, out: ${outTok})`;
+      } else {
+        document.getElementById('tokensMetric').innerText = 'n/a';
+      }
+
+      if (typeof meta.estimated_cost_usd === 'number') {
+        document.getElementById('costMetric').innerText = `$${meta.estimated_cost_usd.toFixed(6)}`;
+      } else {
+        document.getElementById('costMetric').innerText = 'n/a';
+      }
 
       // Tools List
       const toolsBox = document.getElementById('toolsList');
@@ -669,7 +681,7 @@
         docs.forEach(d => {
           const div = document.createElement('div');
           div.className = 'p-1.5 bg-slate-900 rounded border border-slate-800 text-[10px] text-slate-300';
-          const sim = (d.similarity || d.score || 0).toFixed(3);
+          const sim = typeof d.score === 'number' ? d.score.toFixed(3) : 'n/a';
           div.innerHTML = `
             <div class="flex items-center justify-between font-semibold">
               <span class="text-white truncate">${d.title || d.id}</span>

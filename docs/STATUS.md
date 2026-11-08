@@ -4,6 +4,88 @@
 
 ---
 
+### Fase 8A: /agents Gerado pelo Código, /demo com Campos Reais e Sobras do README
+
+#### Verificação Fase 8A (`python scripts/verify_phase8a.py`):
+```text
+PASS A0.demo_real_fields
+PASS A0.readme_leftovers
+PASS A0.readme_ci
+PASS A0.readme_compose_keys
+PASS A1.tool_constants
+PASS A1.specialists_use_constants
+PASS A2.agents_from_code
+PASS A2.models_from_settings
+PASS A3.tool_rows
+PASS A3.no_fictional_names
+PASS Q0.agents_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 213 passed in 18.63s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 39/39 passed
+```
+
+#### Commit Base da Fase 8A (`git rev-parse HEAD`):
+```text
+fd9364931bf327f719ac8d96c08dd128402925fe
+```
+
+#### Alterações Realizadas na Fase 8A:
+- **Constantes de Ferramentas de Especialistas (`src/core/graph.py`)**:
+  - Definidas no nível de módulo `KNOWLEDGE_TOOLS = [search_knowledge_base, search_web]` e `SUPPORT_TOOLS = [get_settlement_status, diagnose_declined_transaction, diagnose_terminal]`.
+  - Especialistas `KnowledgeAgent` e `SupportAgent` construídos diretamente a partir dessas constantes como fonte única da verdade (`tools=KNOWLEDGE_TOOLS` e `tools=SUPPORT_TOOLS`).
+- **Geração Dinâmica de `GET /agents` (`src/main.py`)**:
+  - Endpoint `/agents` reescrito para gerar a arquitetura, agentes, ferramentas e argumentos diretamente dos objetos em memória e configurações ativas:
+    - `"architecture"`: `"LangGraph supervisor with specialist sub-agents"`;
+    - `"checkpointer"`: `"SqliteSaver (thread user_id:session_id)"`;
+    - `"models"`: `{"primary": settings.LLM_MODEL, "fallback": settings.LLM_FALLBACK_MODEL or None}`;
+    - `"agents"`: `GuardrailAgent` (`runs_before="supervisor"`, `uses_llm=False`, `tools=[]`), `SupervisorAgent` (nomes de `SUPERVISOR_TOOLS`, `"prompt": "src/prompts/supervisor.md"`), `KnowledgeAgent` (nomes de `KNOWLEDGE_TOOLS`, `"prompt": "src/prompts/knowledge_agent.md"`), `SupportAgent` (nomes de `SUPPORT_TOOLS`, `"prompt": "src/prompts/support_agent.md"`);
+    - `"tools"`: iterado sobre `SUPERVISOR_TOOLS`, `KNOWLEDGE_TOOLS` e `SUPPORT_TOOLS` com `name`, primeira linha não vazia de `description` e argumentos ordenados `args: sorted(tool.args)`.
+    - Eliminados nomes inventados (`HardwareSpecialist`, `WebSearchSpecialist`, `CustomerSupportSpecialist`, `HumanOversightSpecialist`, `KnowledgeSpecialist`, `sanitize_pii`, `regex_safety_evaluator`) e "Google Gemini Flash".
+- **Interface Web Interativa (`src/static/demo.html`)**:
+  - Troca de "MemorySaver" por `SqliteSaver` e de "Gemini Flash" por "Gemini (function calling)".
+  - Rótulo de custo ajustado para "Custo estimado (USD):".
+  - Renderização dinâmica de `meta.tokens` (`input_tokens`, `output_tokens`, `total_tokens`) e `meta.estimated_cost_usd` (formatado com 6 casas decimais), exibindo `n/a` quando nulos.
+  - Exibição de score de similaridade RAG utilizando unicamente `d.score` quando numérico, ou `n/a` caso contrário (removidos `d.similarity` e `|| 0).toFixed`).
+- **Alinhamento do README (`README.md`)**:
+  - "Limitações atuais": o item de testes com modelo roteirizado agora indica que a qualidade com o modelo real é medida pela avaliação (`reports/eval_full-1.md`) em vez de "será avaliada na Fase 6".
+  - Seção `/demo`: "Trace ID UUID" alterado para "Trace ID"; itens de tokens detalham `input_tokens`, `output_tokens` e `total_tokens` (sem "Prompt/Completion"); removida menção "com alta performance" da latência.
+  - Seção Observabilidade: métricas de tokens especificadas para respostas que chamam o modelo (turnos bloqueados pelo guardrail ou de espera pelo atendente não possuem tokens).
+  - Seção CI: pipeline descrita cobrindo lint com Ruff, suíte de testes com pytest, build da imagem Docker e smoke test no `/health`.
+  - Seção Docker Compose: documentado que o compose opera com `APP_ENV=production`, tornando `API_KEYS` estritamente obrigatório (sem ela requisições recebem 401), e instruído como gerar o hash com `python -m src.core.auth hash`.
+- **Testes Criados (`tests/test_agents_endpoint.py`)**:
+  - `test_agents_endpoint_tools_match_code_lists`: valida ferramentas e prompts de cada agente e a lista de tools gerada pelos objetos de código.
+  - `test_agents_endpoint_models_from_settings`: valida modelos primário e fallback a partir das configurações ativas.
+  - `test_agents_endpoint_no_fictional_names_or_memorysaver`: valida ausência de nomes fictícios, `MemorySaver` ou caminhos `data/` na resposta de `/agents`.
+
+---
+
 ### Fase 7D: Registro de Busca Web, Tratamento de Erros Internos e Mensagens Padronizadas Bilíngues
 
 #### Verificação Fase 7D (`python scripts/verify_phase7d.py`):
@@ -1325,4 +1407,5 @@ All checks passed!
 15. **Fase 7B Concluída (Custo pela Tabela Oficial de Preços e Logs do /chat no Contexto)**: Criado `src/core/pricing.py` com preços oficiais de 2026-10-30 (coletados em 2026-11-07), cálculo de `estimated_cost_usd` por turno no grafo LangGraph, logs de `/chat` executados dentro do contexto de requisição `bind(...)` com `trace_id`, `session_id` e `user_hash`, e 4 novos testes unitários em `tests/test_pricing.py`.
 16. **Fase 7C Concluída (`/metrics` no Formato Prometheus)**: Criado `src/core/metrics.py` com exposição em formato Prometheus 0.0.4 sem novas dependências; middleware de medição de requisições e latência para `/chat`; contadores de ferramentas, escalonamentos, abstenções e tokens integrados; endpoint `GET /metrics` implementado; logs de erro do LLM ajustados para `logger.error`; e 4 novos testes unitários em `tests/test_metrics.py`.
 17. **Fase 7D Concluída (Registro de Busca Web, Tratamento de Erros Internos e Mensagens Bilíngues)**: Gravação de resultados de busca web (url, title, snippet limitado a 600 caracteres) propagados para passagens do juiz LLM; marcação de exceções internas não tratadas como `error="internal_error"` contabilizadas como erro pelo runner de avaliação; e mensagens de instabilidade e escalonamento forçado padronizadas de forma bilíngue (PT/EN). A Fase 7 está oficialmente concluída.
-18. **Próxima Fase (Fase 8: Tabela de Alegações do README, Higienização Final e Fechamento da Régua V4)**: Consolidação final da documentação com matriz de alegações, higienização de artefatos e encerramento da régua de conformidade V4.
+18. **Fase 8A Concluída (/agents Gerado pelo Código, /demo com Campos Reais e Sobras do README)**: O endpoint `GET /agents` agora gera toda a arquitetura, agentes, ferramentas e argumentos diretamente dos objetos em memória e configurações ativas (eliminando nomes fictícios e referências antigas a `MemorySaver`); a interface `/demo` reflete os metadados reais de tokens, custo e score de similaridade; o README foi alinhado removendo referências obsoletas à Fase 6, detalhando a pipeline de CI e a obrigatoriedade de `API_KEYS` no Docker Compose.
+19. **Próxima Fase (Fase 8B: Volume Docker em Subdiretório de Estado, Tabela de Alegações do README e Fechamento Final)**: Ajuste do volume Docker para subdiretório de estado isolado de dados estáticos da imagem, validação do `docker compose up`, tabela "Afirmações → evidências" no README e auditoria final independente.

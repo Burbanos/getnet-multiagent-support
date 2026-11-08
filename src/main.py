@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from src.config import logger, settings
 from src.core import metrics
 from src.core.auth import Principal, auth_mode, authenticate, validate_auth_config
-from src.core.graph import get_orchestrator
+from src.core.graph import KNOWLEDGE_TOOLS, SUPPORT_TOOLS, get_orchestrator
 from src.core.llm import (
     LLMConfigurationError,
     LLMNotConfiguredError,
@@ -22,6 +22,7 @@ from src.core.llm import (
 )
 from src.core.log_context import bind
 from src.core.tickets_db import TicketTransitionError, get_tickets_repository
+from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
 
 class ChatRequest(BaseModel):
@@ -185,70 +186,44 @@ def metrics_endpoint() -> Response:
 
 @app.get("/agents", tags=["Architecture"])
 async def list_agents():
+    all_tools = [*SUPERVISOR_TOOLS, *KNOWLEDGE_TOOLS, *SUPPORT_TOOLS]
     return {
-        "architecture": "LangGraph Supervisor Workflow",
-        "orchestrator": {
-            "name": "SupervisorAgent",
-            "model_reference": "Google Gemini Flash (Function Calling)",
-            "checkpointer": "SqliteSaver (thread user_id:session_id)",
-            "safety": "GuardrailAgent (PII sanitization & prompt injection defense)",
+        "architecture": "LangGraph supervisor with specialist sub-agents",
+        "checkpointer": "SqliteSaver (thread user_id:session_id)",
+        "models": {
+            "primary": settings.LLM_MODEL,
+            "fallback": settings.LLM_FALLBACK_MODEL or None,
         },
         "agents": [
             {
-                "name": "SupervisorAgent",
-                "role": "LangGraph Supervisor Orchestrator with Function Calling",
-                "tools": [
-                    "get_settlement_status",
-                    "diagnose_declined_transaction",
-                    "diagnose_terminal",
-                    "search_knowledge_base",
-                    "search_web",
-                    "escalate_to_human",
-                ],
+                "name": "GuardrailAgent",
+                "runs_before": "supervisor",
+                "uses_llm": False,
+                "tools": [],
             },
             {
-                "name": "GuardrailAgent",
-                "role": "PII Masking & Safety Guardrail",
-                "tools": ["sanitize_pii", "regex_safety_evaluator"],
+                "name": "SupervisorAgent",
+                "prompt": "src/prompts/supervisor.md",
+                "tools": [t.name for t in SUPERVISOR_TOOLS],
+            },
+            {
+                "name": "KnowledgeAgent",
+                "prompt": "src/prompts/knowledge_agent.md",
+                "tools": [t.name for t in KNOWLEDGE_TOOLS],
+            },
+            {
+                "name": "SupportAgent",
+                "prompt": "src/prompts/support_agent.md",
+                "tools": [t.name for t in SUPPORT_TOOLS],
             },
         ],
         "tools": [
             {
-                "name": "get_settlement_status",
-                "specialist": "CustomerSupportSpecialist",
-                "description": "Consulta liquidação financeira e previsão de depósito D+1",
-                "schema": "get_settlement_status()",
-            },
-            {
-                "name": "diagnose_declined_transaction",
-                "specialist": "CustomerSupportSpecialist",
-                "description": "Diagnostica recusas de cartão (código 51 saldo, código 05, etc.)",
-                "schema": "diagnose_declined_transaction(error_code: Optional[str])",
-            },
-            {
-                "name": "diagnose_terminal",
-                "specialist": "HardwareSpecialist",
-                "description": "Diagnóstico de conectividade Wi-Fi e chip 3G/4G do terminal",
-                "schema": "diagnose_terminal(serial_number: Optional[str])",
-            },
-            {
-                "name": "search_knowledge_base",
-                "specialist": "KnowledgeSpecialist",
-                "description": "RAG vetorial semântico (páginas oficiais Getnet)",
-                "schema": "search_knowledge_base(query: str)",
-            },
-            {
-                "name": "search_web",
-                "specialist": "WebSearchSpecialist",
-                "description": "Busca web em tempo real (DuckDuckGo) para clima e câmbio",
-                "schema": "search_web(query: str)",
-            },
-            {
-                "name": "escalate_to_human",
-                "specialist": "HumanOversightSpecialist",
-                "description": "Geração e persistência de ticket de suporte relacional",
-                "schema": "escalate_to_human(reason: str, priority: Literal['standard', 'high'] = 'standard')",
-            },
+                "name": t.name,
+                "description": (t.description or "").strip().splitlines()[0],
+                "args": sorted(t.args),
+            }
+            for t in all_tools
         ],
     }
 

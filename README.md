@@ -15,7 +15,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 ## Limitações atuais
 
 * **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
-* **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento, que será avaliada na Fase 6;
+* **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento; a qualidade com o modelo real é medida pela avaliação (`reports/eval_full-1.md`);
 * **Base de conhecimento**: Base oficial ingerida e vetorizada (`gemini-embedding-2`), com avaliação de retrieval e limiar calibrado na Fase 3D;
 * **Persistência e Isolamento de Memória**: O histórico de sessões é persistido em SQLite via `SqliteSaver` no arquivo `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`, preservado no volume Docker), sobrevivendo a reinícios e isolado por `user_id:session_id`. Limitações honestas: não há expiração/limpeza automática de conversas antigas; cada réplica utiliza seu próprio arquivo SQLite (sem memória compartilhada entre instâncias sem banco compartilhado); o rate limit é controlado em memória por processo; o app não sobe com `API_KEYS` inválido ou banco inacessível (e responde 503 se a configuração ficar inválida em execução).
 
@@ -28,10 +28,10 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
 * **Coluna Esquerda (Cenários 1-Click)**: Catálogo com os cenários de teste pré-configurados (os 10 oficiais do desafio e testes de injeção e transbordo). Dispara qualquer teste com um único clique.
 * **Coluna Central (Chat Interativo Multi-Turn)**: Interface de conversação em tempo real com controle de `Session ID` para teste de memória contextual contínua, balões de diálogo com identificação do modelo, ferramentas acionadas e latência.
 * **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com:
-  * **Trace ID UUID** único gerado por ciclo de vida da requisição (`trc-<hex12>`).
-  * **Consumo Estimado de Tokens** dividido em `Prompt`, `Completion` e `Total`.
+  * **Trace ID** único gerado por ciclo de vida da requisição (`trc-<hex12>`).
+  * **Consumo Estimado de Tokens** dividido em `input_tokens`, `output_tokens` e `total_tokens`.
   * **Custo estimado em USD**: calculado por turno no plano pago Standard a partir da tabela oficial de preços (`estimated_cost_usd`).
-  * **Latência em milissegundos** (`execution_time_ms`) com alta performance.
+  * **Latência em milissegundos** (`execution_time_ms`).
   * **Auditoria de Guardrails** (`is_safe`, detecção de PII mascarada e injeção de prompt).
   * **Rastreabilidade de Chamados SQLite** com link direto para o endpoint `GET /tickets/{ticket_id}`.
   * **Payload JSON Integral** colapsável para inspeção por avaliadores técnicos.
@@ -270,7 +270,7 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 
 ### Observabilidade Técnica, Trace ID e Custo por Tokens
 * **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
-* **Métricas de Tokens**: Medição dinâmica de `input_tokens`, `output_tokens` e `total_tokens` (também `tokens_by_agent`) em todas as respostas.
+* **Métricas de Tokens**: Medição dinâmica de `input_tokens`, `output_tokens` e `total_tokens` (também `tokens_by_agent`) nas respostas que chamam o modelo (turnos bloqueados pelo guardrail ou de espera pelo atendente não têm tokens).
 * **Cálculo de Custo Financeiro (Fase 7B)**:
   * O custo por turno (`estimated_cost_usd`) é calculado a partir da tabela oficial definida em `src/core/pricing.py`.
   * **Fonte e Referência**: Tabela oficial do Google Gemini em `https://ai.google.dev/gemini-api/docs/pricing`, com data da página de **2026-10-30** e data de coleta em **2026-11-07**.
@@ -328,6 +328,13 @@ O sistema opera com arquitetura agnóstica de provedores via `langchain-google-g
 ---
 
 ### Execução via Docker Compose
+
+O arquivo `docker-compose.yml` opera configurado com `APP_ENV=production`. Em produção, a autenticação por chave de API é estritamente obrigatória: a variável `API_KEYS` é obrigatória (sem ela toda requisição aos endpoints protegidos recebe HTTP 401 Unauthorized) e o hash seguro de cada chave permitida é gerado com `python -m src.core.auth hash`.
+
+```bash
+# Gerar o hash SHA-256 de uma chave de API para o arquivo .env:
+python -m src.core.auth hash "sua-chave-aqui"
+```
 
 ```bash
 # 1. Configurar variáveis de ambiente (opcional para modo generativo)
@@ -520,7 +527,7 @@ pytest tests/ -v
 ```
 
 ### Pipeline de Integração Contínua (CI)
-O repositório possui pipeline automatizado configurado em `.github/workflows/ci.yml`, executando linting e testes a cada `push` e `pull_request` na branch `main`.
+O repositório possui pipeline automatizado configurado em `.github/workflows/ci.yml`, executando lint com Ruff, testes automatizados com pytest, o build da imagem Docker e um smoke test de inicialização no endpoint `/health` a cada `push` e `pull_request` na branch `main`.
 
 ---
 
