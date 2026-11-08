@@ -37,6 +37,16 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
                 "text": (d.get("text") or "")[:2000],
             })
 
+    raw_web = _get_val(state, "web_results", []) or []
+    cleaned_web: list[dict[str, Any]] = []
+    for w in raw_web:
+        if isinstance(w, dict):
+            cleaned_web.append({
+                "url": w.get("url", ""),
+                "title": w.get("title", ""),
+                "snippet": (w.get("snippet") or "")[:600],
+            })
+
     ticket_obj = _get_val(state, "ticket")
     ticket_dict = ticket_obj if isinstance(ticket_obj, dict) else {}
     ticket_id = _get_val(state, "escalation_ticket_id") or ticket_dict.get("ticket_id")
@@ -56,6 +66,7 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         "tools_used": _get_val(state, "tools_used", []) or [],
         "sources": _get_val(state, "sources", []) or [],
         "retrieved_docs": cleaned_docs,
+        "web_results": cleaned_web,
         "tool_results": _get_val(state, "tool_results", []) or [],
         "ticket_id": ticket_id,
         "ticket_priority": ticket_priority,
@@ -87,6 +98,14 @@ def run_case(case: dict[str, Any], orchestrator: Any, run_id: str) -> dict[str, 
             )
             lat_ms = round((time.perf_counter() - t0) * 1000, 1)
             turns.append(observe_turn(state, msg, lat_ms))
+            err_type = getattr(state, "error", None) or (_get_val(state, "error") if isinstance(state, dict) else None)
+            if err_type:
+                return {
+                    "id": cid,
+                    "status": "error",
+                    "error_type": err_type,
+                    "turns": turns,
+                }
         except LLMNotConfiguredError:
             raise
         except Exception as exc:  # noqa: BLE001

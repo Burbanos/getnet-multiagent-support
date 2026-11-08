@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `83d6453` (phase 7B, CI green) plus
-this SPEC/prompt update for 7C. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `bb31178` (phase 7C, CI green) plus
+this SPEC/prompt update for 7D. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -110,6 +110,7 @@ this SPEC/prompt update for 7C. CI (lint, tests, docker build + /health smoke) r
 - 7B cost and `/chat` context (verified 32/32, CI green). Review note (fixed in 7C): the three LLM error logs in
   `src/main.py` dropped `{exc}` from the text but kept `logger.exception`, whose traceback still carries the provider
   message.
+- 7C `/metrics` (verified 35/35, CI green), no review issues.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -144,8 +145,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 7C (`/metrics` in Prometheus text format, no new dependency)**, prompt `docs/phase-prompts/7C.md`,
-verifier `scripts/verify_phase7c.py`.
+**Current phase: 7D (web results recorded for the judge; internal failures flagged; bilingual fixed messages)**,
+prompt `docs/phase-prompts/7D.md`, verifier `scripts/verify_phase7d.py`. After 7D: Phase 8.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -678,9 +679,15 @@ without network. Topics with no official coverage must be answered with abstenti
   `getnet_abstentions_total` when a turn's knowledge calls all abstain; `getnet_llm_tokens_total{direction}` per
   turn. `GET /metrics` without authentication (no identifiers in labels; restrict it at the network level). The
   three LLM error logs use `logger.error` with the class name only.
-- 7D: record `search_web` results (url, title, snippet) in the turn for the judge; mark internal failures in the
-  state (`error`) instead of the fixed Portuguese "instabilidade" text, and answer fixed messages (instability,
-  forced escalation, handoff) in the merchant's language.
+- 7D (checked by `scripts/verify_phase7d.py`): the Knowledge Agent collects every `search_web` result as
+  `{url, title, snippet}` into `web_results` (specialist result, graph state, `AgentState`); `observe_turn` records
+  `web_results` (snippet cut at 600 characters; supersedes 6D `R1.observe_turn_2000`, re-checked as W2) and
+  `build_judge_input` adds each web result as a passage `{url, text: title + newline + snippet}`. An unexpected
+  exception in `run_sync` sets `AgentState.error = "internal_error"` (also `metadata.error` in the API) with the
+  bilingual `INSTABILITY_MESSAGE`, and `run_case` reports such a turn as status `error`, `error_type:
+  "internal_error"`, not as a wrong answer. Fixed messages become module constants with Portuguese then English
+  (`INSTABILITY_MESSAGE`, `FORCED_ESCALATION_MESSAGE` with `{ticket_id}`, `FORCED_ESCALATION_FAILED_MESSAGE`); the
+  Portuguese sentences are kept verbatim. Detecting the merchant's language for fixed messages is not attempted.
 **Acceptance:**
 - AC7.1 JSON logs per node with `trace_id`, `session_id`, `user_id` (hashed), node, tool, latency.
 - AC7.2 Tokens and cost from provider `usage_metadata`; price table in config with source and date.

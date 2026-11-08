@@ -51,6 +51,21 @@ AUTO_ESCALATION_NOTE = (
     "request {ticket_id} for our human support team; the reply will appear in this conversation when it is recorded."
 )
 
+INSTABILITY_MESSAGE = (
+    "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente. / "
+    "A temporary problem occurred while handling your request. Please try again."
+)
+FORCED_ESCALATION_MESSAGE = (
+    "Não consegui concluir sua solicitação automaticamente. Registrei o chamado {ticket_id} para análise de um "
+    "especialista humano. / I could not complete your request automatically. I registered ticket {ticket_id} for "
+    "review by a human specialist."
+)
+FORCED_ESCALATION_FAILED_MESSAGE = (
+    "Não consegui concluir sua solicitação automaticamente e não foi possível abrir um chamado agora. Tente "
+    "novamente mais tarde. / I could not complete your request automatically and could not open a ticket right now. "
+    "Please try again later."
+)
+
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
 
 
@@ -476,16 +491,10 @@ class OrchestrationGraph:
 
         if ticket_obj and ticket_obj.get("ticket_id"):
             ticket_id = ticket_obj["ticket_id"]
-            final_text = (
-                f"Não consegui concluir sua solicitação automaticamente. "
-                f"Registrei o chamado {ticket_id} para análise de um especialista humano."
-            )
+            final_text = FORCED_ESCALATION_MESSAGE.format(ticket_id=ticket_id)
         else:
             ticket_obj = None
-            final_text = (
-                "Não consegui concluir sua solicitação automaticamente e não foi possível abrir um chamado agora. "
-                "Tente novamente mais tarde."
-            )
+            final_text = FORCED_ESCALATION_FAILED_MESSAGE
             logger.error(f"Force escalation could not generate a valid ticket [trace_id={trace_id}]")
 
         escalation_ai_msg = AIMessage(content=final_text)
@@ -521,6 +530,7 @@ class OrchestrationGraph:
         tool_results = list(state.get("tool_results", []))
         sources = list(state.get("sources", []))
         retrieved_docs = list(state.get("retrieved_docs", []))
+        web_results = list(state.get("web_results", []))
         ticket = state.get("ticket")
         agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
 
@@ -574,6 +584,8 @@ class OrchestrationGraph:
                 tools_used.extend(spec_res["tools_used"])
                 sources.extend(spec_res["sources"])
                 retrieved_docs.extend(spec_res["retrieved_docs"])
+                if spec_res.get("web_results"):
+                    web_results.extend(spec_res["web_results"])
 
             elif tool_name == "ask_support_agent":
                 if "SupportAgent" not in agents_used:
@@ -612,6 +624,8 @@ class OrchestrationGraph:
                 tools_used.extend(spec_res["tools_used"])
                 sources.extend(spec_res["sources"])
                 retrieved_docs.extend(spec_res["retrieved_docs"])
+                if spec_res.get("web_results"):
+                    web_results.extend(spec_res["web_results"])
 
             elif tool_name == "escalate_to_human":
                 escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
@@ -681,6 +695,7 @@ class OrchestrationGraph:
             "tool_results": tool_results,
             "sources": sources,
             "retrieved_docs": retrieved_docs,
+            "web_results": web_results,
             "ticket": ticket,
             "tokens_by_agent": tba,
             "tokens": tokens,
@@ -723,6 +738,7 @@ class OrchestrationGraph:
                 "tool_results": [],
                 "sources": [],
                 "retrieved_docs": [],
+                "web_results": [],
                 "ticket": None,
                 "handoff": None,
                 "knowledge_outcomes": [],
@@ -747,9 +763,8 @@ class OrchestrationGraph:
             except Exception:
                 logger.exception("Error in LangGraph execution")
                 result = initial_state
-                result["final_response"] = (
-                    "Ocorreu uma instabilidade momentânea no atendimento. Por favor, tente novamente."
-                )
+                result["final_response"] = INSTABILITY_MESSAGE
+                result["error"] = "internal_error"
 
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
@@ -793,6 +808,7 @@ class OrchestrationGraph:
                 tool_results=result.get("tool_results", []),
                 sources=result.get("sources", []),
                 retrieved_docs=result.get("retrieved_docs", []),
+                web_results=result.get("web_results", []),
                 context_docs=result.get("retrieved_docs", []),
                 ticket=result.get("ticket"),
                 handoff=result.get("handoff"),
@@ -806,6 +822,7 @@ class OrchestrationGraph:
                 tokens=tokens_dict,
                 tokens_by_agent=result.get("tokens_by_agent"),
                 estimated_cost_usd=cost_val,
+                error=result.get("error"),
             )
 
             logger.info(

@@ -295,6 +295,11 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
     * `getnet_abstentions_total`: contador de turnos conversacionais em que as consultas ao especialista de conhecimento se abstiveram por ausência de fontes oficiais.
     * `getnet_llm_tokens_total`: contador acumulado de tokens de LLM processados, dividido por direção (`direction="input|output"`).
 
+* **Auditoria de Busca Web, Tratamento de Erros e Mensagens Bilíngues (Fase 7D)**:
+  * **Resultados de Busca Web no Estado (`web_results`)**: As buscas em tempo real via `search_web` têm seus resultados registrados no turno com `url`, `title` e `snippet` (cortado em 600 caracteres na observação de turno); esses dados são repassados ao juiz LLM como passagens de evidência para avaliação da resposta.
+  * **Sinalização de Falhas Internas (`internal_error`)**: Falhas inesperadas de execução no grafo atribuem `error: "internal_error"` no estado da resposta (`AgentMetadata`), evitando a exposição de detalhes ou stack traces internos ao lojista. No harness de avaliação (`run_case`), turnos com esse sinalizador são contabilizados como `status: "error"` em vez de uma resposta regular.
+  * **Mensagens Fixas Bilíngues**: As mensagens fixas do sistema — resposta de instabilidade (`INSTABILITY_MESSAGE`) e avisos de transbordo forçado por limite de passos com ou sem chamado aberto (`FORCED_ESCALATION_MESSAGE` e `FORCED_ESCALATION_FAILED_MESSAGE`) — são emitidas de forma padronizada e bilíngue (português e inglês), acompanhadas do número do protocolo quando houver chamado criado.
+
 ---
 
 ## 3. Como Executar e Modos de Operação
@@ -485,7 +490,7 @@ python -m src.eval judge --run-id full-1
 ```
 - **Modelo do Juiz (`EVAL_JUDGE_MODEL`)**: O juiz é configurado por padrão com `gemini-3.1-flash-lite` para não concorrer com a cota do modelo avaliado. Em situações de indisponibilidade de serviço (HTTP 503), o usuário pode alternativamente invocar o juiz com `EVAL_JUDGE_MODEL=gemini-3.5-flash-lite` (o mesmo modelo gerador das respostas, com a ressalva de possível viés complacente, registrado transparentemente em `judge_models`).
 - **Acesso aos Trechos Completos (`data/index/chunks.jsonl`)**: O juiz lê o texto completo de cada passagem a partir do arquivo `data/index/chunks.jsonl` (o mesmo índice utilizado pelo agente), evitando falsas penalizações de alucinação por truncamento de log.
-- **Limites do Juiz**: Os resultados obtidos por ferramentas externas como `search_web` não ficam no registro da execução, portanto o juiz não consegue auditar ou conferir respostas vindas da web; além disso, o juiz é um modelo pequeno (`gemini-3.1-flash-lite`), sujeito a limites naturais de capacidade analítica.
+- **Limites do Juiz**: Até a Fase 7D, os resultados obtidos por ferramentas externas como `search_web` não ficavam no registro da execução (portanto a execução de baseline `full-1`, realizada anteriormente, não auditou respostas vindas da web através do juiz); a partir da Fase 7D, os resultados de busca web passam a ser registrados no turno em `web_results` (com url, título e trecho) e encaminhados ao juiz como passagens de evidência. Além disso, o juiz é um modelo pequeno (`gemini-3.1-flash-lite`), sujeito a limites naturais de capacidade analítica.
 - **Resiliência e Interrupção por Erros**: O juiz para automaticamente após 3 erros consecutivos de qualquer natureza (como respostas não-analisáveis ou indisponibilidade da API), registrando no arquivo JSONL o código HTTP correspondente (`error_code`, ex.: 503 ou 429) sem expor mensagens de erro internas.
 - **Isolamento de Expectativas**: O prompt do juiz (`src/prompts/judge.md`) nunca recebe o identificador do caso, categoria nem as expectativas (`expect`); ele avalia cegamente a fidelidade das passagens (`grounded`), a resposta à dúvida (`answers_question`) e se houve abstenção (`abstained`).
 - **Retomabilidade**: Salva em `reports/eval_runs/<run_id>.judge.jsonl`, pulando casos já julgados com sucesso.

@@ -35,6 +35,7 @@ class SupervisorState(TypedDict):
     tool_results: list[dict[str, Any]]
     sources: list[str]
     retrieved_docs: list[dict[str, Any]]
+    web_results: list[dict[str, Any]]
     ticket: dict[str, Any] | None
     pending_ticket_id: str | None
     handoff: dict[str, Any] | None
@@ -67,6 +68,7 @@ class AgentState(BaseModel):
 
     context_docs: list[dict[str, Any]] = Field(default_factory=list)
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
+    web_results: list[dict[str, Any]] = Field(default_factory=list)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
     agents_used: list[str] = Field(default_factory=lambda: ["SupervisorAgent"])
     tools_used: list[str] = Field(default_factory=list)
@@ -87,6 +89,7 @@ class AgentState(BaseModel):
     tokens: dict[str, int] | None = None
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
+    error: str | None = None
 
     model_config = {
         "arbitrary_types_allowed": True
@@ -122,6 +125,7 @@ class AgentMetadata(BaseModel):
     tokens: dict[str, int] | None = None
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
+    error: str | None = None
     debug_details: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {

@@ -74,6 +74,7 @@ class SpecialistAgent:
         tools_used: list[str] = []
         sources: list[str] = []
         retrieved_docs: list[dict[str, Any]] = []
+        web_results: list[dict[str, Any]] = []
         specialist_usage: dict[str, int] | None = None
 
         steps = 0
@@ -113,6 +114,7 @@ class SpecialistAgent:
                     "tools_used": tools_used,
                     "sources": sources,
                     "retrieved_docs": retrieved_docs,
+                    "web_results": web_results,
                     "usage": specialist_usage,
                 }
 
@@ -175,6 +177,11 @@ class SpecialistAgent:
                             for r in results:
                                 if r.get("url"):
                                     sources.append(r.get("url"))
+                                web_results.append({
+                                    "url": r.get("url", ""),
+                                    "title": r.get("title", ""),
+                                    "snippet": r.get("snippet", ""),
+                                })
                 except (json.JSONDecodeError, TypeError, KeyError):
                     pass
 
@@ -196,5 +203,6 @@ class SpecialistAgent:
             "tools_used": tools_used,
             "sources": sources,
             "retrieved_docs": retrieved_docs,
+            "web_results": web_results,
             "usage": specialist_usage,
         }

@@ -1,6 +1,79 @@
 # STATUS DO REPOSITÓRIO
 
-**Data de geração**: 07/11/2026 | **Branch**: `main`
+**Data de geração**: 08/11/2026 | **Branch**: `main`
+
+---
+
+### Fase 7D: Registro de Busca Web, Tratamento de Erros Internos e Mensagens Padronizadas Bilíngues
+
+#### Verificação Fase 7D (`python scripts/verify_phase7d.py`):
+```text
+PASS W0.readme
+PASS W1.state_web_results
+PASS W2.observe_turn
+PASS W2.docs_cap_kept
+PASS W3.judge_sees_web
+PASS E1.error_flag
+PASS E2.eval_counts_error
+PASS E3.no_flag_when_ok
+PASS L1.fixed_messages_bilingual
+PASS L2.forced_escalation_uses_constant
+PASS Q0.web_error_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 210 passed in 18.71s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 38/38 passed
+```
+
+#### Commit Base da Fase 7D (`git rev-parse HEAD`):
+```text
+bb31178c2ac6434a40b2cd9f86399dbe2618bc1b
+```
+
+#### Alterações Realizadas na Fase 7D:
+- **Resultados de Busca Web no Estado e no Juiz (`src/agents/specialists.py`, `src/core/state.py`, `src/core/graph.py`, `src/eval/runner.py`, `src/eval/judge.py`)**:
+  - `web_results: list[dict[str, Any]]` agora é coletado pelas chamadas a `search_web` contendo `url`, `title` e `snippet`.
+  - Propagado do especialista ao `SupervisorState`, `AgentState` e `AgentMetadata`.
+  - `observe_turn` em `src/eval/runner.py` registra `web_results` com `snippet` truncado em 600 caracteres (mantendo o teto de 2000 caracteres para documentos recuperados do RAG).
+  - `build_judge_input` em `src/eval/judge.py` anexa os resultados de busca web como passagens (`{"url": url, "text": f"{title}\n{snippet}"}`), permitindo ao juiz LLM auditar a fidelidade e prevenir alucinações baseadas na web.
+- **Sinalização de Falhas Internas e Métricas de Erro (`src/core/state.py`, `src/core/graph.py`, `src/main.py`, `src/eval/runner.py`)**:
+  - Adicionado campo `error: str | None = None` em `AgentState` e `AgentMetadata`.
+  - Em exceções não tratadas no grafo (`run_sync`), o estado sinaliza `error = "internal_error"` e oculta detalhes sensíveis / tracebacks do cliente.
+  - O executor de avaliação `run_case` reconhece `state.error` e marca o caso com `status="error"` e `error_type="internal_error"`.
+- **Mensagens Fixas Padronizadas Bilíngues (`src/core/graph.py`)**:
+  - Definidas constantes `INSTABILITY_MESSAGE`, `FORCED_ESCALATION_MESSAGE` e `FORCED_ESCALATION_FAILED_MESSAGE` contendo textos completos em Português e Inglês para suporte bilíngue imediato sem depender do LLM em falhas ou contingências.
+- **Documentação Técnica (`README.md`)**:
+  - Documentação atualizada nas seções de Limites do Juiz e Observabilidade Técnica, detalhando auditoria de busca web e sinalização de erros internos.
+- **Testes Criados e Atualizados (`tests/test_web_and_errors.py`, `tests/test_eval_runner_judge.py`)**:
+  - `tests/test_web_and_errors.py`: 4 novos testes unitários e de integração cobrindo coleta de busca web, passagens no juiz, captura de erro interno e mensagens bilíngues de escalonamento forçado.
+  - `tests/test_eval_runner_judge.py`: atualizado para incluir `web_results` nas chaves esperadas do turno.
+
+A Fase 7 está concluída. A próxima fase é a Fase 8.
 
 ---
 
@@ -1251,4 +1324,5 @@ All checks passed!
 14. **Fase 7A Concluída (Logs Estruturados com trace_id, Sessão e Usuário em Hash)**: Implementado `log_context.py` com ContextVars e hashing de `user_id` (`u_<hex16>`) com sal configurável `LOG_HASH_SALT`; logs formatados em JSON com contexto em todos os registros sem vazamento de identificador cru nem PII; eventos de latência de nós (`node finished`) e ferramentas (`tool finished`) implementados.
 15. **Fase 7B Concluída (Custo pela Tabela Oficial de Preços e Logs do /chat no Contexto)**: Criado `src/core/pricing.py` com preços oficiais de 2026-10-30 (coletados em 2026-11-07), cálculo de `estimated_cost_usd` por turno no grafo LangGraph, logs de `/chat` executados dentro do contexto de requisição `bind(...)` com `trace_id`, `session_id` e `user_hash`, e 4 novos testes unitários em `tests/test_pricing.py`.
 16. **Fase 7C Concluída (`/metrics` no Formato Prometheus)**: Criado `src/core/metrics.py` com exposição em formato Prometheus 0.0.4 sem novas dependências; middleware de medição de requisições e latência para `/chat`; contadores de ferramentas, escalonamentos, abstenções e tokens integrados; endpoint `GET /metrics` implementado; logs de erro do LLM ajustados para `logger.error`; e 4 novos testes unitários em `tests/test_metrics.py`.
-17. **Próxima Fase (Fase 7D: Registro de Busca Web, Tratamento de Erros Internos e Idioma do Lojista)**: Gravação de resultados de busca web (url, title, snippet) para auditoria do juiz; marcação de falhas internas no estado (`error`) no idioma da consulta.
+17. **Fase 7D Concluída (Registro de Busca Web, Tratamento de Erros Internos e Mensagens Bilíngues)**: Gravação de resultados de busca web (url, title, snippet limitado a 600 caracteres) propagados para passagens do juiz LLM; marcação de exceções internas não tratadas como `error="internal_error"` contabilizadas como erro pelo runner de avaliação; e mensagens de instabilidade e escalonamento forçado padronizadas de forma bilíngue (PT/EN). A Fase 7 está oficialmente concluída.
+18. **Próxima Fase (Fase 8: Tabela de Alegações do README, Higienização Final e Fechamento da Régua V4)**: Consolidação final da documentação com matriz de alegações, higienização de artefatos e encerramento da régua de conformidade V4.

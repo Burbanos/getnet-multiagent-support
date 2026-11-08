@@ -138,6 +138,17 @@ def build_judge_input(case: dict[str, Any], result: dict[str, Any]) -> str:
                 "text": full_text if full_text is not None else str(d.get("text", "") or ""),
             })
 
+    raw_web = last_turn.get("web_results", []) or []
+    for w in raw_web:
+        if isinstance(w, dict):
+            url = w.get("url", "")
+            title = w.get("title", "")
+            snippet = w.get("snippet", "")
+            passages.append({
+                "url": url,
+                "text": f"{title}\n{snippet}",
+            })
+
     tool_outputs = last_turn.get("tool_results", []) or []
 
     payload = {
