@@ -194,10 +194,21 @@ not an independent review (the same candidate drives both tools); never describe
 
 - 9A (`6c809bc`; reviewer reran `verify_phase9a.py`: 46/46 on Python 3.11.18 and 3.13.18, `compileall` clean on both;
   reviewer files in the commit identical to the reviewer's copy), no review issues. STATUS records the run on the local
-  Python 3.13.3. CI result to be confirmed by the user (Actions screenshot).
+  Python 3.13.3. CI run #50 green (read through the GitHub API): test job on CPython 3.11.18, the new compileall step
+  passed, 220 tests; docker job green.
 - Found while planning 9B: the raw values are also in `checkpoints.db-wal` (WAL mode), not only in the two tables, so the
   9B checks scan every file of the database directory; follow-ups appended to a pending ticket were already masked
   (the guardrail runs before `handoff_gate`).
+
+- 9B (`a561d4c`; reviewer reran `verify_phase9b.py`: 50/50 on 3.11.18 and 3.13.18; reviewer files identical; CI run
+  #51 green, 225 tests on 3.11.18), no review issues. The implementer's tests are slightly stricter than asked (they also
+  assert `AgentState.message` is masked). The user's old local `data/checkpoints.db` was deleted.
+- Planning 9C (reproduced on `a561d4c`): after a provider failure inside a specialist, the thread keeps
+  `next == ('tools',)` and the supervisor's tool call without a ToolMessage; with two tool calls in one message and the
+  second specialist failing, neither gets a ToolMessage (the tools node writes atomically); the internal-error path
+  (non-LLM exception in the tools node) leaves the same orphan. A failure before any tool call leaves only the
+  HumanMessage, which needs no repair. Fix: `run_sync` writes error ToolMessages with
+  `update_state(..., as_node="abstention_check")` (edge to END, so `next == ()`).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -232,8 +243,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9B** (card and CPF masked before the message enters the graph), prompt `docs/phase-prompts/9B.md`,
-verifier `scripts/verify_phase9b.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+**Current phase: 9C** (no unanswered tool call after a failed turn), prompt `docs/phase-prompts/9C.md`,
+verifier `scripts/verify_phase9c.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
 the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 

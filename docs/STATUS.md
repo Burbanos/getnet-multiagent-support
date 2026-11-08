@@ -4,6 +4,96 @@
 
 ---
 
+### Fase 9C: Histórico Válido Depois de Falha no Turno
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9C (`python scripts/verify_phase9c.py`):
+```text
+INFO python 3.13.3
+PASS C0.py311_syntax
+PASS C7.tests
+PASS C8.readme_bullet
+PASS C9.claims_row
+PASS S1.status_9c
+PASS E2.scope
+PASS C1.provider_failure_closed
+PASS C2.next_turn_no_orphan
+PASS C3.parallel_calls_closed
+PASS C4.internal_error_closed
+PASS C5.no_tool_call_nothing_added
+PASS C6.success_path_unchanged
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 230 passed in 21.16s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 48/48 passed
+```
+
+#### Commit Base da Fase 9C (`git rev-parse HEAD`):
+```text
+a561d4c2b9a117b8005391e92d77d13cae6a3ff8
+```
+
+#### Não feito:
+- Nenhum. Todos os checks da Fase 9C passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. O fechamento de chamadas de ferramentas órfãs via `_close_dangling_tool_calls` garante que nenhuma chamada sem resposta persista no histórico após falha de provedor (HTTP 503) ou erro interno.
+
+#### Alterações Realizadas na Fase 9C:
+- **Fechamento de Tool Calls Órfãs (`src/core/graph.py`)**:
+  - Implementado o método `_close_dangling_tool_calls(config, error)` na classe `OrchestrationGraph`, que inspeciona o snapshot do thread no checkpointer após falhas de execução, identifica chamadas de ferramenta de `AIMessage` sem `ToolMessage` correspondente, e insere mensagens `ToolMessage` de erro (`{"status": "error", "error": error}`) com `as_node="abstention_check"`.
+  - Atualizado o tratamento de exceções em `run_sync()` para acionar `_close_dangling_tool_calls(config, type(exc).__name__)` em exceções de LLM (`LLMUnavailableError`, etc.) antes do relançamento (HTTP 503) e `_close_dangling_tool_calls(config, "internal_error")` em erros genéricos inesperados.
+- **Testes Automatizados de Chamadas Órfãs (`tests/test_dangling_tool_calls.py`)**:
+  - Criado módulo com 5 testes offline utilizando `build_sqlite_checkpointer` e `ExceptionRaisingFake`:
+    - `test_provider_failure_closes_tool_call`: valida fechamento da chamada com `LLMUnavailableError` e thread desocupado (`next == ()`).
+    - `test_next_turn_has_no_orphan`: valida que o turno seguinte não envia ferramenta órfã ao modelo.
+    - `test_parallel_tool_calls_all_closed`: valida que múltiplas chamadas concorrentes são todas fechadas se uma falhar.
+    - `test_internal_error_closes_tool_call`: valida tratamento de erro interno inesperado com sinalização `internal_error`.
+    - `test_failure_before_any_tool_call_adds_nothing`: valida que falhas prévias a chamadas de ferramentas não inserem mensagens espúrias.
+- **Documentação e Evidências (`README.md`)**:
+  - Adicionado item explicativo em "Auditoria de Busca Web, Tratamento de Erros e Mensagens Bilíngues (Fase 7D)" documentando o fechamento de tool calls após falhas.
+  - Adicionada linha na tabela da Seção 9 apontando evidências em `src/core/graph.py`, `tests/test_dangling_tool_calls.py` e `scripts/verify_phase9c.py`.
+
+---
+
 ### Fase 9B: Cartão e CPF Mascarados Antes do Grafo
 
 #### Versão do Python (`python --version`):

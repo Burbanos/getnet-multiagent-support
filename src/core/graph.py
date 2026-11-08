@@ -709,6 +709,38 @@ class OrchestrationGraph:
             ret["pending_ticket_id"] = ticket["ticket_id"]
         return ret
 
+    def _close_dangling_tool_calls(self, config: dict[str, Any], error: str) -> None:
+        """
+        After a failed turn, answer every tool call left without a ToolMessage in the thread, so the
+        next turn never sends an orphan tool call to the provider. Never raises.
+        """
+        try:
+            snapshot = self.graph.get_state(config)
+            messages = (snapshot.values or {}).get("messages", []) if snapshot else []
+            answered = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+            pending = [
+                call
+                for m in messages
+                if isinstance(m, AIMessage)
+                for call in (m.tool_calls or [])
+                if call.get("id") and call.get("id") not in answered
+            ]
+            if not pending:
+                return
+            closing = [
+                ToolMessage(
+                    content=json.dumps({"status": "error", "error": error}),
+                    tool_call_id=call["id"],
+                    name=call.get("name"),
+                )
+                for call in pending
+            ]
+            # abstention_check leads straight to END, so the thread is not left waiting for a node.
+            self.graph.update_state(config, {"messages": closing}, as_node="abstention_check")
+            logger.warning(f"Closed {len(closing)} dangling tool call(s) after a failed turn")
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Could not close dangling tool calls: {type(exc).__name__}")
+
     def run_sync(
         self,
         user_id: str,
@@ -766,10 +798,12 @@ class OrchestrationGraph:
 
             try:
                 result = self.graph.invoke(initial_state, config=config)
-            except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError):
+            except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError) as exc:
+                self._close_dangling_tool_calls(config, type(exc).__name__)
                 raise
             except Exception:
                 logger.exception("Error in LangGraph execution")
+                self._close_dangling_tool_calls(config, "internal_error")
                 result = initial_state
                 result["final_response"] = INSTABILITY_MESSAGE
                 result["error"] = "internal_error"

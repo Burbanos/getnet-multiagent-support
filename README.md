@@ -315,6 +315,7 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 * **Auditoria de Busca Web, Tratamento de Erros e Mensagens Bilíngues (Fase 7D)**:
   * **Resultados de Busca Web no Estado (`web_results`)**: As buscas em tempo real via `search_web` têm seus resultados registrados no turno com `url`, `title` e `snippet` (cortado em 600 caracteres na observação de turno); esses dados são repassados ao juiz LLM como passagens de evidência para avaliação da resposta.
   * **Sinalização de Falhas Internas (`internal_error`)**: Falhas inesperadas de execução no grafo atribuem `error: "internal_error"` no estado da resposta (`AgentMetadata`), evitando a exposição de detalhes ou stack traces internos ao lojista. No harness de avaliação (`run_case`), turnos com esse sinalizador são contabilizados como `status: "error"` em vez de uma resposta regular.
+  * **Histórico Válido Após Falha (Fase 9C)**: quando o provedor falha (HTTP 503) ou ocorre uma falha interna no meio do turno, `run_sync` fecha no checkpoint cada chamada de ferramenta que ficou sem resposta com um `ToolMessage` de erro (`{"status": "error", "error": "<classe do erro>"}`), e a sessão não fica parada no meio do grafo. O turno seguinte começa de um histórico válido, sem chamada órfã reenviada ao modelo (`tests/test_dangling_tool_calls.py`).
   * **Mensagens Fixas Bilíngues**: As mensagens fixas do sistema — resposta de instabilidade (`INSTABILITY_MESSAGE`) e avisos de transbordo forçado por limite de passos com ou sem chamado aberto (`FORCED_ESCALATION_MESSAGE` e `FORCED_ESCALATION_FAILED_MESSAGE`) — são emitidas de forma padronizada e bilíngue (português e inglês), acompanhadas do número do protocolo quando houver chamado criado.
 
 ---
@@ -713,3 +714,4 @@ Cada afirmação deste README aponta para o código, o teste, o verificador ou o
 | `/agents` é gerado a partir do código | `src/main.py`, `tests/test_agents_endpoint.py`, `scripts/verify_phase8a.py` |
 | Container sem root, com healthcheck, e o índice vem da imagem (o volume guarda só os bancos) | `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `scripts/verify_phase8b.py` |
 | Comparação de modelos com 3 execuções cada (média, mínimo e máximo) | `src/eval/compare.py`, `reports/eval_models.md`, `tests/test_eval_compare.py`, `scripts/verify_phase8e.py` |
+| Uma falha do provedor no meio do turno não deixa chamada de ferramenta sem resposta no histórico da sessão | `src/core/graph.py` (`run_sync`), `tests/test_dangling_tool_calls.py`, `scripts/verify_phase9c.py` |
