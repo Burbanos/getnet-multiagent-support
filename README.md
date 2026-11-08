@@ -302,7 +302,7 @@ O sistema opera com arquitetura agnóstica de provedores via `langchain-google-g
   * `ENABLE_GUARDRAILS`: Ativa ou desativa a sanitização de PII e bloqueio de prompt injection (padrão: `true`).
   * `WEB_SEARCH_ENABLED`: Habilita busca externa em tempo real via DuckDuckGo (padrão: `true`).
 
-> **Seleção de Modelos e Motivação dos Padrões**: No plano gratuito do Google AI Studio, a família Gemini Flash standard possui limite estrito de apenas 20 requisições por dia (20 requests/day), inviabilizando execuções completas do pipeline agêntico onde cada caso demanda de 3 a 6 chamadas de modelo. Por sua vez, a família Flash-Lite oferece 15 requisições por minuto (RPM) e 1.500 requisições por dia (RPD), viabilizando testes locais e o harness de avaliação. Por essa razão, definimos `gemini-3.5-flash-lite` como modelo principal (`LLM_MODEL`) e `gemini-3.1-flash-lite` como fallback resiliente (`LLM_FALLBACK_MODEL`), usufruindo de cotas independentes por modelo dentro do mesmo tier gratuito. O juiz LLM (`EVAL_JUDGE_MODEL`) utiliza `gemini-3.1-flash-lite` por padrão para não competir com a cota do modelo avaliado.
+> **Seleção de Modelos e Motivação dos Padrões**: No plano gratuito do Google AI Studio, a família Gemini Flash standard possui limite estrito de apenas 20 requisições por dia (20 requests/day), inviabilizando execuções completas do pipeline agêntico onde cada caso demanda de 3 a 6 chamadas de modelo. Por sua vez, a família Flash-Lite oferece 15 requisições por minuto (RPM) e 500 requisições por dia (RPD), viabilizando testes locais e o harness de avaliação. Por essa razão, definimos `gemini-3.5-flash-lite` como modelo principal (`LLM_MODEL`) e `gemini-3.1-flash-lite` como fallback resiliente (`LLM_FALLBACK_MODEL`), usufruindo de cotas independentes por modelo dentro do mesmo tier gratuito. O juiz LLM (`EVAL_JUDGE_MODEL`) utiliza `gemini-3.1-flash-lite` por padrão para não competir com a cota do modelo avaliado.
 
 * **Execução dos Testes**: Os testes automatizados executam 100% offline sem custos nem chamadas externas, utilizando o `ScriptedChatModel` para validação determinística de encadeamento de ferramentas.
 
@@ -433,11 +433,11 @@ $env:GEMINI_API_KEY = Read-Host "Gemini key" -MaskInput
 #### 2. Execução das Respostas com o Modelo Avaliado (`run`)
 Executa os casos através do grafo de orquestração multiagente:
 ```bash
-python -m src.eval run --run-id full-1
+python -m src.eval run --run-id full-2
 ```
-- **Retomabilidade**: A execução é totalmente incremental e retomável. Casos já avaliados com `status: "ok"` no arquivo `reports/eval_runs/<run_id>.jsonl` são automaticamente pulados; caso a execução seja interrompida, basta rodar o comando novamente.
+- **Retomabilidade**: A execução é totalmente incremental e retomável. Casos já avaliados com `status: "ok"` no arquivo `reports/eval_runs/<run_id>.jsonl` são automaticamente pulados (portanto, executar com um id existente que já terminou, como `full-1`, apenas retoma e encerra imediatamente sem novas chamadas). Para iniciar uma nova avaliação, use um id novo (como `--run-id full-2`); se for interrompido, basta rodar com o mesmo id novamente para continuar de onde parou.
 - **Proteção contra Falhas de Conectividade e Cotas (`EVAL_SLEEP_S`)**: O parâmetro `EVAL_SLEEP_S` (padrão `6.0` segundos) define uma pausa entre casos para respeitar os limites de RPM/TPM configurados no Google AI Studio. O runner aborta preventivamente caso ocorram 3 erros consecutivos da classe `LLMUnavailableError` (que cobre cota esgotada, timeout e indisponibilidade do modelo primário e fallback).
-- **Modelos e Cotas no Tier Gratuito**: A versão standard do Gemini Flash possui cota gratuita de apenas 20 requisições por dia (20 requests/day), inviabilizando o harness completo onde cada caso consome de 3 a 6 chamadas de modelo. Por isso, o padrão de produção e avaliação é `gemini-3.5-flash-lite` (com limite de 1.500 requisições/dia), tendo como reserva automática `gemini-3.1-flash-lite` (que possui cota separada). O modelo acionado em cada turno é registrado no relatório no campo `answer_models`.
+- **Modelos e Cotas no Tier Gratuito**: A versão standard do Gemini Flash possui cota gratuita de apenas 20 requisições por dia (20 requests/day), inviabilizando o harness completo onde cada caso consome de 3 a 6 chamadas de modelo. Por isso, o padrão de produção e avaliação é `gemini-3.5-flash-lite` (com limite de 500 requisições/dia), tendo como reserva automática `gemini-3.1-flash-lite` (que possui cota separada). O modelo acionado em cada turno é registrado no relatório no campo `answer_models`.
 
 #### 3. Avaliação Qualitativa via Juiz LLM (`judge`)
 Executa o juiz LLM sobre os resultados obtidos:
@@ -445,6 +445,8 @@ Executa o juiz LLM sobre os resultados obtidos:
 python -m src.eval judge --run-id full-1
 ```
 - **Modelo do Juiz (`EVAL_JUDGE_MODEL`)**: O juiz é configurado por padrão com `gemini-3.1-flash-lite` para não concorrer com a cota do modelo avaliado. Em situações de indisponibilidade de serviço (HTTP 503), o usuário pode alternativamente invocar o juiz com `EVAL_JUDGE_MODEL=gemini-3.5-flash-lite` (o mesmo modelo gerador das respostas, com a ressalva de possível viés complacente, registrado transparentemente em `judge_models`).
+- **Acesso aos Trechos Completos (`data/index/chunks.jsonl`)**: O juiz lê o texto completo de cada passagem a partir do arquivo `data/index/chunks.jsonl` (o mesmo índice utilizado pelo agente), evitando falsas penalizações de alucinação por truncamento de log.
+- **Limites do Juiz**: Os resultados obtidos por ferramentas externas como `search_web` não ficam registrados no índice, portanto o juiz não consegue auditar ou conferir respostas vindas da web; além disso, o juiz é um modelo pequeno (`gemini-3.1-flash-lite`), sujeito a limites naturais de capacidade analítica.
 - **Resiliência e Interrupção por Erros**: O juiz para automaticamente após 3 erros consecutivos de qualquer natureza (como respostas não-analisáveis ou indisponibilidade da API), registrando no arquivo JSONL o código HTTP correspondente (`error_code`, ex.: 503 ou 429) sem expor mensagens de erro internas.
 - **Isolamento de Expectativas**: O prompt do juiz (`src/prompts/judge.md`) nunca recebe o identificador do caso, categoria nem as expectativas (`expect`); ele avalia cegamente a fidelidade das passagens (`grounded`), a resposta à dúvida (`answers_question`) e se houve abstenção (`abstained`).
 - **Retomabilidade**: Salva em `reports/eval_runs/<run_id>.judge.jsonl`, pulando casos já julgados com sucesso.

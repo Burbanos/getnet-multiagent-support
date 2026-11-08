@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `3074ecf` (phase 6B, CI green) plus
-this SPEC/prompt update for 6C. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `636c9ba` (phase 6C, CI green) plus
+this SPEC/prompt update for 6D. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -76,6 +76,11 @@ this SPEC/prompt update for 6C. CI (lint, tests, docker build + /health smoke) r
   of the first real run was `unparseable`; the judge's stop rule only counted `LLMUnavailableError`, which the judge
   (calling the model directly) never raises; the error line kept only the class name, hiding a 503; the temporary
   tickets directory was never removed; `report` without a results file wrote an empty report and exited 0.
+- 6C judge fixes, free-tier defaults (`gemini-3.5-flash-lite` / fallback and judge `gemini-3.1-flash-lite`), `full-1`
+  committed with its deterministic report. Review notes (fixed in 6D): the README claimed 1,500 requests/day for
+  Flash-Lite (AI Studio shows 500); it suggested `run --run-id full-1`, which now skips every case; STATUS named a
+  "Phase 7: prompt calibration to maximise the pass rate" as next (the next step is 6D, and tuning prompts against
+  the eval set is overfitting).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -110,9 +115,9 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 6C (judge fixes, free-tier model defaults, the user's full run committed; no real call inside the
-phase)**, prompt `docs/phase-prompts/6C.md`, verifier `scripts/verify_phase6c.py`. Then the user runs the judge with
-the key and 6D commits the judgments, the final report and the README numbers.
+**Current phase: 6D (the judge sees full passages; README fixes; no real call inside the phase)**, prompt
+`docs/phase-prompts/6D.md`, verifier `scripts/verify_phase6d.py`. Then the user re-runs the judge on `full-1` with the
+key and 6E commits the judgments, the final report and the README numbers.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -138,6 +143,19 @@ must be stated next to the numbers (`judge_models` records it).
 - Full run `full-1`: 69/69 `ok` (resumed once after a laptop restart; the file was intact). Raw file
   `reports/eval_runs/full-1.jsonl` (sha256 of the LF-normalised bytes `70e300da…ab2b`) is committed in 6C unchanged.
   The judge run on it hit the list-content bug: `full-1.judge.jsonl` is deleted in 6C and re-run after it.
+- Deterministic report of `full-1` (reviewer recomputed): pass 62/69 (0.899), official 9/10, routing 0.946, tools
+  0.951, facts 0.917, sources 0.920, language 0.984, escalation precision/recall 1.0/1.0, latency p50 6.3 s / p95
+  20.4 s, 422k tokens (~6.7k per case). Failures: `s04`, `s06` (decline-code questions routed to knowledge), `o02`
+  (off-topic routed to an agent), `k07`, `k16`, `k17` (facts/sources), `off08` (language). The 8 `uncovered` cases
+  pass deterministically only because no deterministic check applies to them: their real metric is the judge's.
+- Judge run 1 on `full-1` (after 6C, `gemini-3.1-flash-lite`, 63 judged, 0 errors): abstention precision 0.714,
+  recall 0.769; 7/8 uncovered abstained (`u01` answered); off-topic `o02` answered from web search and `o04` wrote
+  the requested ocean poem (a product failure no deterministic check catches); `k07`, `k16`, `s04`, `s06` abstained
+  when an answer was expected. Its `grounded` scores are INVALID: the runner stored passages cut at 600 characters
+  (74 of the 92 chunks are longer; median 834) and the judge flagged literal official facts as invented (R$ 129,90
+  in `k03`; the R$ 50 advance minimum in `k04`/`k15`). Not published; the file is deleted in 6D and the judge re-run.
+  The run records keep only the specialist's answer for `search_web`, not the search results, so the judge cannot
+  check web answers (it scored them as general knowledge).
 
 **Design change kept from 5B:** the handoff gate replaced `interrupt()` (see AC5.2); the user can still ask to revert.
 
@@ -149,6 +167,10 @@ must be stated next to the numbers (`judge_models` records it).
 - Phase 7 (from 6B review): `run_sync` turns any non-LLM exception into a fixed Portuguese "instabilidade" reply, so
   an infrastructure failure is scored as an `ok` wrong answer and English users get Portuguese; the forced-escalation
   and handoff messages are also fixed Portuguese strings. Mark errors in the state instead of relying on text.
+- Phase 7: record `search_web` results (url, title, snippet) in the turn so the judge can check web answers; the
+  `off02` weather answer cited "(retrieved March 2025)" and cannot be traced with the current records.
+- Off-topic handling: `o04` (poem) was answered and `o02` went to an agent; revisit the supervisor's scope rule only
+  with new held-out cases, not by tuning against these.
 - Tests leave SQLite connections unclosed: with `-W error` about 20 tests fail on `ResourceWarning` (already in 6A).
 - PII masking eats the space after a masked card ("[CARTAO_MASCARADO_****1111]foi").
 - RAG quality: chunk generality (title prefix per chunk or smaller chunks, measured with the 3D set);
@@ -571,8 +593,16 @@ without network. Topics with no official coverage must be answered with abstenti
   user's `reports/eval_runs/full-1.jsonl` unchanged, `reports/eval_full-1.json` + `.md` generated from it by
   `python -m src.eval report --run-id full-1` (no judge section yet), the buggy `full-1.judge.jsonl` deleted. Reviewer
   prompts changed for the language rule (`supervisor.md`, `support_agent.md`, `knowledge_agent.md`).
-- 6D: the user's judge run on `full-1` (raw `.judge.jsonl` committed), final report, README numbers copied from the
-  report with the answering and judge models; the reviewer recomputes every number from the raw files.
+- 6D (checked by `scripts/verify_phase6d.py`): `judge.load_chunk_texts(path=None)` (chunk_id → full text from
+  `<INDEX_DIR>/chunks.jsonl`, cached for the default path) and `build_judge_input` uses the full text of every
+  passage whose `chunk_id` is in the index (else the stored text), so the judge sees exactly the passages the agent
+  saw, including runs recorded before this change; `observe_turn` stores up to 2000 characters (supersedes 6B
+  `R1.observe_turn`). README: no false quota, a new run id in the `run` example, the judge's limits (full passages
+  from the index; `search_web` results are not visible to it). The 600-character `full-1.judge.jsonl` is deleted and
+  `reports/eval_full-1.*` regenerated without a judge section.
+- 6E: the user's judge run 2 on `full-1` (raw `.judge.jsonl` committed), final report, README numbers copied from
+  the report with the answering and judge models and the limits above; the reviewer recomputes every number from
+  the raw files.
 **Acceptance:**
 - AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold URLs and literal facts), abstention, multi-turn, safety, escalation, PT and EN.
 - AC6.2 `python -m src.eval run` executes against the real model and `report` outputs `reports/eval_<run_id>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost (null until Phase 7).

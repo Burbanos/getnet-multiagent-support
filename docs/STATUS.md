@@ -4,6 +4,64 @@
 
 ---
 
+### Fase 6D: Trechos Completos no Juiz e Correções de Documentação
+
+#### Verificação Fase 6D (`python scripts/verify_phase6d.py`):
+```text
+PASS J0.index_has_long_chunks
+PASS R1.observe_turn_2000
+PASS J1.api
+PASS J2.full_passages
+PASS J3.load_chunk_texts
+PASS J4.still_blind
+PASS S1.readme_no_false_quota
+PASS S2.readme_run_example
+PASS S3.readme_judge_limits
+PASS S4.status_next_phase
+PASS D1.flawed_judge_file_removed
+PASS Q0.runner_judge_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 194 passed in 16.70s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 33/33 passed
+```
+
+#### Commit Base da Fase 6D (`git rev-parse HEAD`):
+```text
+636c9baba416459fdf0006844d5562687c569b83
+```
+
+#### Testes Criados e Alterados na Fase 6D:
+- **Criados em `tests/test_eval_runner_judge.py`**:
+  - `test_build_judge_input_full_passages_from_index`: valida que `build_judge_input` resolve `chunk_id` no índice carregado recuperando o texto integral da passagem para avaliação de `grounded`, adotando o texto guardado para chunks inexistentes ou nulos, sem vazar IDs, categorias ou rótulos esperados.
+  - `test_load_chunk_texts_caching_and_custom_path`: valida que `load_chunk_texts()` mantém cache em memória apenas para o caminho padrão (`data/index/chunks.jsonl`) e lê caminhos temporários customizados de forma independente sem poluir o cache.
+- **Alterados em `tests/test_eval_runner_judge.py`**:
+  - `test_observe_turn_truncation_and_fields`: atualizado o tamanho limite do texto de trechos recuperados de 600 para 2000 caracteres.
+
+#### Próximos Passos:
+- **Fase 6E**: Execução do juiz LLM pelo usuário com a chave de API sobre os trechos completos da execução `full-1`, publicação do log bruto `reports/eval_runs/full-1.judge.jsonl`, consolidação final dos relatórios estruturados e documentação das métricas no README.
+
+---
+
 ### Fase 6C: Correções do Juiz, Padrões no Tier Gratuito e Execução full-1
 
 #### Verificação Fase 6C (`python scripts/verify_phase6c.py`):
@@ -847,4 +905,5 @@ All checks passed!
 8. **Transbordo Humano Completo (Fases 5A, 5B e 5C)**: O ciclo de vida do ticket (`open -> in_progress -> answered -> closed`), o portão de atendimento `handoff_gate` (com mensagens de espera padronizadas, sem prazo, sem chamadas ao LLM e entrega única da resposta do operador com `delivered_at`) e o escalonamento automático por abstenções repetidas (`consecutive_abstentions >= ESCALATE_AFTER_ABSTENTIONS`) estão plenamente validados.
 9. **Fase 6B Concluída (Executor com Modelo Real e Juiz LLM)**: O harness e o executor com modelo real (`run`), juiz LLM (`judge`) e gerador de relatórios (`report`) foram implementados e validados com testes unitários e de integração.
 10. **Fase 6C Concluída (Correções do Juiz, Padrões no Tier Gratuito e Execução full-1 Registrada)**: O modelo padrão foi atualizado para `gemini-3.5-flash-lite` (com fallback `gemini-3.1-flash-lite` e juiz `gemini-3.1-flash-lite`), mitigando o teto diário de 20 requisições do Flash standard no tier gratuito; o juiz agora suporta respostas em lista de blocos (Gemini 3) e aborta preventivamente em 3 erros consecutivos; a execução `full-1` (69/69 casos bem-sucedidos) foi validada e comitada como baseline de avaliação.
-11. **Próxima Fase (Fase 7: Calibração de Prompts, Métricas de Qualidade e Governança de Custos)**: Ajustes de prompts para maximizar pass rate, resolução de discordâncias com o juiz e governança de custos por tokens.
+11. **Fase 6D Concluída (Trechos Completos no Juiz e Correções de Cota)**: O juiz agora acessa o texto completo de cada passagem a partir de `data/index/chunks.jsonl` via `load_chunk_texts`; `observe_turn` preserva até 2000 caracteres no log; a documentação de cota do Flash-Lite foi corrigida para 500 RPD e os limites do juiz foram documentados.
+12. **Próxima Fase (Fase 6E: Execução Final do Juiz e Publicação dos Números)**: O usuário executará o juiz com a chave de API sobre a run `full-1` e a Fase 6E comitará as avaliações, o relatório final e os números no README.

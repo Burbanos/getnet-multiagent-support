@@ -1,6 +1,6 @@
 # Relatório de Avaliação: full-1
 
-- **Gerado em**: `2026-11-08T00:52:05.252599+00:00`
+- **Gerado em**: `2026-11-08T01:26:49.382306+00:00`
 - **Cases SHA256**: `2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07`
 - **Status de Conclusão (`complete`)**: `True`
 - **Modelos Avaliados (`answer_models`)**: `gemini-3.5-flash-lite`

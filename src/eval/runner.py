@@ -24,7 +24,7 @@ def _get_val(state: Any, key: str, default: Any = None) -> Any:
 def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
     """
     Extract a normalized turn observation dictionary from an agent state or state dict.
-    Truncates retrieved document texts to 600 characters and filters keys strictly.
+    Truncates retrieved document texts to 2000 characters and filters keys strictly.
     """
     raw_docs = _get_val(state, "retrieved_docs", []) or []
     cleaned_docs: list[dict[str, Any]] = []
@@ -32,9 +32,9 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         if isinstance(d, dict):
             cleaned_docs.append({
                 "url": d.get("url", ""),
-                "chunk_id": d.get("chunk_id", ""),
-                "score": d.get("score", 0.0),
-                "text": (d.get("text") or "")[:600],
+                "chunk_id": d.get("chunk_id"),
+                "score": d.get("score"),
+                "text": (d.get("text") or "")[:2000],
             })
 
     ticket_obj = _get_val(state, "ticket")

@@ -78,6 +78,46 @@ def error_code(exc: Exception) -> int | None:
     return None
 
 
+_cached_chunk_texts: dict[str, str] | None = None
+
+
+def load_chunk_texts(path: str | Path | None = None) -> dict[str, str]:
+    """
+    Load mapping from chunk_id to full text from index chunks.jsonl.
+    Caches only the result of the default path.
+    """
+    global _cached_chunk_texts
+    if path is None:
+        if _cached_chunk_texts is not None:
+            return _cached_chunk_texts
+        target_path = Path(settings.INDEX_DIR) / "chunks.jsonl"
+    else:
+        target_path = Path(path)
+
+    p = Path(target_path)
+    if not p.exists():
+        return {}
+
+    mapping: dict[str, str] = {}
+    content = p.read_text(encoding="utf-8")
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+            cid = row.get("chunk_id")
+            txt = row.get("text")
+            if cid and txt is not None:
+                mapping[cid] = str(txt)
+        except json.JSONDecodeError:
+            continue
+
+    if path is None:
+        _cached_chunk_texts = mapping
+    return mapping
+
+
 def build_judge_input(case: dict[str, Any], result: dict[str, Any]) -> str:
     """
     Format case conversation and final turn evidence as JSON for the judge.
@@ -87,12 +127,15 @@ def build_judge_input(case: dict[str, Any], result: dict[str, Any]) -> str:
     last_turn = turns[-1] if turns else {}
 
     raw_docs = last_turn.get("retrieved_docs", []) or []
+    chunk_texts = load_chunk_texts()
     passages: list[dict[str, Any]] = []
     for d in raw_docs:
         if isinstance(d, dict):
+            cid = d.get("chunk_id")
+            full_text = chunk_texts.get(cid) if cid else None
             passages.append({
                 "url": d.get("url", ""),
-                "text": d.get("text", ""),
+                "text": full_text if full_text is not None else str(d.get("text", "") or ""),
             })
 
     tool_outputs = last_turn.get("tool_results", []) or []

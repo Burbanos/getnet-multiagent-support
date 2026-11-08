@@ -12,6 +12,7 @@ from src.eval.judge import (
     build_judge_input,
     error_code,
     judge_case,
+    load_chunk_texts,
     parse_judgment,
     response_text,
     run_judge,
@@ -62,7 +63,7 @@ def _sample_state(**kwargs) -> SimpleNamespace:
             "url": "https://site.getnet.com.br/crediario/",
             "chunk_id": "chk-001",
             "score": 0.85,
-            "text": "X" * 1500,
+            "text": "X" * 3000,
             "title": "Crediário",
         }],
         "tool_results": [{"agent": "KnowledgeAgent", "answer": "48x"}],
@@ -78,7 +79,7 @@ def _sample_state(**kwargs) -> SimpleNamespace:
 
 
 def test_observe_turn_truncation_and_fields():
-    """Verify observe_turn returns exact keys and truncates retrieved doc texts to 600 chars."""
+    """Verify observe_turn returns exact keys and truncates retrieved doc texts to 2000 chars."""
     state = _sample_state()
     turn = observe_turn(state, "Qual o prazo?", latency_ms=45.2)
 
@@ -92,7 +93,7 @@ def test_observe_turn_truncation_and_fields():
     assert len(turn["retrieved_docs"]) == 1
     doc = turn["retrieved_docs"][0]
     assert set(doc.keys()) == {"url", "chunk_id", "score", "text"}
-    assert len(doc["text"]) == 600
+    assert len(doc["text"]) == 2000
     assert turn["tool_results"] == [{"agent": "KnowledgeAgent", "answer": "48x"}]
 
 
@@ -534,3 +535,63 @@ def test_run_eval_deletes_temp_tickets_dir(tmp_path: Path):
     assert len(observed_dirs) > 0
     for d in observed_dirs:
         assert not d.exists()
+
+
+def test_build_judge_input_full_passages_from_index():
+    """Verify build_judge_input uses full text from index when chunk_id exists, falling back to stored text."""
+    all_chunks = load_chunk_texts()
+    assert len(all_chunks) > 0
+    first_cid, first_text = next(iter(all_chunks.items()))
+
+    case = _sample_case("k01")
+    docs = [
+        {"url": "https://site.getnet.com.br/gold", "chunk_id": first_cid, "score": 0.9, "text": "SHORT_TRUNCATED"},
+        {"url": "https://example.org/missing", "chunk_id": "not-in-index-999", "score": 0.6, "text": "STORED_FALLBACK"},
+        {"url": "https://example.org/nochunck", "chunk_id": None, "score": None, "text": "STORED_NO_CHUNK_ID"},
+    ]
+    res = {
+        "id": "k01",
+        "status": "ok",
+        "error_type": None,
+        "turns": [observe_turn(_sample_state(retrieved_docs=docs), case["turns"][0], 1.0)],
+    }
+
+    judge_json = build_judge_input(case, res)
+    payload = json.loads(judge_json)
+    passages = payload.get("passages", [])
+    assert len(passages) == 3
+
+    # Passage 1: resolved from index to full text
+    assert passages[0]["url"] == "https://site.getnet.com.br/gold"
+    assert passages[0]["text"] == first_text
+    assert set(passages[0].keys()) == {"url", "text"}
+
+    # Passages 2 & 3: fallback to stored text
+    assert passages[1]["text"] == "STORED_FALLBACK"
+    assert passages[2]["text"] == "STORED_NO_CHUNK_ID"
+
+    # Strictly blind
+    for forbidden in ("k01", "expect", "category", "facts_any"):
+        assert forbidden not in judge_json
+
+
+def test_load_chunk_texts_caching_and_custom_path(tmp_path: Path):
+    """Verify load_chunk_texts caches default index and loads custom paths independently."""
+    custom_file = tmp_path / "custom_chunks.jsonl"
+    custom_file.write_text(json.dumps({"chunk_id": "custom-01", "text": "CUSTOM_TEXT"}) + "\n", encoding="utf-8")
+
+    # Custom path loads correctly without being cached as default
+    custom_mapping = load_chunk_texts(custom_file)
+    assert custom_mapping == {"custom-01": "CUSTOM_TEXT"}
+
+    # Default path loads and caches
+    default_mapping = load_chunk_texts()
+    assert isinstance(default_mapping, dict)
+    assert len(default_mapping) > 0
+
+    # Repeated default call uses cache
+    default_again = load_chunk_texts()
+    assert default_again is default_mapping
+
+    # Calling custom path again still works independently
+    assert load_chunk_texts(custom_file) == {"custom-01": "CUSTOM_TEXT"}
