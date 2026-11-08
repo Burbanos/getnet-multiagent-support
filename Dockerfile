@@ -22,7 +22,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/install/bin:${PATH}" \
     PYTHONPATH="/install/lib/python3.11/site-packages:/app:${PYTHONPATH}" \
-    HOME="/app"
+    HOME="/app" \
+    CHECKPOINT_DB_PATH=state/checkpoints.db \
+    TICKETS_DB_PATH=state/tickets.db
 
 # Create non-root system group and user
 RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser

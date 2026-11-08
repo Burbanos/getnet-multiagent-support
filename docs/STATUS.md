@@ -4,6 +4,67 @@
 
 ---
 
+### Fase 8C: A Imagem Aponta os Bancos para /app/state (Correção do CI do Docker)
+
+#### Verificação Fase 8C (`python scripts/verify_phase8c.py`):
+```text
+PASS C1.image_db_paths
+PASS C1.still_secure
+PASS C2.compose_unchanged
+PASS C3.status
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 213 passed in 17.78s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 34/34 passed
+```
+
+#### Commit Base da Fase 8C (`git rev-parse HEAD`):
+```text
+a4c57df9267f35f7f6c0ca6f441a0b6fd31ffd55
+```
+
+#### Alterações Realizadas na Fase 8C:
+- **Causa da falha do CI na Fase 8B**:
+  - O job `docker` do CI inicia o container com um comando simples `docker run -d -p 8000:8000 --name app getnet-app`, sem carregar as variáveis de ambiente do `docker-compose.yml`.
+  - Como os padrões no código eram `data/checkpoints.db` e `data/tickets.db`, e a Fase 8B removeu a escrita em `/app/data` (pertencente ao root) para proteger o índice e corpus, a aplicação falhou imediatamente ao tentar abrir o banco de dados (fail-fast), impedindo o endpoint `/health` de responder (timeout no healthcheck do CI).
+- **Correção no Dockerfile (`Dockerfile`)**:
+  - Adicionadas as variáveis de ambiente no estágio `runner` do `Dockerfile`:
+    - `CHECKPOINT_DB_PATH=state/checkpoints.db`
+    - `TICKETS_DB_PATH=state/tickets.db`
+  - Assim, a própria imagem Docker agora direciona os bancos SQLite para o diretório `/app/state` (de propriedade de `appuser:appgroup`), seja rodando via `docker run` direto no CI ou via `docker compose`, permitindo que o CI fique verde.
+- **Status do Requisito AC8.1**:
+  - Falta exclusivamente a verificação manual do `docker compose up` pelo usuário no ambiente Codespaces para validação final em runtime real e auditoria independente pelo revisor.
+
+---
+
 ### Fase 8B: Volume do Docker só com os Bancos, Tabela de Afirmações e README Final
 
 #### Verificação Fase 8B (`python scripts/verify_phase8b.py`):
@@ -1481,5 +1542,6 @@ All checks passed!
 16. **Fase 7C Concluída (`/metrics` no Formato Prometheus)**: Criado `src/core/metrics.py` com exposição em formato Prometheus 0.0.4 sem novas dependências; middleware de medição de requisições e latência para `/chat`; contadores de ferramentas, escalonamentos, abstenções e tokens integrados; endpoint `GET /metrics` implementado; logs de erro do LLM ajustados para `logger.error`; e 4 novos testes unitários em `tests/test_metrics.py`.
 17. **Fase 7D Concluída (Registro de Busca Web, Tratamento de Erros Internos e Mensagens Bilíngues)**: Gravação de resultados de busca web (url, title, snippet limitado a 600 caracteres) propagados para passagens do juiz LLM; marcação de exceções internas não tratadas como `error="internal_error"` contabilizadas como erro pelo runner de avaliação; e mensagens de instabilidade e escalonamento forçado padronizadas de forma bilíngue (PT/EN). A Fase 7 está oficialmente concluída.
 18. **Fase 8A Concluída (/agents Gerado pelo Código, /demo com Campos Reais e Sobras do README)**: O endpoint `GET /agents` agora gera toda a arquitetura, agentes, ferramentas e argumentos diretamente dos objetos em memória e configurações ativas (eliminando nomes fictícios e referências antigas a `MemorySaver`); a interface `/demo` reflete os metadados reais de tokens, custo e score de similaridade; o README foi alinhado removendo referências obsoletas à Fase 6, detalhando a pipeline de CI e a obrigatoriedade de `API_KEYS` no Docker Compose.
-19. **Fase 8B Concluída (Volume Docker em Subdiretório de Estado, Tabela de Afirmações e README Final)**: O volume Docker foi isolado em `/app/state` (`getnet_app_state`), mantendo corpus e índice na imagem; permissões e `.dockerignore` higienizados; asserção de usuário não-root adicionada ao CI; tabela de alegações e evidências integrada no README. Falta somente a verificação de `docker compose up` pelo usuário no Codespaces e a auditoria final independente do revisor.
-20. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1) e auditoria final independente pelo revisor.
+19. **Fase 8B Concluída (Volume Docker em Subdiretório de Estado, Tabela de Afirmações e README Final)**: O volume Docker foi isolado em `/app/state` (`getnet_app_state`), mantendo corpus e índice na imagem; permissões e `.dockerignore` higienizados; asserção de usuário não-root adicionada ao CI; tabela de alegações e evidências integrada no README.
+20. **Fase 8C Concluída (Padrões de Estado na Imagem Docker e Correção do CI)**: Adicionadas variáveis `CHECKPOINT_DB_PATH=state/checkpoints.db` e `TICKETS_DB_PATH=state/tickets.db` diretamente no estágio runner do Dockerfile, permitindo que o container suba saudavelmente em execuções via `docker run` puro no CI e passe no healthcheck. Falta unicamente a verificação manual de `docker compose up` pelo usuário no Codespaces e a auditoria final independente do revisor.
+21. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1) e auditoria final independente pelo revisor.

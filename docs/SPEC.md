@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `5e57b8e` (phase 8A, CI green) plus
-this SPEC/prompt update for 8B. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `a4c57df` (phase 8B, CI docker job RED) plus
+this SPEC/prompt update for 8C. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -125,6 +125,11 @@ this SPEC/prompt update for 8B. CI (lint, tests, docker build + /health smoke) r
 - 8A `/agents` from the code, `/demo` real fields, README leftovers (verified 39/39, CI green), no review issues.
   Also found for 8B: the Dockerfile makes `/app/data` world-writable (`chmod -R 777`) and `.dockerignore` does not
   exclude local SQLite files, so a local `docker build` would copy real conversations and tickets into the image.
+- 8B (verified 38/38 by the static verifier) broke the CI `docker` job: CI starts the image with a plain
+  `docker run` (no compose variables), so the app used the code defaults `data/checkpoints.db`/`data/tickets.db`
+  in the now read-only `/app/data`, failed fast and never answered `/health`. The reviewer's 8B spec and verifier
+  missed it (static checks only; this workspace has no Docker daemon). Fixed in 8C by setting both paths to
+  `state/` in the image's `ENV`.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -159,9 +164,9 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 8B (Docker state volume, claims table, final README)**, prompt `docs/phase-prompts/8B.md`,
-verifier `scripts/verify_phase8b.py`. After 8B: the user runs `docker compose up` in Codespaces (AC8.1) and the
-reviewer does a final independent audit.
+**Current phase: 8C (the image defaults the databases to `/app/state`; fixes the CI docker job)**, prompt
+`docs/phase-prompts/8C.md`, verifier `scripts/verify_phase8c.py`. The CI docker job is the real acceptance test.
+After 8C: the user runs `docker compose up` in Codespaces (AC8.1) and the reviewer does a final audit.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -718,8 +723,10 @@ without network. Topics with no official coverage must be answered with abstenti
 - 8B (checked by `scripts/verify_phase8b.py`): named volume `app_state` (`getnet_app_state`) on `/app/state` with
   both databases defaulting to `state/`; `/app/data` (index, corpus) read-only from the image; no `chmod 777`;
   `.dockerignore` excludes `data/*.db*` and `reports/`; CI asserts the container is not root; README Docker section
-  and the reviewer-written "9. Afirmações e evidências" table (every path must exist). Then the user verifies
-  `docker compose up` in Codespaces (AC8.1) and the reviewer does a final audit.
+  and the reviewer-written "9. Afirmações e evidências" table (every path must exist).
+- 8C (checked by `scripts/verify_phase8c.py` and by the CI docker job): `ENV CHECKPOINT_DB_PATH=state/checkpoints.db`
+  and `TICKETS_DB_PATH=state/tickets.db` in the Dockerfile runner stage. Then the user verifies `docker compose up`
+  in Codespaces (AC8.1) and the reviewer does a final audit.
 **Acceptance:**
 - AC8.1 `docker compose up` verified (output pasted), healthcheck green, non-root.
 - AC8.2 README (pt-BR) covers build/run/test, architecture, workflow, RAG pipeline, tools, eval, limitations.
