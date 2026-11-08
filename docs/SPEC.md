@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `6c8ad5a` (phase 7A, CI green) plus
-this SPEC/prompt update for 7B. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `83d6453` (phase 7B, CI green) plus
+this SPEC/prompt update for 7C. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -107,6 +107,9 @@ this SPEC/prompt update for 7B. CI (lint, tests, docker build + /health smoke) r
   (output includes thinking tokens), `gemini-3.1-flash-lite` $0.25 in (text) / $1.50 out, `gemini-embedding-2` $0.20
   text in. A first fetch returned a stale cached copy (2026-06-02) without 3.5 Flash-Lite; re-fetched and confirmed.
   `gemini-3.5-flash` is no longer listed (the page lists 3.6 and 3.8 Flash), so it is not in the table.
+- 7B cost and `/chat` context (verified 32/32, CI green). Review note (fixed in 7C): the three LLM error logs in
+  `src/main.py` dropped `{exc}` from the text but kept `logger.exception`, whose traceback still carries the provider
+  message.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -141,8 +144,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 7B (cost from the official price table; `/chat` logs inside the request context)**, prompt
-`docs/phase-prompts/7B.md`, verifier `scripts/verify_phase7b.py`.
+**Current phase: 7C (`/metrics` in Prometheus text format, no new dependency)**, prompt `docs/phase-prompts/7C.md`,
+verifier `scripts/verify_phase7c.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -665,8 +668,16 @@ without network. Topics with no official coverage must be answered with abstenti
   turn's tokens and `llm_model` (assumes every call of the turn used that model; query embeddings are not counted).
   The eval report keeps cost null for now (per-case cost in the eval is later work). `/chat` runs inside `bind`,
   so its error logs carry the context; those logs keep only the exception class.
-- 7C: `/metrics` in Prometheus format (requests by status, latency histogram, tool calls by tool and status,
-  escalations, abstentions, tokens), no new dependency.
+- 7C (checked by `scripts/verify_phase7c.py`): `src/core/metrics.py`, thread-safe, no dependency, with `reset()`,
+  `render()` (text format 0.0.4, `# HELP`/`# TYPE` for every metric), `inc_request(status_code, latency_s)`,
+  `inc_tool(tool, status)` (tool names outside the 8 known tools become `unknown`, status `ok`|`error`),
+  `inc_escalation()`, `inc_abstention()`, `add_tokens(input, output)`. Metrics: `getnet_requests_total{status}` and
+  the histogram `getnet_request_latency_seconds` (buckets 0.5, 1, 2, 5, 10, 20, 30, 60, +Inf; cumulative) for
+  `/chat` and `/api/v1/chat` only (HTTP middleware, every status including 401/503); `getnet_tool_calls_total{tool,
+  status}` next to every `tool finished` log; `getnet_escalations_total` on every persisted ticket;
+  `getnet_abstentions_total` when a turn's knowledge calls all abstain; `getnet_llm_tokens_total{direction}` per
+  turn. `GET /metrics` without authentication (no identifiers in labels; restrict it at the network level). The
+  three LLM error logs use `logger.error` with the class name only.
 - 7D: record `search_web` results (url, title, snippet) in the turn for the judge; mark internal failures in the
   state (`error`) instead of the fixed Portuguese "instabilidade" text, and answer fixed messages (instability,
   forced escalation, handoff) in the merchant's language.

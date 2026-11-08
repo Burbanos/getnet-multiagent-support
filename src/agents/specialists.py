@@ -10,6 +10,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from src.config import settings
+from src.core import metrics
 from src.core.llm import (
     get_chat_model,
     get_fallback_model,
@@ -127,6 +128,7 @@ class SpecialistAgent:
                     err_msg = json.dumps({"error": f"tool {tool_name} not available to {self.name}"})
                     t_msg = ToolMessage(content=err_msg, tool_call_id=call_id, name=tool_name)
                     messages.append(t_msg)
+                    metrics.inc_tool(tool_name, "error")
                     logger.info(
                         "tool finished",
                         extra={
@@ -176,6 +178,7 @@ class SpecialistAgent:
                 except (json.JSONDecodeError, TypeError, KeyError):
                     pass
 
+                metrics.inc_tool(tool_name, status)
                 logger.info(
                     "tool finished",
                     extra={

@@ -14,6 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from src.agents.guardrails import GuardrailAgent
 from src.agents.specialists import SpecialistAgent
 from src.config import settings
+from src.core import metrics
 from src.core.checkpointer import build_sqlite_checkpointer
 from src.core.llm import (
     LLMConfigurationError,
@@ -308,6 +309,7 @@ class OrchestrationGraph:
             return {"consecutive_abstentions": 0}
 
         # 4. All calls in this turn abstained -> increment counter
+        metrics.inc_abstention()
         current_count = state.get("consecutive_abstentions", 0) + 1
         limit = settings.ESCALATE_AFTER_ABSTENTIONS
         pending_id = state.get("pending_ticket_id")
@@ -653,6 +655,7 @@ class OrchestrationGraph:
                 tool_messages.append(t_msg)
 
             latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+            metrics.inc_tool(tool_name, call_status)
             logger.info(
                 "tool finished",
                 extra={
@@ -769,6 +772,12 @@ class OrchestrationGraph:
                     tokens_dict.get("input_tokens"),
                     tokens_dict.get("output_tokens"),
                 )
+                metrics.add_tokens(
+                    tokens_dict.get("input_tokens"),
+                    tokens_dict.get("output_tokens"),
+                )
+            else:
+                metrics.add_tokens(None, None)
 
             # Map to backward-compatible AgentState
             agent_state = AgentState(

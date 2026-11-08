@@ -4,6 +4,82 @@
 
 ---
 
+### Fase 7C: /metrics no Formato Prometheus (Sem Novas Dependências)
+
+#### Verificação Fase 7C (`python scripts/verify_phase7c.py`):
+```text
+PASS M0.llm_error_logs_no_traceback
+PASS M0.no_new_dependency
+PASS M0.readme
+PASS M1.api
+PASS M1.format
+PASS M1.histogram_and_labels
+PASS M2.graph_counters
+PASS M3.endpoint
+PASS Q0.metrics_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 206 passed in 18.85s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 35/35 passed
+```
+
+#### Commit Base da Fase 7C (`git rev-parse HEAD`):
+```text
+83d6453bdd29134b8e8b04e633626376f0bd699e
+```
+
+#### Alterações Realizadas na Fase 7C:
+- **Módulo de Métricas em Memória (`src/core/metrics.py`)**:
+  - Implementado formato de texto Prometheus (versão 0.0.4) sem dependências externas (`prometheus_client`), protegido por `threading.Lock`.
+  - Exposição de todas as métricas com linhas `# HELP` e `# TYPE`:
+    - `getnet_requests_total{status="<código HTTP>"}` (counter).
+    - `getnet_request_latency_seconds` (histogram) com buckets cumulativos (`0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, +Inf`), `_sum` e `_count`.
+    - `getnet_tool_calls_total{tool="...",status="ok|error"}` (counter) normalizando ferramentas fora das 8 oficiais para `tool="unknown"`.
+    - `getnet_escalations_total`, `getnet_abstentions_total` e `getnet_llm_tokens_total{direction="input|output"}` (counters).
+  - Funções `reset()`, `render() -> str`, `inc_request(...)`, `inc_tool(...)`, `inc_escalation()`, `inc_abstention()`, `add_tokens(...)`.
+- **Serviço FastAPI (`src/main.py`)**:
+  - Middleware HTTP medindo latência e registrando código de status via `inc_request` exclusivamente para `/chat` e `/api/v1/chat` (incluindo 401, 503 e 500; ignorando endpoints de saúde/docs).
+  - Endpoint `GET /metrics` retornando `media_type="text/plain; version=0.0.4; charset=utf-8"` sem autenticação.
+  - Substituição de `logger.exception` por `logger.error` nos três tratamentos de erro de LLM (mal configurado, não configurado, indisponível), mantendo apenas o nome da classe da exceção para evitar vazamento de mensagens do provedor via traceback.
+- **Instrumentação do Grafo e Especialistas (`src/core/graph.py`, `src/agents/specialists.py`, `src/core/tickets_db.py`)**:
+  - `inc_tool` invocado ao lado de cada registro de `"tool finished"` no Supervisor e em especialistas.
+  - `inc_escalation` acionado junto à persistência de chamado em `tickets_db.py`.
+  - `inc_abstention` acionado no nó `abstention_check` quando todas as consultas de conhecimento se abstêm.
+  - `add_tokens` chamado ao final de cada turno em `run_sync` com os tokens medidos.
+- **Documentação Técnica (`README.md`)**:
+  - Documentação completa do endpoint `GET /metrics`, de cada métrica pelo nome, do armazenamento em memória por processo (sem agregação de réplicas) e da recomendação de segurança de rede em produção.
+- **Testes Unitários Criados (`tests/test_metrics.py`)**:
+  - `test_render_format_and_cumulative_histogram`: validação de cabeçalhos HELP/TYPE, contagens cumulativas de buckets, sum e count.
+  - `test_unknown_tool_normalization_and_statuses`: validação de normalização de ferramentas inventadas para `tool="unknown"`.
+  - `test_turn_increments_tools_escalation_and_tokens`: integração com `OrchestrationGraph` validando incremento de ferramentas, chamados escalonados e tokens de entrada e saída.
+  - `test_metrics_endpoint_and_chat_status_recording`: validação de que `/metrics` responde 200 `text/plain`, grava status 401 e 503 do `/chat`, ignora `/health` e não expõe identificadores de usuário.
+
+---
+
 ### Fase 7B: Custo pela Tabela Oficial de Preços e Logs do /chat no Contexto
 
 #### Verificação Fase 7B (`python scripts/verify_phase7b.py`):
@@ -1174,4 +1250,5 @@ All checks passed!
 13. **Fase 6F Concluída (Alinhamento Honesto de Capacidades no README e /demo)**: Removida qualquer afirmação de "Confiança Dinâmica" e "100% de precisão" (sem cálculo que a sustente), clarificado que `estimated_cost_usd` permanece `null` até a Fase 7, atualizado o formato de tickets para `GET-TKT-YYYYMMDD-<10 hexadecimais>`, documentada a margem real de 0.04 no retrieval e alinhadas as respostas do glossário e da matriz de cenários com as medições reais de `full-1`.
 14. **Fase 7A Concluída (Logs Estruturados com trace_id, Sessão e Usuário em Hash)**: Implementado `log_context.py` com ContextVars e hashing de `user_id` (`u_<hex16>`) com sal configurável `LOG_HASH_SALT`; logs formatados em JSON com contexto em todos os registros sem vazamento de identificador cru nem PII; eventos de latência de nós (`node finished`) e ferramentas (`tool finished`) implementados.
 15. **Fase 7B Concluída (Custo pela Tabela Oficial de Preços e Logs do /chat no Contexto)**: Criado `src/core/pricing.py` com preços oficiais de 2026-10-30 (coletados em 2026-11-07), cálculo de `estimated_cost_usd` por turno no grafo LangGraph, logs de `/chat` executados dentro do contexto de requisição `bind(...)` com `trace_id`, `session_id` e `user_hash`, e 4 novos testes unitários em `tests/test_pricing.py`.
-16. **Próxima Fase (Fase 7C: Métricas Prometheus `/metrics`)**: Implementação de exportador Prometheus `/metrics` com contadores de requisições, latência e consumo de tokens por agente/modelo.
+16. **Fase 7C Concluída (`/metrics` no Formato Prometheus)**: Criado `src/core/metrics.py` com exposição em formato Prometheus 0.0.4 sem novas dependências; middleware de medição de requisições e latência para `/chat`; contadores de ferramentas, escalonamentos, abstenções e tokens integrados; endpoint `GET /metrics` implementado; logs de erro do LLM ajustados para `logger.error`; e 4 novos testes unitários em `tests/test_metrics.py`.
+17. **Próxima Fase (Fase 7D: Registro de Busca Web, Tratamento de Erros Internos e Idioma do Lojista)**: Gravação de resultados de busca web (url, title, snippet) para auditoria do juiz; marcação de falhas internas no estado (`error`) no idioma da consulta.

@@ -12,6 +12,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.config import settings
+from src.core import metrics
 
 logger = logging.getLogger("multiagent.tickets_db")
 
@@ -167,6 +168,7 @@ class TicketsRepository:
             conn.commit()
 
         logger.info(f"Persisted escalation ticket {ticket_id}")
+        metrics.inc_escalation()
 
         message = (
             f"Chamado registrado com sucesso sob o protocolo **{ticket_id}**. "

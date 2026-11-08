@@ -284,6 +284,17 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
     * Evento `node finished`: emitido ao término de cada nó do grafo (`guardrail`, `handoff_gate`, `supervisor`, `tools`, `force_escalation`, `abstention_check`) contendo os campos `node` e `latency_ms`.
     * Evento `tool finished`: emitido ao término de cada ferramenta (seja no `SupervisorAgent` ou nos especialistas `KnowledgeAgent` e `SupportAgent`), contendo `tool`, `agent`, `status` (`"ok"` ou `"error"`) e `latency_ms`.
 
+* **Métricas em Formato Prometheus (Fase 7C - `GET /metrics`)**:
+  * O endpoint `GET /metrics` expõe métricas operacionais no formato de texto Prometheus (versão 0.0.4) sem autenticação e sem identificadores pessoais de usuários ou sessões (em ambientes de produção, o acesso deve ser restrito no nível de rede ou reverse proxy).
+  * **Armazenamento em Memória por Processo**: As métricas são mantidas em memória no processo (`src/core/metrics.py`), protegidas por `threading.Lock`; zeram a cada reinicialização da aplicação e não realizam soma entre réplicas horizontais.
+  * **Métricas Disponibilizadas**:
+    * `getnet_requests_total`: contador de requisições HTTP processadas nos endpoints de chat (`/chat` e `/api/v1/chat`), rotulado por status (`status="<código HTTP>"`).
+    * `getnet_request_latency_seconds`: histograma de latência em segundos para requisições de chat, com buckets cumulativos (`0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, +Inf`), além de `_sum` e `_count`.
+    * `getnet_tool_calls_total`: contador de invocações de ferramentas (`tool="<nome>",status="ok|error"`), restringindo o rótulo às 8 ferramentas oficiais conhecidas e normalizando qualquer outro nome para `tool="unknown"`.
+    * `getnet_escalations_total`: contador de chamados de atendimento humano gravados com sucesso em banco de dados.
+    * `getnet_abstentions_total`: contador de turnos conversacionais em que as consultas ao especialista de conhecimento se abstiveram por ausência de fontes oficiais.
+    * `getnet_llm_tokens_total`: contador acumulado de tokens de LLM processados, dividido por direção (`direction="input|output"`).
+
 ---
 
 ## 3. Como Executar e Modos de Operação
@@ -364,6 +375,7 @@ Com a aplicação rodando em `http://localhost:8000`:
 * **Consulta de Chamado Persistido**: `GET /tickets/{ticket_id}`
 * **Listagem de Chamados de Suporte**: `GET /tickets`
 * **Endpoint de Atendimento do Grafo**: `POST /chat`
+* **Métricas Prometheus**: `GET /metrics`
 
 Exemplo de requisição com sessão multi-turn e autenticação:
 ```bash

@@ -1,16 +1,18 @@
 """FastAPI HTTP service exposing the Multi-Agent Support System API."""
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import logger, settings
+from src.core import metrics
 from src.core.auth import Principal, auth_mode, authenticate, validate_auth_config
 from src.core.graph import get_orchestrator
 from src.core.llm import (
@@ -106,6 +108,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    path = request.url.path
+    if path in ("/chat", "/api/v1/chat"):
+        start_time = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        except Exception:
+            status_code = 500
+            raise
+        finally:
+            latency_s = time.perf_counter() - start_time
+            metrics.inc_request(status_code, latency_s)
+    return await call_next(request)
+
+
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -123,6 +145,7 @@ async def root():
         "chat_endpoint": "/chat",
         "interactive_demo": "/demo",
         "tickets_endpoint": "/tickets",
+        "metrics_endpoint": "/metrics",
     }
 
 
@@ -147,6 +170,14 @@ async def health_check():
         llm_configured=bool(settings.GEMINI_API_KEY),
         guardrails_enabled=settings.ENABLE_GUARDRAILS,
         auth_mode=auth_mode(),
+    )
+
+
+@app.get("/metrics", tags=["Observability"])
+def metrics_endpoint() -> Response:
+    return Response(
+        content=metrics.render(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 
@@ -378,21 +409,21 @@ def chat_endpoint(
             )
 
         except LLMConfigurationError as exc:
-            logger.exception(f"LLM misconfigured: {type(exc).__name__}")
+            logger.error(f"LLM misconfigured: {type(exc).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="LLM misconfigured: check LLM_PROVIDER, LLM_MODEL and the provider API key.",
                 headers={"X-Trace-Id": trace_id},
             ) from exc
         except LLMNotConfiguredError as exc:
-            logger.exception(f"LLM not configured: {type(exc).__name__}")
+            logger.error(f"LLM not configured: {type(exc).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="LLM not configured: set GEMINI_API_KEY.",
                 headers={"X-Trace-Id": trace_id},
             ) from exc
         except LLMUnavailableError as exc:
-            logger.exception(f"LLM provider unavailable: {type(exc).__name__}")
+            logger.error(f"LLM provider unavailable: {type(exc).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="LLM provider unavailable, please retry.",
