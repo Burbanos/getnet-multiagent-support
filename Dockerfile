@@ -35,8 +35,8 @@ COPY src ./src
 COPY data ./data
 COPY README.md .
 
-# Set ownership to non-root user and ensure write permissions on data directory
-RUN mkdir -p /app/data && chown -R appuser:appgroup /app && chmod -R 777 /app/data
+# Create state directory owned by appuser for persistent databases
+RUN mkdir -p /app/state && chown -R appuser:appgroup /app/state
 
 USER appuser
 

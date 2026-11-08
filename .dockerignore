@@ -14,3 +14,7 @@ venv
 htmlcov
 .env
 tests
+data/*.db
+data/*.db-wal
+data/*.db-shm
+reports/

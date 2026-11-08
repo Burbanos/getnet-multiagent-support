@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `fd93649` (phase 7D, CI green) plus
-this SPEC/prompt update for 8A. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `5e57b8e` (phase 8A, CI green) plus
+this SPEC/prompt update for 8B. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -122,6 +122,9 @@ this SPEC/prompt update for 8A. CI (lint, tests, docker build + /health smoke) r
   mounted on `/app/data`, which also holds the committed index and corpus, so after an image update the container
   keeps serving the OLD index from the volume (fix in 8B: mount the volume on a state sub-directory and point
   `CHECKPOINT_DB_PATH`/`TICKETS_DB_PATH` there).
+- 8A `/agents` from the code, `/demo` real fields, README leftovers (verified 39/39, CI green), no review issues.
+  Also found for 8B: the Dockerfile makes `/app/data` world-writable (`chmod -R 777`) and `.dockerignore` does not
+  exclude local SQLite files, so a local `docker build` would copy real conversations and tickets into the image.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -156,8 +159,9 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 8A (`/agents` generated from the code; `/demo` shows only real fields; README leftovers)**, prompt
-`docs/phase-prompts/8A.md`, verifier `scripts/verify_phase8a.py`.
+**Current phase: 8B (Docker state volume, claims table, final README)**, prompt `docs/phase-prompts/8B.md`,
+verifier `scripts/verify_phase8b.py`. After 8B: the user runs `docker compose up` in Codespaces (AC8.1) and the
+reviewer does a final independent audit.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -711,8 +715,11 @@ without network. Topics with no official coverage must be answered with abstenti
   tool names and prompt files, `GuardrailAgent` with no tools and no LLM, models, one row per tool with name, first
   description line and sorted args); `/demo` without `MemorySaver`/"Gemini Flash", tokens and cost from the response
   metadata, a missing score shown as `n/a`; README leftovers fixed.
-- 8B: Docker volume on a state sub-directory (index and corpus come from the image), `docker compose up` verified by
-  the user in Codespaces (output pasted), README "Afirmações → evidências" table, final independent audit.
+- 8B (checked by `scripts/verify_phase8b.py`): named volume `app_state` (`getnet_app_state`) on `/app/state` with
+  both databases defaulting to `state/`; `/app/data` (index, corpus) read-only from the image; no `chmod 777`;
+  `.dockerignore` excludes `data/*.db*` and `reports/`; CI asserts the container is not root; README Docker section
+  and the reviewer-written "9. Afirmações e evidências" table (every path must exist). Then the user verifies
+  `docker compose up` in Codespaces (AC8.1) and the reviewer does a final audit.
 **Acceptance:**
 - AC8.1 `docker compose up` verified (output pasted), healthcheck green, non-root.
 - AC8.2 README (pt-BR) covers build/run/test, architecture, workflow, RAG pipeline, tools, eval, limitations.

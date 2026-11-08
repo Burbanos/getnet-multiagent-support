@@ -69,6 +69,7 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
 - [6. Matriz de Cobertura dos Cenários Oficiais](#6-matriz-de-cobertura-dos-cenários-oficiais)
 - [7. Glossário de Defesa Técnica (Perguntas de Entrevista)](#7-glossário-de-defesa-técnica-perguntas-de-entrevista)
 - [8. Estrutura do Repositório](#8-estrutura-do-repositório)
+- [9. Afirmações e evidências](#9-afirmações-e-evidências)
 
 ---
 
@@ -330,6 +331,8 @@ O sistema opera com arquitetura agnóstica de provedores via `langchain-google-g
 ### Execução via Docker Compose
 
 O arquivo `docker-compose.yml` opera configurado com `APP_ENV=production`. Em produção, a autenticação por chave de API é estritamente obrigatória: a variável `API_KEYS` é obrigatória (sem ela toda requisição aos endpoints protegidos recebe HTTP 401 Unauthorized) e o hash seguro de cada chave permitida é gerado com `python -m src.core.auth hash`.
+
+O volume nomeado `getnet_app_state` guarda exclusivamente os bancos de dados SQLite em `/app/state` (`/app/state/checkpoints.db` e `/app/state/tickets.db`). O índice vetorial e o corpus documental vêm diretamente da imagem Docker (atualizar a imagem atualiza a base automaticamente, sem servir índices antigos guardados em volume). Para começar do zero com os bancos limpos, basta executar `docker compose down -v`.
 
 ```bash
 # Gerar o hash SHA-256 de uma chave de API para o arquivo .env:
@@ -628,3 +631,29 @@ getnet-multiagent-support/
 ├── .env.example                   # Modelo de variáveis de ambiente
 └── README.md                      # Documentação técnica e limitações atuais
 ```
+
+---
+
+## 9. Afirmações e evidências
+
+Cada afirmação deste README aponta para o código, o teste, o verificador ou o relatório que a sustenta. Os verificadores `scripts/verify_*.py` foram escritos por um revisor externo e rodam de novo os anteriores; o CI roda lint, testes, o build da imagem e um smoke test em `/health`.
+
+| Afirmação | Evidência |
+| :--- | :--- |
+| O supervisor decide rota e ferramentas por function calling, sem regex de roteamento | `src/core/graph.py` (`bind_tools(SUPERVISOR_TOOLS)`), `src/tools/supervisor_tools.py`, `tests/test_graph_llm.py`, `scripts/verify_phase2a.py` |
+| Especialistas (Knowledge e Support) rodam em contexto isolado, com as próprias ferramentas | `src/agents/specialists.py`, `src/core/graph.py` (`KNOWLEDGE_TOOLS`, `SUPPORT_TOOLS`), `tests/test_specialists.py`, `scripts/verify_phase2d.py` |
+| A base de conhecimento vem de páginas oficiais da Getnet, com URL e data de coleta | `data/sources.yaml`, `data/corpus/pages.jsonl`, `data/index/chunks.jsonl`, `src/rag/ingest.py`, `scripts/verify_phase3a.py` |
+| O limiar de relevância (`RAG_MIN_SCORE = 0.61`) foi calibrado em um conjunto rotulado | `reports/retrieval_calibration.md`, `src/rag/calibration.py`, `scripts/verify_phase3d.py` |
+| Avaliação ponta a ponta com 69 casos e métricas que falham (62/69 aprovados na `full-1`) | `data/eval/cases.jsonl`, `src/eval/`, `reports/eval_runs/full-1.jsonl`, `reports/eval_full-1.md`, `scripts/verify_phase6e.py` |
+| Abstenção medida por um juiz LLM que não vê o resultado esperado | `src/prompts/judge.md`, `src/eval/judge.py`, `reports/eval_runs/full-1.judge.jsonl`, `scripts/verify_phase6b.py` |
+| O transbordo humano grava o chamado em SQLite, com ciclo de vida e sem prometer prazo | `src/core/tickets_db.py`, `src/prompts/supervisor.md`, `tests/test_tickets.py`, `tests/test_handoff.py`, `scripts/verify_phase5a.py` |
+| A resposta do operador é entregue no chat uma única vez | `src/core/graph.py` (`handoff_gate`), `tests/test_handoff.py`, `scripts/verify_phase5c.py` |
+| A memória é persistida por sessão e isolada por usuário (`user_id:session_id`) | `src/core/checkpointer.py`, `tests/test_checkpointer.py`, `scripts/verify_phase4b.py` |
+| O `user_id` vem da credencial (`X-API-Key`), nunca do corpo da requisição | `src/core/auth.py`, `tests/test_auth.py`, `scripts/verify_phase4a.py` |
+| Cartões (Luhn) e CPF são mascarados antes de chegar ao modelo | `src/core/pii.py`, `src/agents/guardrails.py`, `tests/test_unit.py` |
+| Logs em JSON com `trace_id`, `session_id` e `user_hash`, sem `user_id` nem dados da mensagem | `src/core/log_context.py`, `src/config.py`, `tests/test_logging.py`, `scripts/verify_phase7a.py` |
+| Custo por turno calculado com a tabela oficial de preços (fonte e datas no código) | `src/core/pricing.py`, `tests/test_pricing.py`, `scripts/verify_phase7b.py` |
+| Métricas em formato Prometheus em `/metrics` | `src/core/metrics.py`, `tests/test_metrics.py`, `scripts/verify_phase7c.py` |
+| Nenhuma métrica, resposta ou confiança fixa no código | `src/static/demo.html`, `scripts/verify_phase1.py`, `scripts/verify_phase6f.py` |
+| `/agents` é gerado a partir do código | `src/main.py`, `tests/test_agents_endpoint.py`, `scripts/verify_phase8a.py` |
+| Container sem root, com healthcheck, e o índice vem da imagem (o volume guarda só os bancos) | `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `scripts/verify_phase8b.py` |

@@ -4,6 +4,79 @@
 
 ---
 
+### Fase 8B: Volume do Docker só com os Bancos, Tabela de Afirmações e README Final
+
+#### Verificação Fase 8B (`python scripts/verify_phase8b.py`):
+```text
+PASS D1.volume_on_state
+PASS D1.db_paths_in_state
+PASS D2.dockerfile
+PASS D2.dockerignore
+PASS D3.ci_non_root
+PASS R1.claims_table
+PASS R2.readme_docker
+PASS R3.evidence_exists
+PASS R4.results_kept
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 213 passed in 16.98s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 38/38 passed
+```
+
+#### Commit Base da Fase 8B (`git rev-parse HEAD`):
+```text
+5e57b8e70f24aba12540cb1715d472854a1a0933
+```
+
+#### Alterações Realizadas na Fase 8B:
+- **Volume Docker e Caminhos de Estado (`docker-compose.yml`)**:
+  - O volume nomeado foi alterado para `app_state` (com `name: getnet_app_state`) e montado exclusivamente em `/app/state` (removendo montagem em `/app/data`).
+  - Padrões de caminhos dos bancos no Compose atualizados para `CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-state/checkpoints.db}` e `TICKETS_DB_PATH=${TICKETS_DB_PATH:-state/tickets.db}`.
+  - O índice e o corpus documental permanecem somente para leitura a partir da imagem, permitindo que novas versões da imagem atualizem a base automaticamente.
+- **Higienização de Permissões no Dockerfile (`Dockerfile`)**:
+  - Removidos `chmod -R 777` e `chown` sobre `/app/data`.
+  - Criado diretório `/app/state` com propriedade atribuída a `appuser:appgroup`. Mantido usuário não-root `USER appuser` e `HEALTHCHECK`.
+- **Prevenção de Vazamento em `.dockerignore` (`.dockerignore`)**:
+  - Adicionadas regras `data/*.db`, `data/*.db-wal`, `data/*.db-shm` e `reports/` para evitar que bancos locais contendo dados de conversas ou chamados e relatórios de avaliação sejam incluídos acidentalmente na imagem Docker.
+- **Asserção de Usuário Não-Root no CI (`.github/workflows/ci.yml`)**:
+  - Adicionada verificação no job do Docker confirmando que o container não executa como root (`test "$(docker exec app id -u)" != "0"`).
+- **Documentação e Tabela de Evidências (`README.md`)**:
+  - Seção Docker Compose documenta o volume `getnet_app_state` restrito a `/app/state` e instrui `docker compose down -v` para reinício limpo.
+  - Adicionada a seção "9. Afirmações e evidências" com a tabela completa mapeando cada alegação técnica do projeto às respectivas evidências (arquivos de código, testes, relatórios e verificadores).
+  - Incluído link "9. Afirmações e evidências" no Sumário do README.
+
+#### Status do Requisito AC8.1:
+- Falta somente a verificação manual do `docker compose up` pelo usuário no ambiente Codespaces para validação final em runtime real.
+
+---
+
 ### Fase 8A: /agents Gerado pelo Código, /demo com Campos Reais e Sobras do README
 
 #### Verificação Fase 8A (`python scripts/verify_phase8a.py`):
@@ -1408,4 +1481,5 @@ All checks passed!
 16. **Fase 7C Concluída (`/metrics` no Formato Prometheus)**: Criado `src/core/metrics.py` com exposição em formato Prometheus 0.0.4 sem novas dependências; middleware de medição de requisições e latência para `/chat`; contadores de ferramentas, escalonamentos, abstenções e tokens integrados; endpoint `GET /metrics` implementado; logs de erro do LLM ajustados para `logger.error`; e 4 novos testes unitários em `tests/test_metrics.py`.
 17. **Fase 7D Concluída (Registro de Busca Web, Tratamento de Erros Internos e Mensagens Bilíngues)**: Gravação de resultados de busca web (url, title, snippet limitado a 600 caracteres) propagados para passagens do juiz LLM; marcação de exceções internas não tratadas como `error="internal_error"` contabilizadas como erro pelo runner de avaliação; e mensagens de instabilidade e escalonamento forçado padronizadas de forma bilíngue (PT/EN). A Fase 7 está oficialmente concluída.
 18. **Fase 8A Concluída (/agents Gerado pelo Código, /demo com Campos Reais e Sobras do README)**: O endpoint `GET /agents` agora gera toda a arquitetura, agentes, ferramentas e argumentos diretamente dos objetos em memória e configurações ativas (eliminando nomes fictícios e referências antigas a `MemorySaver`); a interface `/demo` reflete os metadados reais de tokens, custo e score de similaridade; o README foi alinhado removendo referências obsoletas à Fase 6, detalhando a pipeline de CI e a obrigatoriedade de `API_KEYS` no Docker Compose.
-19. **Próxima Fase (Fase 8B: Volume Docker em Subdiretório de Estado, Tabela de Alegações do README e Fechamento Final)**: Ajuste do volume Docker para subdiretório de estado isolado de dados estáticos da imagem, validação do `docker compose up`, tabela "Afirmações → evidências" no README e auditoria final independente.
+19. **Fase 8B Concluída (Volume Docker em Subdiretório de Estado, Tabela de Afirmações e README Final)**: O volume Docker foi isolado em `/app/state` (`getnet_app_state`), mantendo corpus e índice na imagem; permissões e `.dockerignore` higienizados; asserção de usuário não-root adicionada ao CI; tabela de alegações e evidências integrada no README. Falta somente a verificação de `docker compose up` pelo usuário no Codespaces e a auditoria final independente do revisor.
+20. **Próximo Passo**: Verificação pelo usuário do `docker compose up` no Codespaces (AC8.1) e auditoria final independente pelo revisor.

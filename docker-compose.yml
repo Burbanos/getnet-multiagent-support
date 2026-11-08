@@ -29,11 +29,11 @@ services:
       - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
       - API_KEYS=${API_KEYS:-}
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
-      - CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-data/checkpoints.db}
-      - TICKETS_DB_PATH=${TICKETS_DB_PATH:-data/tickets.db}
+      - CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-state/checkpoints.db}
+      - TICKETS_DB_PATH=${TICKETS_DB_PATH:-state/tickets.db}
       - ESCALATE_AFTER_ABSTENTIONS=${ESCALATE_AFTER_ABSTENTIONS:-2}
     volumes:
-      - tickets_data:/app/data
+      - app_state:/app/state
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\" || exit 1"]
       interval: 15s
@@ -42,5 +42,5 @@ services:
       start_period: 5s
 
 volumes:
-  tickets_data:
-    name: getnet_tickets_data
+  app_state:
+    name: getnet_app_state

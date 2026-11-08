@@ -48,4 +48,5 @@ jobs:
             elapsed=$((elapsed+2))
           done
           echo "Health check succeeded!"
+          test "$(docker exec app id -u)" != "0"
           docker logs app
