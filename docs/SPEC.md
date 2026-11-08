@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `34fc9e1` (phase 8D, CI green) plus
-this SPEC/prompt update for 8E. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `c2d52e3` (phase 8E, CI green) plus
+this SPEC/prompt update for 8F. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -161,6 +161,14 @@ this SPEC/prompt update for 8E. CI (lint, tests, docker build + /health smoke) r
   through 2026-12-31 and $1.50 / $7.50 from 2027-01-01 (also in Google's 3.8 Flash launch post, 2026-09-02), and
   `gemini-3.5-flash-lite` unchanged at $0.30 / $2.50. A fetch of the old URL returned a stale copy without these
   models (the same caching problem as in 7B).
+- 8E (verified 52/52, CI green). Review notes (fixed in 8F): the README sub-heading "Execução de Referência
+  Registrada (`full-1`)" still presents `full-1` as the reference run; "Limitações atuais" and the table of contents
+  point only to `full-1`; the README does not say that the recorded output tokens include reasoning tokens. Checked
+  against the user's AI Studio usage page (2026-11-08): `gemini-3.8-flash` ≈1.5M input / ≈210K output tokens that
+  day vs 1,484,859 / 215,078 recorded by the three runs, so the recorded counts (and `estimated_cost_usd`) include
+  thinking tokens. Billing page: R$ 21.43 spent in the month, consistent with the reviewer's ≈US$ 3.6 estimate for
+  the six runs plus judge. The `full-1` matrix (section 6) and the claims row "62/69 na `full-1`" stay: earlier
+  verifiers pin them and they are labelled as `full-1` results.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -195,8 +203,9 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 8E (multi-run evaluation and model comparison)**, prompt `docs/phase-prompts/8E.md`, verifier
-`scripts/verify_phase8e.py`. 8E commits the six new runs, prices the evaluation and publishes the comparison.
+**Current phase: 8F (README wording after 8E)**, prompt `docs/phase-prompts/8F.md`, verifier
+`scripts/verify_phase8f.py`. 8F closes the plan. Open product failures (`k16`, `o02`, `s04`, `s06` in every run;
+`off01` with 3.8-flash) stay documented; fixing them needs new held-out cases, not prompt tuning against these.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -769,6 +778,10 @@ without network. Topics with no official coverage must be answered with abstenti
   LABEL=run,run`) with mean/min/max per metric (`null` if any run lacks the value), `failed_in_all_runs` and
   `judge_abstention_errors_in_all_runs`; `reports/eval_models.{json,md}`; README comparison section (reviewer text)
   before the `full-1` section, cost text updated, claims row. The default answer model stays `gemini-3.5-flash-lite`.
+- 8F (checked by `scripts/verify_phase8f.py`): README only. The `full-1` sub-heading becomes "Execuções registradas"
+  (the six-run comparison is the current result, `full-1` is historical); "Limitações atuais" and the table of
+  contents point to the comparison; the cost bullet states that recorded output tokens include reasoning tokens,
+  with the AI Studio cross-check.
 **Acceptance:**
 - AC8.1 `docker compose up` verified (output pasted), healthcheck green, non-root.
 - AC8.2 README (pt-BR) covers build/run/test, architecture, workflow, RAG pipeline, tools, eval, limitations.

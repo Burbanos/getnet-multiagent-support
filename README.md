@@ -15,7 +15,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 ## Limitações atuais
 
 * **Supervisor LLM e API Key**: O supervisor utiliza o modelo Gemini com function calling e exige `GEMINI_API_KEY`; sem a chave, o endpoint `/chat` responde HTTP 503 com mensagem explícita;
-* **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento; a qualidade com o modelo real é medida pela avaliação (`reports/eval_full-1.md`);
+* **Testes com modelo roteirizado**: Os testes automatizados utilizam um modelo roteirizado (`ScriptedChatModel`) para validação de plumbing sem chamadas de rede e não medem a qualidade do roteamento; a qualidade com o modelo real é medida pela avaliação (`reports/eval_models.md`, três execuções por modelo);
 * **Base de conhecimento**: Base oficial ingerida e vetorizada (`gemini-embedding-2`), com avaliação de retrieval e limiar calibrado na Fase 3D;
 * **Persistência e Isolamento de Memória**: O histórico de sessões é persistido em SQLite via `SqliteSaver` no arquivo `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`; no Docker, `/app/state/checkpoints.db` no volume `getnet_app_state`), sobrevivendo a reinícios e isolado por `user_id:session_id`. Limitações honestas: não há expiração/limpeza automática de conversas antigas; cada réplica utiliza seu próprio arquivo SQLite (sem memória compartilhada entre instâncias sem banco compartilhado); o rate limit é controlado em memória por processo; o app não sobe com `API_KEYS` inválido ou banco inacessível (e responde 503 se a configuração ficar inválida em execução).
 
@@ -64,7 +64,8 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
   - [Dataset de Avaliação (data/eval/cases.jsonl)](#dataset-de-avaliação-dataevalcasesjsonl)
   - [Checagens Determinísticas](#checagens-determinísticas)
   - [Subconjunto Offline no CI](#subconjunto-offline-no-ci-python--m-srceval-offline)
-  - [Resultados da avaliação](#resultados-da-avaliação-execução-full-1-2026-11-07)
+  - [Resultados da avaliação: comparação de modelos](#resultados-da-avaliação-comparação-de-modelos-3-execuções-por-modelo-2026-11-08)
+  - [Resultados da avaliação (full-1, histórica)](#resultados-da-avaliação-execução-full-1-2026-11-07)
 - [5. Testes Automatizados e CI/CD](#5-testes-automatizados-e-cicd)
 - [6. Matriz de Cobertura dos Cenários Oficiais](#6-matriz-de-cobertura-dos-cenários-oficiais)
 - [7. Glossário de Defesa Técnica (Perguntas de Entrevista)](#7-glossário-de-defesa-técnica-perguntas-de-entrevista)
@@ -278,6 +279,7 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   * **Plano e Nível**: Calculado para o plano pago (*paid tier*), nível *Standard*, com base nos tokens de entrada e saída informados pelo modelo. O nível gratuito (*free tier*) não é cobrado comercialmente, portanto o valor representa uma estimativa do equivalente no plano pago.
   * **Modelos Suportados e Não Listados**: A tabela inclui `gemini-3.6-flash` e `gemini-3.8-flash` (US$ 0,75 e US$ 3,75 por milhão de tokens até 2026-12-31; US$ 1,50 e US$ 7,50 a partir de 2027-01-01, em `PRICE_NOTES`), coletados em 2026-11-08 de https://aistudio.google.com/docs/pricing. Modelos fora da tabela oficial (como `gemini-3.5-flash` ou identificadores customizados) ou chamadas sem tokens retornam `estimated_cost_usd` como `null`.
   * **Premissas e Limitações**: O custo por turno assume que todas as chamadas do turno utilizaram o mesmo modelo do supervisor e não contabiliza os tokens de embeddings das consultas vetoriais (`gemini-embedding-2`). O relatório da avaliação traz `estimated_cost_usd` por execução: a soma do custo de cada turno pelo modelo registrado no turno; fica `null` se algum turno com tokens não tiver preço, e não inclui o juiz nem os embeddings.
+  * **Tokens de raciocínio**: os tokens de saída informados pelo Gemini, e registrados em cada turno, já incluem os tokens de raciocínio (cobrados como saída). Conferido no painel de uso do AI Studio em 2026-11-08: o `gemini-3.8-flash` mostrou cerca de 1,5 milhão de tokens de entrada e 210 mil de saída no dia, contra 1.484.859 e 215.078 registrados pelas três execuções (`full-3`, `full-6`, `full-7`).
 * **Logs Estruturados e Privacidade (Fase 7A)**:
   * **Campos Contextuais em Todo Registro**: Através de `ContextVar` e `JsonFormatter`, cada registro de log gerado no ciclo de atendimento inclui automaticamente `trace_id`, `session_id` e `user_hash`. O identificador cru `user_id` e a mensagem original não sanitizada do lojista nunca são impressos no log, prevenindo vazamento de dados confidenciais, números de cartão de crédito ou CPF.
   * **Cálculo de `user_hash` e Salting**: O hash do usuário é computado como `"u_" + sha256((settings.LOG_HASH_SALT + user_id).encode("utf-8")).hexdigest()[:16]`. Sem sal, o hash de um identificador conhecido pode ser recalculado por força bruta; em ambientes de produção, defina um sal secreto na variável `LOG_HASH_SALT`.
@@ -451,8 +453,8 @@ Esse comando executa o grafo com o modelo sentinela `ForbiddenChatModel` sobre o
 
 A avaliação completa do sistema sobre os 69 casos de teste utiliza o modelo real e é dividida em três etapas via CLI (`run`, `judge` e `report`).
 
-#### Execução de Referência Registrada (`full-1`)
-O repositório já inclui uma execução integral e validada realizada em 2026-11-07 utilizando o modelo primário `gemini-3.5-flash-lite` (run `full-1`). Todos os 69 casos foram executados com sucesso (0 erros de execução), estando o log bruto preservado em `reports/eval_runs/full-1.jsonl` e o relatório completo em `reports/eval_full-1.md` (e `reports/eval_full-1.json`).
+#### Execuções registradas
+O repositório inclui sete execuções completas dos 69 casos, cada uma com o registro bruto em `reports/eval_runs/` e o relatório em `reports/eval_full-N.md`. O resultado atual é a comparação das seis execuções de 2026-11-08 (`full-2` a `full-7`, três por modelo), resumida em `reports/eval_models.md` e na seção abaixo. A `full-1` (2026-11-07) é histórica: foi feita antes da Fase 7D, quando os resultados da busca web ainda não eram registrados, e julgada por outro modelo (`gemini-3.1-flash-lite`); os números dela ficam na seção seguinte e na matriz da seção 6.
 
 ### Resultados da avaliação: comparação de modelos (3 execuções por modelo, 2026-11-08)
 

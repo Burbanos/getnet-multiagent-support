@@ -4,6 +4,83 @@
 
 ---
 
+### Fase 8F: README Depois da Avaliação com Várias Execuções
+
+#### Verificação Fase 8F (`python scripts/verify_phase8f.py`):
+```text
+PASS F1.runs_heading
+PASS F2.limitations_point_to_comparison
+PASS F3.toc_entry
+PASS F4.reasoning_tokens_note
+PASS F5.kept.62/69 (89,9%)
+PASS F5.kept.## 6. Matriz de Cobertur
+PASS F5.kept.| Casos aprovados (checa
+PASS E1.status
+PASS E2.readme_only
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 219 passed in 19.71s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 42/42 passed
+```
+
+#### Commit Base da Fase 8F (`git rev-parse HEAD`):
+```text
+c2d52e311710bc19fbcf741c2cac0c210d957d32
+```
+
+#### Não feito:
+- Nenhum. Todos os checks da Fase 8F passaram com sucesso.
+
+#### Conclusão do Plano do SPEC:
+- Com a conclusão da Fase 8F, o plano de especificação técnica de todas as fases (Fases 1 a 8) do `docs/SPEC.md` está formalmente e integralmente concluído.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. O texto do README reflete fielmente as execuções consolidadas e as referências históricas.
+
+#### Alterações Realizadas na Fase 8F:
+- **Subtítulo e Seção de Execuções Registradas (`README.md`)**:
+  - Atualizado o subtítulo de `#### Execução de Referência Registrada (`full-1`)` para `#### Execuções registradas`.
+  - Atualizado o parágrafo explicativo contextualizando as 7 execuções dos 69 casos, indicando a comparação das seis execuções de 2026-11-08 (`full-2` a `full-7`) em `reports/eval_models.md` e marcando a `full-1` como execução histórica.
+- **Limitações Atuais (`README.md`)**:
+  - No item "Testes com modelo roteirizado", atualizada a referência da avaliação com o modelo real de `(`reports/eval_full-1.md`)` para `(`reports/eval_models.md`, três execuções por modelo)`.
+- **Sumário (`README.md`)**:
+  - Dividido o item de avaliação no Sumário para incluir o link direto para `Resultados da avaliação: comparação de modelos` e `Resultados da avaliação (full-1, histórica)`.
+- **Observabilidade Técnica e Tokens de Raciocínio (`README.md`)**:
+  - Acrescentado item explicando que os tokens de saída informados pelo Gemini e registrados em cada turno incluem tokens de raciocínio (faturados como tokens de saída), correlacionando com a conferência no painel de uso do Google AI Studio em 2026-11-08 para o `gemini-3.8-flash`.
+
+---
+
 ### Fase 8E: Seis Execuções Commitadas, Custo na Avaliação e Comparação de Modelos
 
 #### Verificação Fase 8E (`python scripts/verify_phase8e.py`):
