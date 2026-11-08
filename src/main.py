@@ -18,6 +18,7 @@ from src.core.llm import (
     LLMNotConfiguredError,
     LLMUnavailableError,
 )
+from src.core.log_context import bind
 from src.core.tickets_db import TicketTransitionError, get_tickets_repository
 
 
@@ -325,81 +326,82 @@ def chat_endpoint(
         )
 
     active_session = payload.session_id or uuid.uuid4().hex
-    try:
-        orchestrator = get_orchestrator()
-        state = orchestrator.run_sync(
-            user_id=principal.user_id,
-            message=payload.message,
-            session_id=active_session,
-            trace_id=trace_id,
-        )
+    with bind(trace_id, active_session, principal.user_id):
+        try:
+            orchestrator = get_orchestrator()
+            state = orchestrator.run_sync(
+                user_id=principal.user_id,
+                message=payload.message,
+                session_id=active_session,
+                trace_id=trace_id,
+            )
 
-        handoff_data = getattr(state, "handoff", None)
-        handoff_status = (handoff_data or {}).get("status")
-        agent_type = "HumanHandoff" if handoff_status in ("pending", "delivered") else "SupervisorAgent"
+            handoff_data = getattr(state, "handoff", None)
+            handoff_status = (handoff_data or {}).get("status")
+            agent_type = "HumanHandoff" if handoff_status in ("pending", "delivered") else "SupervisorAgent"
 
-        metadata = AgentMetadata(
-            agent=agent_type,
-            agent_type=agent_type,
-            routed_by="SupervisorAgent",
-            session_id=state.session_id or active_session,
-            trace_id=trace_id,
-            llm_model=getattr(state, "llm_model", None),
-            agents_used=getattr(state, "agents_used", ["SupervisorAgent"]),
-            tools_used=state.tools_used,
-            tool_calls=state.tool_calls,
-            execution_time_ms=state.execution_time_ms,
-            sources=state.sources,
-            retrieved_docs=state.retrieved_docs,
-            ticket=state.ticket,
-            handoff=handoff_data,
-            tokens=getattr(state, "tokens", None),
-            tokens_by_agent=getattr(state, "tokens_by_agent", None),
-            estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
-            debug_details={
-                "session_id": state.session_id or active_session,
-                "trace_id": trace_id,
-                "is_safe": state.is_safe,
-                "safety_violations": state.safety_violations,
-                "escalate_to_human": state.escalate_to_human,
-                "ticket_id": state.escalation_ticket_id,
-                "tools_used": state.tools_used,
-                "handoff": handoff_data,
-            },
-        )
+            metadata = AgentMetadata(
+                agent=agent_type,
+                agent_type=agent_type,
+                routed_by="SupervisorAgent",
+                session_id=state.session_id or active_session,
+                trace_id=trace_id,
+                llm_model=getattr(state, "llm_model", None),
+                agents_used=getattr(state, "agents_used", ["SupervisorAgent"]),
+                tools_used=state.tools_used,
+                tool_calls=state.tool_calls,
+                execution_time_ms=state.execution_time_ms,
+                sources=state.sources,
+                retrieved_docs=state.retrieved_docs,
+                ticket=state.ticket,
+                handoff=handoff_data,
+                tokens=getattr(state, "tokens", None),
+                tokens_by_agent=getattr(state, "tokens_by_agent", None),
+                estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
+                debug_details={
+                    "session_id": state.session_id or active_session,
+                    "trace_id": trace_id,
+                    "is_safe": state.is_safe,
+                    "safety_violations": state.safety_violations,
+                    "escalate_to_human": state.escalate_to_human,
+                    "ticket_id": state.escalation_ticket_id,
+                    "tools_used": state.tools_used,
+                    "handoff": handoff_data,
+                },
+            )
 
-        return ChatResponse(
-            response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
-            agent=agent_type,
-            user_id=principal.user_id,
-            metadata=metadata,
-        )
+            return ChatResponse(
+                response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
+                agent=agent_type,
+                user_id=principal.user_id,
+                metadata=metadata,
+            )
 
-    except LLMConfigurationError as exc:
-        logger.exception(f"LLM misconfigured [trace_id={trace_id}]: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM misconfigured: check LLM_PROVIDER, LLM_MODEL and the provider API key.",
-            headers={"X-Trace-Id": trace_id},
-        ) from exc
-    except LLMNotConfiguredError as exc:
-        logger.exception(f"LLM not configured [trace_id={trace_id}]: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM not configured: set GEMINI_API_KEY.",
-            headers={"X-Trace-Id": trace_id},
-        ) from exc
-    except LLMUnavailableError as exc:
-        logger.exception(f"LLM provider unavailable [trace_id={trace_id}]: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM provider unavailable, please retry.",
-            headers={"X-Trace-Id": trace_id},
-        ) from exc
-    except Exception as exc:
-        logger.exception(f"Unhandled error processing message: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal error. Reference: {trace_id}",
-            headers={"X-Trace-Id": trace_id},
-        ) from exc
+        except LLMConfigurationError as exc:
+            logger.exception(f"LLM misconfigured: {type(exc).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LLM misconfigured: check LLM_PROVIDER, LLM_MODEL and the provider API key.",
+                headers={"X-Trace-Id": trace_id},
+            ) from exc
+        except LLMNotConfiguredError as exc:
+            logger.exception(f"LLM not configured: {type(exc).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LLM not configured: set GEMINI_API_KEY.",
+                headers={"X-Trace-Id": trace_id},
+            ) from exc
+        except LLMUnavailableError as exc:
+            logger.exception(f"LLM provider unavailable: {type(exc).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="LLM provider unavailable, please retry.",
+                headers={"X-Trace-Id": trace_id},
+            ) from exc
+        except Exception as exc:
+            logger.exception("Unhandled error processing message")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Internal error. Reference: {trace_id}",
+                headers={"X-Trace-Id": trace_id},
+            ) from exc

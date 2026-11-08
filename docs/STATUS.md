@@ -4,6 +4,75 @@
 
 ---
 
+### Fase 7B: Custo pela Tabela Oficial de Preços e Logs do /chat no Contexto
+
+#### Verificação Fase 7B (`python scripts/verify_phase7b.py`):
+```text
+PASS P0.readme
+PASS P0.main_logs
+PASS P1.price_table
+PASS P2.cost_usd
+PASS P3.turn_cost
+PASS P4.chat_error_logs_have_context
+PASS Q0.pricing_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 202 passed in 17.22s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 32/32 passed
+```
+
+#### Commit Base da Fase 7B (`git rev-parse HEAD`):
+```text
+6c8ad5a52deb11f92a68b42edf5cfeeff119792c
+```
+
+#### Alterações Realizadas na Fase 7B:
+- **Módulo de Precificação Oficial (`src/core/pricing.py`)**:
+  - Tabela `PRICES_USD_PER_1M` com preços oficiais copiados de `https://ai.google.dev/gemini-api/docs/pricing` (data da página: 2026-10-30; data de coleta: 2026-11-07; plano pago, nível Standard):
+    - `gemini-3.5-flash-lite`: $0.30 input / $2.50 output por 1M tokens.
+    - `gemini-3.1-flash-lite`: $0.25 input / $1.50 output por 1M tokens.
+    - `gemini-embedding-2`: $0.20 input / $0.00 output por 1M tokens.
+  - Função `cost_usd(model, input_tokens, output_tokens) -> float | None`: remove prefixo `models/`; devolve `None` para modelo `None`, modelos fora da tabela (ex.: `gemini-3.5-flash`, `unknown`) ou tokens ausentes (`None`); senão calcula o custo ponderado arredondado em 8 casas decimais.
+- **Grafo de Orquestração (`src/core/graph.py`)**:
+  - `run_sync` calcula `estimated_cost_usd` a cada turno usando `cost_usd(llm_model, tokens["input_tokens"], tokens["output_tokens"])`.
+  - Refatorados os 4 blocos de log duplicados de `"tool finished"` em `_tools_node` para uma função auxiliar única `_log_tool_finished`, preservando os campos registrados.
+- **Logs de Erro do Endpoint `/chat` dentro do Contexto (`src/main.py`)**:
+  - `chat_endpoint` encapsulado no contexto `with bind(trace_id, active_session, principal.user_id):`, garantindo que todos os logs de erro emitidos contenham `trace_id`, `session_id` e `user_hash`.
+  - Removidos `[trace_id={trace_id}]` e a interpolação crua da exceção `{exc}` das mensagens de log de erro, registrando somente o nome da classe (`type(exc).__name__`) e preservando tracebacks completos via `logger.exception`.
+- **Documentação Técnica (`README.md`)**:
+  - Documentada a origem dos preços oficiais (`https://ai.google.dev/gemini-api/docs/pricing`), datas de referência (2026-10-30 e 2026-11-07), plano Standard, tratamento de modelos não listados (`null`), premissas de custo do turno e que embeddings de consultas não são contabilizados no custo do turno nem no relatório de avaliação.
+  - Substituídas menções a "custo entra na Fase 7" que descreviam o comportamento anterior da API.
+- **Testes Unitários Criados (`tests/test_pricing.py`)**:
+  - `test_cost_usd_supported_models`: cálculo exato para os modelos oficiais (com e sem prefixo `models/`).
+  - `test_cost_usd_unlisted_models_and_none_tokens`: retorno `None` para modelos não listados e tokens ausentes.
+  - `test_turn_cost_priced_vs_unpriced_model`: integração no grafo LangGraph validando `estimated_cost_usd` com modelo listado vs não listado com tokens reportados.
+  - `test_chat_error_logs_carry_request_context`: validação de que requisição com erro HTTP 503 gera logs estruturados no logger `multiagent` contendo `trace_id` correspondente ao cabeçalho `X-Trace-Id`, `session_id`, `user_hash` e sem vazamento do identificador cru.
+
+---
+
 ### Fase 7A: Logs Estruturados com trace_id, Sessão e Usuário em Hash
 
 #### Verificação Fase 7A (`python scripts/verify_phase7a.py`):
@@ -1104,4 +1173,5 @@ All checks passed!
 12. **Fase 6E Concluída (Resultados da Avaliação Consolidados no Repositório e README)**: O relatório completo com a segunda rodada do juiz foi regenerado e integrado em `reports/eval_full-1.*`; os números oficiais e limitações conhecidas foram documentados no `README.md`.
 13. **Fase 6F Concluída (Alinhamento Honesto de Capacidades no README e /demo)**: Removida qualquer afirmação de "Confiança Dinâmica" e "100% de precisão" (sem cálculo que a sustente), clarificado que `estimated_cost_usd` permanece `null` até a Fase 7, atualizado o formato de tickets para `GET-TKT-YYYYMMDD-<10 hexadecimais>`, documentada a margem real de 0.04 no retrieval e alinhadas as respostas do glossário e da matriz de cenários com as medições reais de `full-1`.
 14. **Fase 7A Concluída (Logs Estruturados com trace_id, Sessão e Usuário em Hash)**: Implementado `log_context.py` com ContextVars e hashing de `user_id` (`u_<hex16>`) com sal configurável `LOG_HASH_SALT`; logs formatados em JSON com contexto em todos os registros sem vazamento de identificador cru nem PII; eventos de latência de nós (`node finished`) e ferramentas (`tool finished`) implementados.
-15. **Próxima Fase (Fase 7B: Precificação e Métricas)**: Precificação de tokens por modelo a partir da tabela oficial, `estimated_cost_usd` por turno e no relatório de avaliação, e endpoint `/metrics` em formato Prometheus.
+15. **Fase 7B Concluída (Custo pela Tabela Oficial de Preços e Logs do /chat no Contexto)**: Criado `src/core/pricing.py` com preços oficiais de 2026-10-30 (coletados em 2026-11-07), cálculo de `estimated_cost_usd` por turno no grafo LangGraph, logs de `/chat` executados dentro do contexto de requisição `bind(...)` com `trace_id`, `session_id` e `user_hash`, e 4 novos testes unitários em `tests/test_pricing.py`.
+16. **Próxima Fase (Fase 7C: Métricas Prometheus `/metrics`)**: Implementação de exportador Prometheus `/metrics` com contadores de requisições, latência e consumo de tokens por agente/modelo.

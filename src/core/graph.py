@@ -573,17 +573,6 @@ class OrchestrationGraph:
                 sources.extend(spec_res["sources"])
                 retrieved_docs.extend(spec_res["retrieved_docs"])
 
-                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
-                logger.info(
-                    "tool finished",
-                    extra={
-                        "tool": tool_name,
-                        "agent": "SupervisorAgent",
-                        "status": call_status,
-                        "latency_ms": latency_ms,
-                    },
-                )
-
             elif tool_name == "ask_support_agent":
                 if "SupportAgent" not in agents_used:
                     agents_used.append("SupportAgent")
@@ -622,17 +611,6 @@ class OrchestrationGraph:
                 sources.extend(spec_res["sources"])
                 retrieved_docs.extend(spec_res["retrieved_docs"])
 
-                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
-                logger.info(
-                    "tool finished",
-                    extra={
-                        "tool": tool_name,
-                        "agent": "SupervisorAgent",
-                        "status": call_status,
-                        "latency_ms": latency_ms,
-                    },
-                )
-
             elif tool_name == "escalate_to_human":
                 escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
                 if escalate_fn:
@@ -667,32 +645,23 @@ class OrchestrationGraph:
                     except (json.JSONDecodeError, TypeError):
                         pass
 
-                    latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
-                    logger.info(
-                        "tool finished",
-                        extra={
-                            "tool": tool_name,
-                            "agent": "SupervisorAgent",
-                            "status": call_status,
-                            "latency_ms": latency_ms,
-                        },
-                    )
-
             else:
+                call_status = "error"
                 logger.warning(f"Tool '{tool_name}' not available to SupervisorAgent.")
                 err_payload = json.dumps({"error": f"tool {tool_name} not available to SupervisorAgent"})
                 t_msg = ToolMessage(content=err_payload, tool_call_id=call_id, name=tool_name)
                 tool_messages.append(t_msg)
-                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
-                logger.info(
-                    "tool finished",
-                    extra={
-                        "tool": tool_name,
-                        "agent": "SupervisorAgent",
-                        "status": "error",
-                        "latency_ms": latency_ms,
-                    },
-                )
+
+            latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+            logger.info(
+                "tool finished",
+                extra={
+                    "tool": tool_name,
+                    "agent": "SupervisorAgent",
+                    "status": call_status,
+                    "latency_ms": latency_ms,
+                },
+            )
 
         tokens = None
         if tba:
@@ -789,6 +758,18 @@ class OrchestrationGraph:
                         final_text = m.content if isinstance(m.content, str) else str(m.content)
                         break
 
+            tokens_dict = result.get("tokens")
+            model_name = result.get("llm_model")
+            cost_val = None
+            if tokens_dict and isinstance(tokens_dict, dict):
+                from src.core.pricing import cost_usd
+
+                cost_val = cost_usd(
+                    model_name,
+                    tokens_dict.get("input_tokens"),
+                    tokens_dict.get("output_tokens"),
+                )
+
             # Map to backward-compatible AgentState
             agent_state = AgentState(
                 user_id=user_id,
@@ -806,16 +787,16 @@ class OrchestrationGraph:
                 context_docs=result.get("retrieved_docs", []),
                 ticket=result.get("ticket"),
                 handoff=result.get("handoff"),
-                llm_model=result.get("llm_model"),
+                llm_model=model_name,
                 agent_response=final_text,
                 final_agent=AgentRole.SUPERVISOR,
                 escalate_to_human=bool(result.get("ticket")),
                 escalation_ticket_id=result.get("ticket", {}).get("ticket_id") if result.get("ticket") else None,
                 intent="dynamic_react",
                 execution_time_ms=elapsed_ms,
-                tokens=result.get("tokens"),
+                tokens=tokens_dict,
                 tokens_by_agent=result.get("tokens_by_agent"),
-                estimated_cost_usd=None,
+                estimated_cost_usd=cost_val,
             )
 
             logger.info(

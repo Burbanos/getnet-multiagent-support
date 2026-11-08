@@ -30,7 +30,7 @@ O sistema disponibiliza uma console visual interativa em 3 colunas acessível di
 * **Coluna Direita (Inspetor de Telemetria & Rastreabilidade)**: Painel de observabilidade técnica com:
   * **Trace ID UUID** único gerado por ciclo de vida da requisição (`trc-<hex12>`).
   * **Consumo Estimado de Tokens** dividido em `Prompt`, `Completion` e `Total`.
-  * **Custo estimado em USD**: ainda não calculado (campo `estimated_cost_usd` vem `null`; tabela de preços entra na Fase 7).
+  * **Custo estimado em USD**: calculado por turno no plano pago Standard a partir da tabela oficial de preços (`estimated_cost_usd`).
   * **Latência em milissegundos** (`execution_time_ms`) com alta performance.
   * **Auditoria de Guardrails** (`is_safe`, detecção de PII mascarada e injeção de prompt).
   * **Rastreabilidade de Chamados SQLite** com link direto para o endpoint `GET /tickets/{ticket_id}`.
@@ -271,7 +271,12 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 ### Observabilidade Técnica, Trace ID e Custo por Tokens
 * **Trace ID por Ciclo de Vida**: Cada chamada gera um identificador único de rastreamento no padrão `trc-<hex12>`, propagado no payload de resposta HTTP e na telemetria.
 * **Métricas de Tokens**: Medição dinâmica de `input_tokens`, `output_tokens` e `total_tokens` (também `tokens_by_agent`) em todas as respostas.
-* **Cálculo de Custo Financeiro**: Custo estimado em USD: ainda não calculado (campo `estimated_cost_usd` vem `null`; tabela de preços entra na Fase 7).
+* **Cálculo de Custo Financeiro (Fase 7B)**:
+  * O custo por turno (`estimated_cost_usd`) é calculado a partir da tabela oficial definida em `src/core/pricing.py`.
+  * **Fonte e Referência**: Tabela oficial do Google Gemini em `https://ai.google.dev/gemini-api/docs/pricing`, com data da página de **2026-10-30** e data de coleta em **2026-11-07**.
+  * **Plano e Nível**: Calculado para o plano pago (*paid tier*), nível *Standard*, com base nos tokens de entrada e saída informados pelo modelo. O nível gratuito (*free tier*) não é cobrado comercialmente, portanto o valor representa uma estimativa do equivalente no plano pago.
+  * **Modelos Suportados e Não Listados**: Modelos fora da tabela oficial (como `gemini-3.5-flash` ou identificadores customizados) ou chamadas sem tokens retornam `estimated_cost_usd` como `null`.
+  * **Premissas e Limitações**: O custo por turno assume que todas as chamadas do turno utilizaram o mesmo modelo do supervisor e não contabiliza os tokens de embeddings das consultas vetoriais (`gemini-embedding-2`). O relatório consolidado de avaliação (`src/eval/`) permanece sem estimativa de custo financeiro (o cálculo de custo individual por caso na avaliação fica para etapas posteriores).
 * **Logs Estruturados e Privacidade (Fase 7A)**:
   * **Campos Contextuais em Todo Registro**: Através de `ContextVar` e `JsonFormatter`, cada registro de log gerado no ciclo de atendimento inclui automaticamente `trace_id`, `session_id` e `user_hash`. O identificador cru `user_id` e a mensagem original não sanitizada do lojista nunca são impressos no log, prevenindo vazamento de dados confidenciais, números de cartão de crédito ou CPF.
   * **Cálculo de `user_hash` e Salting**: O hash do usuário é computado como `"u_" + sha256((settings.LOG_HASH_SALT + user_id).encode("utf-8")).hexdigest()[:16]`. Sem sal, o hash de um identificador conhecido pode ser recalculado por força bruta; em ambientes de produção, defina um sal secreto na variável `LOG_HASH_SALT`.
@@ -436,7 +441,7 @@ Execução única dos 69 casos de `data/eval/cases.jsonl` com o modelo `gemini-3
 | Abstenção (juiz): precisão / cobertura | 76,9% / 76,9% |
 | Fundamentação (juiz, 1 a 5) / responde à pergunta (juiz, 1 a 5) | 4,95 / 4,68 |
 | Latência por caso: mediana / p95 | 6,3 s / 20,4 s |
-| Tokens | 422.393 no total (~6,7 mil por caso); custo entra na Fase 7 |
+| Tokens | 422.393 no total (~6,7 mil por caso); cálculo de custo por caso na avaliação fica para depois |
 
 Limites e falhas conhecidas:
 - É uma execução única, sem estimativa de variância; os rótulos foram escritos pelo revisor externo.

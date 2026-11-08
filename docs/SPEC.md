@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `6295a63` (phase 6F, CI green) plus
-this SPEC/prompt update for 7A. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `6c8ad5a` (phase 7A, CI green) plus
+this SPEC/prompt update for 7B. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -99,6 +99,14 @@ this SPEC/prompt update for 7A. CI (lint, tests, docker build + /health smoke) r
 - Found while planning 7A: logs carry `trace_id` only inside message text (no field), several log calls print the
   raw `user_id`, and `run_sync` logs the first 60 characters of the RAW message before the guardrail masks it, so a
   card number or CPF typed by the merchant reaches the logs.
+- 7A structured logs (verified 37/37, CI green). Review notes (fixed in 7B): the four `/chat` error logs in
+  `src/main.py` run outside `bind`, so they have no `trace_id`/`user_hash` fields (the README says every record has
+  them) and they print the provider's exception text; the `tool finished` block is copied four times in `graph.py`.
+- Price research for 7B (2026-11-07): Google's official pricing page (https://ai.google.dev/gemini-api/docs/pricing,
+  "Last updated 2026-10-30") lists, paid tier, Standard, per 1M tokens: `gemini-3.5-flash-lite` $0.30 in / $2.50 out
+  (output includes thinking tokens), `gemini-3.1-flash-lite` $0.25 in (text) / $1.50 out, `gemini-embedding-2` $0.20
+  text in. A first fetch returned a stale cached copy (2026-06-02) without 3.5 Flash-Lite; re-fetched and confirmed.
+  `gemini-3.5-flash` is no longer listed (the page lists 3.6 and 3.8 Flash), so it is not in the table.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -133,8 +141,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 7A (structured logs: trace_id, session_id and hashed user on every record; node and tool events;
-no raw user id or message in logs)**, prompt `docs/phase-prompts/7A.md`, verifier `scripts/verify_phase7a.py`.
+**Current phase: 7B (cost from the official price table; `/chat` logs inside the request context)**, prompt
+`docs/phase-prompts/7B.md`, verifier `scripts/verify_phase7b.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -650,10 +658,16 @@ without network. Topics with no official coverage must be answered with abstenti
   `"node finished"` record (`node`, `latency_ms`); every supervisor tool call and every specialist tool call logs one
   `"tool finished"` record (`tool`, `agent`, `status` ok|error, `latency_ms`); no log call formats the raw user id or
   the merchant's message. `LOG_HASH_SALT` setting (default empty).
-- 7B: cost from provider usage with a price table (source URL and date) per model; `estimated_cost_usd` per turn and
-  in the eval report; `/metrics` in Prometheus format (requests, latency histogram, tool calls, escalations,
-  abstentions).
-- 7C: record `search_web` results (url, title, snippet) in the turn for the judge; mark internal failures in the
+- 7B (checked by `scripts/verify_phase7b.py`): `src/core/pricing.py` with `PRICES_USD_PER_1M` holding exactly the
+  three officially listed models above, `PRICE_SOURCE_URL`, `PRICE_PAGE_LAST_UPDATED = "2026-10-30"`,
+  `PRICE_RETRIEVED_AT = "2026-11-07"`, `PRICE_TIER`, and `cost_usd(model, input_tokens, output_tokens)` (strips a
+  `models/` prefix; None for an unlisted model or unknown usage). `run_sync` sets `estimated_cost_usd` from the
+  turn's tokens and `llm_model` (assumes every call of the turn used that model; query embeddings are not counted).
+  The eval report keeps cost null for now (per-case cost in the eval is later work). `/chat` runs inside `bind`,
+  so its error logs carry the context; those logs keep only the exception class.
+- 7C: `/metrics` in Prometheus format (requests by status, latency histogram, tool calls by tool and status,
+  escalations, abstentions, tokens), no new dependency.
+- 7D: record `search_web` results (url, title, snippet) in the turn for the judge; mark internal failures in the
   state (`error`) instead of the fixed Portuguese "instabilidade" text, and answer fixed messages (instability,
   forced escalation, handoff) in the merchant's language.
 **Acceptance:**
