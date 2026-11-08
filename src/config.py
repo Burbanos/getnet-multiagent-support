@@ -24,8 +24,8 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str = ""
     LLM_PROVIDER: str = "google_genai"
-    LLM_MODEL: str = "gemini-3.5-flash"
-    LLM_FALLBACK_MODEL: str = "gemini-3.5-flash-lite"
+    LLM_MODEL: str = "gemini-3.5-flash-lite"
+    LLM_FALLBACK_MODEL: str = "gemini-3.1-flash-lite"
     LLM_TIMEOUT_S: float = 30.0
     LLM_MAX_RETRIES: int = 2
     MAX_SUPERVISOR_STEPS: int = 6
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
     TICKETS_DB_PATH: str = "data/tickets.db"
     ESCALATE_AFTER_ABSTENTIONS: int = 2
-    EVAL_JUDGE_MODEL: str = "gemini-3.5-flash-lite"
+    EVAL_JUDGE_MODEL: str = "gemini-3.1-flash-lite"
     EVAL_SLEEP_S: float = 6.0
 
 

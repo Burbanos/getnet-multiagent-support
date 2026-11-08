@@ -43,8 +43,8 @@ class NamedFakeModel(ScriptedChatModel):
 def test_provider_defaults():
     """Verify standard default settings for provider, model, and fallback model."""
     assert settings.LLM_PROVIDER == "google_genai"
-    assert settings.LLM_MODEL == "gemini-3.5-flash"
-    assert settings.LLM_FALLBACK_MODEL == "gemini-3.5-flash-lite"
+    assert settings.LLM_MODEL == "gemini-3.5-flash-lite"
+    assert settings.LLM_FALLBACK_MODEL == "gemini-3.1-flash-lite"
 
 
 def test_get_chat_model_respects_model_override():

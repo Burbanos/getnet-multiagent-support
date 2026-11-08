@@ -10,8 +10,10 @@ from src.config import settings
 from src.core.llm import LLMNotConfiguredError, LLMUnavailableError
 from src.eval.judge import (
     build_judge_input,
+    error_code,
     judge_case,
     parse_judgment,
+    response_text,
     run_judge,
     should_judge,
 )
@@ -374,3 +376,161 @@ def test_judge_metrics_abstention_and_disagreements():
     assert j["abstention_errors"] == []
     assert j["disagreements"] == ["c01", "c02"]
     assert j["judge_models"] == ["judge-flash"]
+
+
+def test_judge_case_list_blocks():
+    """Verify judge_case handles list-of-blocks responses, ignoring thinking and non-text blocks."""
+    case = _sample_case("k01")
+    res = {
+        "id": "k01",
+        "status": "ok",
+        "error_type": None,
+        "turns": [observe_turn(_sample_state(), case["turns"][0], 10.0)],
+    }
+    blocks = [
+        {"type": "thinking", "thinking": '{"grounded": 1}'},
+        {"type": "text", "text": "Assessment:\n"},
+        {"type": "image_url", "image_url": "https://example.com/img.png"},
+        {"type": "text", "text": '{"grounded": 4, "answers_question": 5, "abstained": false, "rationale": "ok"}'},
+    ]
+    model = ScriptedChatModel(responses=[AIMessage(content=blocks)])
+    j = judge_case(case, res, model)
+    assert j["status"] == "ok"
+    assert j["grounded"] == 4
+    assert j["answers_question"] == 5
+    assert j["abstained"] is False
+
+    # Directly check response_text behavior
+    msg = AIMessage(content=["str1", {"type": "text", "text": "str2"}, {"type": "thinking", "thinking": "skip"}])
+    assert response_text(msg) == "str1str2"
+    assert response_text(AIMessage(content="plain")) == "plain"
+
+
+def test_error_code_extraction_and_no_leak():
+    """Verify error_code extraction across cause chains and ensure exception messages never leak."""
+    case = _sample_case("k01")
+    res = {
+        "id": "k01",
+        "status": "ok",
+        "error_type": None,
+        "turns": [observe_turn(_sample_state(), case["turns"][0], 10.0)],
+    }
+
+    class DummyProviderError(Exception):
+        def __init__(self, code: int, msg: str):
+            super().__init__(f"{code} {msg}")
+            self.code = code
+
+    class DummyWrapperError(Exception):
+        pass
+
+    class RaisingModel(ScriptedChatModel):
+        exc_factory: object = None
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            self.received.append(list(messages))
+            raise self.exc_factory()
+
+    def wrapped_exc(code: int, msg: str) -> Exception:
+        try:
+            try:
+                raise DummyProviderError(code, msg)
+            except DummyProviderError as inner:
+                raise DummyWrapperError(f"{code} UNAVAILABLE. {msg}") from inner
+        except DummyWrapperError as outer:
+            return outer
+
+    # Directly check error_code function
+    assert error_code(DummyProviderError(503, "msg")) == 503
+    assert error_code(RuntimeError("429 RESOURCE_EXHAUSTED")) == 429
+    assert error_code(ValueError("generic error")) is None
+
+    # 1. Chained exception with code=503
+    j1 = judge_case(case, res, RaisingModel(responses=[], exc_factory=lambda: wrapped_exc(503, "LEAK_SECRET_KEY")))
+    assert j1["status"] == "error"
+    assert j1["error_type"] == "DummyWrapperError"
+    assert j1["error_code"] == 503
+    assert "LEAK_SECRET_KEY" not in json.dumps(j1)
+
+    # 2. String beginning with 429
+    j2 = judge_case(case, res, RaisingModel(responses=[], exc_factory=lambda: RuntimeError("429 RESOURCE_EXHAUSTED details")))
+    assert j2["status"] == "error"
+    assert j2["error_code"] == 429
+    assert "RESOURCE_EXHAUSTED" not in json.dumps(j2)
+
+    # 3. Generic error without code
+    j3 = judge_case(case, res, RaisingModel(responses=[], exc_factory=lambda: RuntimeError("internal secret failure")))
+    assert j3["status"] == "error"
+    assert j3["error_code"] is None
+    assert "internal secret failure" not in json.dumps(j3)
+
+    # 4. Unparseable output
+    j4 = judge_case(case, res, ScriptedChatModel(responses=[AIMessage(content="no json anywhere")]))
+    assert j4["status"] == "error"
+    assert j4["error_type"] == "unparseable"
+    assert j4["error_code"] is None
+
+
+def test_run_judge_stops_on_three_consecutive_errors_resets_on_ok(tmp_path: Path):
+    """Verify run_judge halts after 3 consecutive errors of any kind, and resets on status ok."""
+    good_json = '{"grounded": 4, "answers_question": 4, "abstained": false, "rationale": "good"}'
+    cases = [_sample_case(f"k0{i}") for i in range(1, 8)]
+    res = {
+        "id": "k01",
+        "status": "ok",
+        "error_type": None,
+        "turns": [observe_turn(_sample_state(), "msg", 10.0)],
+    }
+    rp = tmp_path / "runs.jsonl"
+    rp.write_text("".join(json.dumps(dict(res, id=c["id"])) + "\n" for c in cases), encoding="utf-8")
+
+    # Sequence 1: 3 unparseable in a row -> stops after 3
+    model_unparseable = ScriptedChatModel(responses=[AIMessage(content="not json")] * 7)
+    s1 = run_judge(cases, rp, tmp_path / "j1.jsonl", model=model_unparseable, sleep_s=0)
+    assert s1["stopped_early"] is True
+    assert len(model_unparseable.received) == 3
+    assert s1["errors"] == 3
+
+    # Sequence 2: 2 unparseable, 1 good (resets count), 3 unparseable -> stops after 6
+    seq = [
+        AIMessage(content="bad1"),
+        AIMessage(content="bad2"),
+        AIMessage(content=good_json),
+        AIMessage(content="bad3"),
+        AIMessage(content="bad4"),
+        AIMessage(content="bad5"),
+        AIMessage(content=good_json),
+    ]
+    model_mixed = ScriptedChatModel(responses=seq)
+    s2 = run_judge(cases, rp, tmp_path / "j2.jsonl", model=model_mixed, sleep_s=0)
+    assert s2["stopped_early"] is True
+    assert len(model_mixed.received) == 6
+    assert s2["ok"] == 1
+    assert s2["errors"] == 5
+
+
+def test_run_eval_deletes_temp_tickets_dir(tmp_path: Path):
+    """Verify run_eval deletes the temporary tickets directory on completion and exception."""
+    cases = [_sample_case("k01"), _sample_case("k02")]
+    observed_dirs = []
+
+    class FakeOrch:
+        def run_sync(self, user_id, message, session_id):
+            observed_dirs.append(Path(settings.TICKETS_DB_PATH).parent)
+            return _sample_state()
+
+    orig_path = settings.TICKETS_DB_PATH
+    out_file = tmp_path / "eval_clean.jsonl"
+
+    run_eval(
+        cases=cases,
+        results_path=out_file,
+        run_id="run-clean",
+        orchestrator_factory=FakeOrch,
+        sleep_s=0,
+    )
+
+    assert settings.TICKETS_DB_PATH == orig_path
+    assert len(observed_dirs) > 0
+    for d in observed_dirs:
+        assert not d.exists()

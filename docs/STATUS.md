@@ -4,6 +4,69 @@
 
 ---
 
+### Fase 6C: Correções do Juiz, Padrões no Tier Gratuito e Execução full-1
+
+#### Verificação Fase 6C (`python scripts/verify_phase6c.py`):
+```text
+PASS P1.reviewer_prompts
+PASS S1.readme_models
+PASS S2.readme_judge_caveat
+PASS R0.settings_defaults
+PASS R0.env_and_compose
+PASS R0.factory
+PASS J0.api
+PASS J1.list_content_parsed
+PASS J1.response_text
+PASS J2.error_code
+PASS J3.stops_on_consecutive_errors
+PASS R1.temp_tickets_dir_removed
+PASS D1.run_file_unchanged
+PASS D1.run_file_complete
+PASS D2.buggy_judge_file_removed
+PASS D3.report_matches_raw
+PASS Q0.runner_judge_tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 192 passed in 19.13s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q5.cli_report_missing_results
+
+SUMMARY: 38/38 passed
+```
+
+#### Commit Base da Fase 6C (`git rev-parse HEAD`):
+```text
+3074ecfb0df5e3dc5f766a7bd8b6f4870b4a4815
+```
+
+#### Testes Criados e Alterados na Fase 6C:
+- **Alterados**:
+  - `tests/test_eval_runner_judge.py` (adicionados 4 novos testes unitários, totalizando 13 testes):
+    - `test_judge_case_list_blocks`: valida que respostas de modelos da família Gemini 3 em formato de lista de blocos têm seus blocos de texto extraídos e concatenados via `response_text`, ignorando blocos não-texto (`thinking`, `image_url`), e obtendo avaliação correta.
+    - `test_error_code_extraction_and_no_leak`: valida extração de códigos HTTP/gRPC (`code` ou `status_code`) em exceções encadeadas (`__cause__`), prefixos numéricos em strings ("429") e retorno de `None` para erros genéricos, garantindo que mensagens de erro ou segredos de infraestrutura nunca vazem nos dicionários de julgamento.
+    - `test_run_judge_stops_on_three_consecutive_errors_resets_on_ok`: valida que o juiz aborta após 3 erros consecutivos de qualquer tipo (seja resposta não-analisável ou exceção do provedor) e que qualquer status "ok" reseta o contador.
+    - `test_run_eval_deletes_temp_tickets_dir`: valida que `run_eval` remove com sucesso o diretório temporário `eval_tickets_*` ao final da execução e restaura `settings.TICKETS_DB_PATH`.
+  - `tests/test_providers.py`:
+    - Atualizado `test_provider_defaults` para validar os novos padrões do tier gratuito (`LLM_MODEL = "gemini-3.5-flash-lite"`, `LLM_FALLBACK_MODEL = "gemini-3.1-flash-lite"`).
+
+---
+
 ### Fase 6B: Executor com Modelo Real, Juiz LLM e Métricas do Juiz
 
 #### Verificação Fase 6B (`python scripts/verify_phase6b.py`):
@@ -782,5 +845,6 @@ All checks passed!
 6. **Memória Persistida em SQLite (`SqliteSaver`)**: Concluída na Fase 4B. As conversas sobrevivem a reinícios da aplicação e estão isoladas por `user_id:session_id` no banco relacional `data/checkpoints.db`.
 7. **Proteção contra Enumeração de Tickets**: Acesso a tickets de outro cliente retorna HTTP 404 (o mesmo código para ticket inexistente), prevenindo enumeração de identificadores de tickets por clientes mal-intencionados.
 8. **Transbordo Humano Completo (Fases 5A, 5B e 5C)**: O ciclo de vida do ticket (`open -> in_progress -> answered -> closed`), o portão de atendimento `handoff_gate` (com mensagens de espera padronizadas, sem prazo, sem chamadas ao LLM e entrega única da resposta do operador com `delivered_at`) e o escalonamento automático por abstenções repetidas (`consecutive_abstentions >= ESCALATE_AFTER_ABSTENTIONS`) estão plenamente validados.
-9. **Fase 6B Concluída (Executor com Modelo Real e Juiz LLM)**: O harness e o executor com modelo real (`run`), juiz LLM (`judge`) e gerador de relatórios (`report`) estão plenamente validados via mocks e testes offline, prontos para execução incremental com a chave de API pelo usuário.
-10. **Próxima Fase (Fase 6C: Execução e Relatório Final de Benchmark)**: Execução real dos comandos `run`, `judge` e `report` com a chave no ambiente do usuário e publicação dos relatórios consolidados em `reports/`.
+9. **Fase 6B Concluída (Executor com Modelo Real e Juiz LLM)**: O harness e o executor com modelo real (`run`), juiz LLM (`judge`) e gerador de relatórios (`report`) foram implementados e validados com testes unitários e de integração.
+10. **Fase 6C Concluída (Correções do Juiz, Padrões no Tier Gratuito e Execução full-1 Registrada)**: O modelo padrão foi atualizado para `gemini-3.5-flash-lite` (com fallback `gemini-3.1-flash-lite` e juiz `gemini-3.1-flash-lite`), mitigando o teto diário de 20 requisições do Flash standard no tier gratuito; o juiz agora suporta respostas em lista de blocos (Gemini 3) e aborta preventivamente em 3 erros consecutivos; a execução `full-1` (69/69 casos bem-sucedidos) foi validada e comitada como baseline de avaliação.
+11. **Próxima Fase (Fase 7: Calibração de Prompts, Métricas de Qualidade e Governança de Custos)**: Ajustes de prompts para maximizar pass rate, resolução de discordâncias com o juiz e governança de custos por tokens.

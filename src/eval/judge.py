@@ -24,6 +24,60 @@ def get_judge_model() -> Any:
     return get_chat_model(settings.EVAL_JUDGE_MODEL)
 
 
+def response_text(message: Any) -> str:
+    """
+    Extract clean text content from a LangChain message or raw content.
+    Concatenates text blocks, ignoring non-text blocks (e.g. thinking, image_url).
+    """
+    content = getattr(message, "content", message)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                itype = item.get("type")
+                if itype in ("text", None) and "text" in item and isinstance(item["text"], str):
+                    parts.append(item["text"])
+        if parts:
+            return "".join(parts)
+        return ""
+    return str(content or "")
+
+
+def _extract_code_from_attr(obj: Any) -> int | None:
+    for attr in ("code", "status_code"):
+        val = getattr(obj, attr, None)
+        if isinstance(val, int) and 100 <= val <= 599:
+            return val
+    return None
+
+
+def error_code(exc: Exception) -> int | None:
+    """
+    Extract HTTP/gRPC status code from exception, cause chain, or message prefix.
+    Returns integer between 100 and 599, or None.
+    """
+    curr: Any = exc
+    while curr is not None:
+        code = _extract_code_from_attr(curr)
+        if code is not None:
+            return code
+        curr = getattr(curr, "__cause__", None)
+
+    msg = str(exc).strip()
+    if msg:
+        first_word = msg.split()[0]
+        if len(first_word) == 3 and first_word.isdigit():
+            val = int(first_word)
+            if 100 <= val <= 599:
+                return val
+
+    return None
+
+
 def build_judge_input(case: dict[str, Any], result: dict[str, Any]) -> str:
     """
     Format case conversation and final turn evidence as JSON for the judge.
@@ -96,7 +150,8 @@ def parse_judgment(text: str) -> dict[str, Any]:
 def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict[str, Any]:
     """
     Evaluate a single case result using the judge model.
-    Returns status: ok with ratings or status: error with specific error_type.
+    Returns status: ok with ratings or status: error with specific error_type and error_code.
+    Never leaks exception messages into judgment dictionary.
     """
     cid = case["id"]
     system_prompt = load_judge_prompt()
@@ -108,12 +163,13 @@ def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict
 
     try:
         response = model.invoke(messages)
-        text = response.content if isinstance(response.content, str) else str(response.content)
+        text = response_text(response)
     except Exception as exc:  # noqa: BLE001
         return {
             "id": cid,
             "status": "error",
             "error_type": type(exc).__name__,
+            "error_code": error_code(exc),
         }
 
     try:
@@ -123,6 +179,7 @@ def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict
             "id": cid,
             "status": "error",
             "error_type": "unparseable",
+            "error_code": None,
         }
 
     model_name = extract_model_name(model)
@@ -209,7 +266,7 @@ def run_judge(
     errors = 0
     skipped = 0
     stopped_early = False
-    consecutive_unavailable_errors = 0
+    consecutive_errors = 0
 
     with open(jp, "a", encoding="utf-8") as f:
         for case in cases:
@@ -229,16 +286,13 @@ def run_judge(
             attempted += 1
             if j.get("status") == "ok":
                 ok += 1
-                consecutive_unavailable_errors = 0
+                consecutive_errors = 0
             else:
                 errors += 1
-                if j.get("error_type") == "LLMUnavailableError":
-                    consecutive_unavailable_errors += 1
-                    if consecutive_unavailable_errors >= max_consecutive_errors:
-                        stopped_early = True
-                        break
-                else:
-                    consecutive_unavailable_errors = 0
+                consecutive_errors += 1
+                if consecutive_errors >= max_consecutive_errors:
+                    stopped_early = True
+                    break
 
             if delay and delay > 0:
                 time.sleep(delay)

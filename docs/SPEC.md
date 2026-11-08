@@ -33,8 +33,8 @@ acceptance criterion is shown with real command output pasted into `docs/STATUS.
 
 ## Current state and next steps (handoff, 2026-11-07)
 
-**Read this first in a new planning conversation.** Repository HEAD at handoff: `4778cce` (phase 6A, CI green) plus
-this SPEC/prompt update for 6B. CI (lint, tests, docker build + /health smoke) runs on every push.
+**Read this first in a new planning conversation.** Repository HEAD at handoff: `3074ecf` (phase 6B, CI green) plus
+this SPEC/prompt update for 6C. CI (lint, tests, docker build + /health smoke) runs on every push.
 
 **Done (each verified independently by the reviewer with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -70,6 +70,12 @@ this SPEC/prompt update for 6B. CI (lint, tests, docker build + /health smoke) r
   on randomized runs), offline safety subset in CI with zero model calls. Review notes (fixed in 6B): README cited a
   non-existent corpus path, claimed the labels were checked against the graph's behaviour (they were not: that
   would be circular) and did not say the reviewer wrote them.
+- 6B real-model runner (resumable, temporary tickets DB, stops on repeated `LLMUnavailableError`), blind LLM judge
+  (`src/prompts/judge.md`), judge metrics, CLI `run|judge|report`. Review notes (fixed in 6C): the judge read
+  `str(response.content)`, which for Gemini 3 replies (a list of content blocks) is a Python repr, so every judgment
+  of the first real run was `unparseable`; the judge's stop rule only counted `LLMUnavailableError`, which the judge
+  (calling the model directly) never raises; the error line kept only the class name, hiding a 503; the temporary
+  tickets directory was never removed; `report` without a results file wrote an empty report and exited 0.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -104,14 +110,35 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 6B (real-model runner, LLM judge, judge metrics; no real call inside the phase)**, prompt
-`docs/phase-prompts/6B.md`, verifier `scripts/verify_phase6b.py`, judge prompt `src/prompts/judge.md` (reviewer).
-After 6B the user runs `python -m src.eval run` / `judge` with the key (possibly over several sessions because of
-the free-tier quota) and 6C commits the raw runs and the report. Free-tier limits are per project and shown in AI
-Studio; Google's rate-limit page publishes no numbers. A third-party page (scriptbyai.com, updated 2026-10-19)
-reports that `gemini-3.5-flash` was deprecated on 2026-10-08 and now runs on `gemini-3.6-flash` with 5 RPM / 20 RPD,
-and Flash-Lite with 10 RPM / 500 RPD. Unverified; if true, the evaluation must run with `LLM_MODEL` set to the
-Flash-Lite model and the report must say so (it records the model of every turn).
+**Current phase: 6C (judge fixes, free-tier model defaults, the user's full run committed; no real call inside the
+phase)**, prompt `docs/phase-prompts/6C.md`, verifier `scripts/verify_phase6c.py`. Then the user runs the judge with
+the key and 6D commits the judgments, the final report and the README numbers.
+
+**Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
+5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
+`gemini-embedding-2` 100 RPM / 30K TPM / 1K RPD; `gemini-2.5-flash-lite` returns 404 for new users. Each case makes
+3–6 model calls, so the Flash default cannot run the 69 cases (≈300 calls) in a day. Decision (6C): defaults become
+`LLM_MODEL=gemini-3.5-flash-lite`, `LLM_FALLBACK_MODEL=gemini-3.1-flash-lite`, `EVAL_JUDGE_MODEL=gemini-3.1-flash-lite`
+(a different model from the answers). If 3.1 Flash-Lite stays overloaded (it returned 503 "high demand" for hours on
+2026-11-07), the documented fallback is `EVAL_JUDGE_MODEL=gemini-3.5-flash-lite`, a self-judging setup whose bias
+must be stated next to the numbers (`judge_models` records it).
+
+**Real runs on 2026-11-07 (user's terminal, `LLM_MODEL=gemini-3.5-flash-lite`):**
+- Smoke (3 official EN cases, 6B prompts): all three answers in Portuguese (`language_rate` 0). The reviewer moved the
+  language rule to its own section at the top of `supervisor.md`, added a final check at the end, and told both
+  specialists that tool results and passages are in Portuguese and must be translated for English requests.
+  Re-run on 9 EN cases: 8/9 in English; the second turn of `m06` ("Ok. And can you check yesterday's deposit too?")
+  still came back in Portuguese. No further prompt tuning against the eval set (it would overfit).
+- Other failures seen in the 9 EN cases: `s06` ("What does decline code 05 mean?") routed to the Knowledge Agent
+  instead of `diagnose_declined_transaction`, and the model emitted a non-existent tool `escalate_to_knowledge_agent`
+  (rejected by the graph without crashing); `off04` (Pix bank account) escalated on its own after a knowledge
+  abstention instead of offering, with the ticket reason written in Portuguese; `off02` (weather) cited its web
+  source as "(retrieved March 2025)" with identical numbers across runs (either an invented date or a stale page:
+  investigate in 6D with the raw `tool_results`).
+- Full run `full-1`: 69/69 `ok` (resumed once after a laptop restart; the file was intact). Raw file
+  `reports/eval_runs/full-1.jsonl` (sha256 of the LF-normalised bytes `70e300da…ab2b`) is committed in 6C unchanged.
+  The judge run on it hit the list-content bug: `full-1.judge.jsonl` is deleted in 6C and re-run after it.
+
 **Design change kept from 5B:** the handoff gate replaced `interrupt()` (see AC5.2); the user can still ask to revert.
 
 **Backlog:**
@@ -119,6 +146,10 @@ Flash-Lite model and the report must say so (it records the model of every turn)
   headline metric; harder negatives (other acquirers, banks, generic payments); "answered with the answer"
   vs "passed the threshold"; language rule (EN question → EN answer) and collection-date citation; replace
   `data/eval_dataset.json` (ground truth from the old KB).
+- Phase 7 (from 6B review): `run_sync` turns any non-LLM exception into a fixed Portuguese "instabilidade" reply, so
+  an infrastructure failure is scored as an `ok` wrong answer and English users get Portuguese; the forced-escalation
+  and handoff messages are also fixed Portuguese strings. Mark errors in the state instead of relying on text.
+- Tests leave SQLite connections unclosed: with `-W error` about 20 tests fail on `ResourceWarning` (already in 6A).
 - PII masking eats the space after a masked card ("[CARTAO_MASCARADO_****1111]foi").
 - RAG quality: chunk generality (title prefix per chunk or smaller chunks, measured with the 3D set);
   cadastro pop-up text ("Como deseja continuar?", in <4 pages) survives the boilerplate filter; WhatsApp
@@ -527,9 +558,21 @@ without network. Topics with no official coverage must be answered with abstenti
   (no errors and every case evaluated). CLI: `python -m src.eval run|judge|report --run-id ID [--runs-dir
   reports/eval_runs] [--out-dir reports] [--sleep S] [--max-cases N] [--only a,b]`; no key → exit 2 with a message
   naming `GEMINI_API_KEY`.
-- 6C: the user's real run (raw `reports/eval_runs/<run_id>.jsonl` and `.judge.jsonl` committed), report
-  `reports/eval_<run_id>.json` + `.md`, README numbers copied from the report with the models used; the reviewer
-  recomputes every number from the raw files.
+- 6C (checked by `scripts/verify_phase6c.py`): `judge.response_text(message)` (string content as is; list content →
+  concatenation of string items and of the `text` of `{"type": "text"}` blocks; other blocks such as thinking are
+  ignored) used by `judge_case`; `judge.error_code(exc)` (an int HTTP status 100–599 from `code` or `status_code` on
+  the exception or its `__cause__`, else a leading 3-digit word of `str(exc)`, else None); judge error lines carry
+  `error_code` but never the exception message; `run_judge` stops after `max_consecutive_errors` consecutive error
+  judgments of ANY type (including `unparseable`), an ok judgment resets the count; `run_eval` removes its temporary
+  tickets directory; `report` without the results file exits non-zero and writes nothing. Defaults:
+  `LLM_MODEL=gemini-3.5-flash-lite`, `LLM_FALLBACK_MODEL=gemini-3.1-flash-lite`, `EVAL_JUDGE_MODEL=gemini-3.1-flash-lite`
+  (config, `.env.example`, `docker-compose.yml`, README, `tests/test_providers.py`); supersedes 2C `S2.env_example`,
+  `R1.settings_defaults`, `R2.factory_primary`, `R2.factory_fallback` and 6B `R0.settings`. Committed data: the
+  user's `reports/eval_runs/full-1.jsonl` unchanged, `reports/eval_full-1.json` + `.md` generated from it by
+  `python -m src.eval report --run-id full-1` (no judge section yet), the buggy `full-1.judge.jsonl` deleted. Reviewer
+  prompts changed for the language rule (`supervisor.md`, `support_agent.md`, `knowledge_agent.md`).
+- 6D: the user's judge run on `full-1` (raw `.judge.jsonl` committed), final report, README numbers copied from the
+  report with the answering and judge models; the reviewer recomputes every number from the raw files.
 **Acceptance:**
 - AC6.1 `data/eval/*.jsonl` ≥60 cases: routing, retrieval (gold URLs and literal facts), abstention, multi-turn, safety, escalation, PT and EN.
 - AC6.2 `python -m src.eval run` executes against the real model and `report` outputs `reports/eval_<run_id>.json` + `.md` with per-case results, routing accuracy, abstention precision/recall, judge scores, latency, tokens, cost (null until Phase 7).

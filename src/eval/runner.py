@@ -1,5 +1,7 @@
 """Evaluation runner for real-model execution with resumption and quota guards."""
+import gc
 import json
+import shutil
 import tempfile
 import time
 from collections.abc import Callable
@@ -201,6 +203,8 @@ def run_eval(
     finally:
         settings.TICKETS_DB_PATH = orig_tickets_path
         tdb.reset_tickets_repository()
+        gc.collect()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return {
         "attempted": attempted,

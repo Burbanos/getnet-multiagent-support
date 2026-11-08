@@ -132,6 +132,9 @@ def main() -> int:
     if args.subcommand == "report":
         runs_dir = Path(args.runs_dir)
         results_file = runs_dir / f"{args.run_id}.jsonl"
+        if not results_file.exists():
+            print(f"Error: results file not found at {results_file}", file=sys.stderr)
+            return 1
         judge_file = runs_dir / f"{args.run_id}.judge.jsonl"
 
         results_dict = load_results(results_file)
