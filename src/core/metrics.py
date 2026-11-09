@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import threading
 
-# The 8 known tools; any unrecognised tool name is recorded as "unknown"
+# The known tools; any unrecognised tool name is recorded as "unknown"
 KNOWN_TOOLS: frozenset[str] = frozenset({
     "ask_knowledge_agent",
     "ask_support_agent",
     "escalate_to_human",
     "search_knowledge_base",
+    "get_weather_forecast",
+    "get_exchange_rate",
     "search_web",
     "get_settlement_status",
     "diagnose_declined_transaction",

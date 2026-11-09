@@ -20,7 +20,7 @@ Sistema agêntico de suporte inteligente para estabelecimentos e clientes Getnet
 * **Persistência e Isolamento de Memória**: O histórico de sessões é persistido em SQLite via `SqliteSaver` no arquivo `CHECKPOINT_DB_PATH` (padrão `data/checkpoints.db`; no Docker, `/app/state/checkpoints.db` no volume `getnet_app_state`), sobrevivendo a reinícios e isolado por `user_id:session_id`. Limitações honestas: não há expiração/limpeza automática de conversas antigas; cada réplica utiliza seu próprio arquivo SQLite (sem memória compartilhada entre instâncias sem banco compartilhado); o rate limit é controlado em memória por processo; o app não sobe com `API_KEYS` inválido ou banco inacessível (e responde 503 se a configuração ficar inválida em execução).
 * **Guardrail híbrido (padrões + classificador por LLM)**: os padrões de `src/agents/guardrails.py` são a primeira barreira, sem custo de modelo; o que passa por eles é avaliado por um classificador por LLM com prompt próprio (`src/prompts/guardrail_classifier.md`) e saída estruturada (`GuardrailVerdict`). Medidos no conjunto rotulado de 36 mensagens (`data/eval/guardrail_labeled.jsonl`), os padrões sozinhos bloqueiam 6 das 20 tentativas de injeção ou ataque e nenhuma das 16 perguntas legítimas (`reports/guardrail_patterns.md`); a taxa do classificador com modelo real ainda não foi medida. Se o classificador falhar ou estourar o tempo, a mensagem segue para o supervisor (fail-open, `GUARDRAIL_CLASSIFIER_FAIL_MODE=open`); o motivo está no `docs/SPEC.md` (Phase 10). Turnos de espera pelo atendente não passam pelo classificador. A identidade do lojista não depende do guardrail: o `user_id` vem da credencial e chega às ferramentas pela configuração do grafo, fora do alcance do modelo;
 * **Base de conhecimento pequena**: 30 páginas oficiais e 92 trechos, 16 deles de um único post do blog global; as páginas brasileiras de Link de Pagamento e de pagamentos pelo WhatsApp vieram sem conteúdo na coleta (`data/corpus/manifest.json`, `no_content`), então essas perguntas são respondidas pela página global de pagamentos online. Não há busca híbrida nem reranking;
-* **Clima e câmbio por busca web**: perguntas de clima e câmbio usam trechos do DuckDuckGo (`search_web`), não uma API dedicada;
+* **Clima e câmbio por API**: clima e câmbio vêm da Open-Meteo e da PTAX do Banco Central (seção "Clima e câmbio por API oficial"); a API gratuita da Open-Meteo é só para uso não comercial, a PTAX é taxa de referência (não a de varejo) e não existe em fins de semana e feriados, e a previsão vai até 7 dias. O efeito nas respostas com modelo real ainda não foi medido;
 * **Fora do escopo desta versão**: pausa do grafo com `interrupt()` para o atendente humano (a resposta do operador chega no próximo turno do cliente), ações de escrita no domínio de suporte e corte ou resumo do histórico da conversa (o histórico cresce sem limite).
 
 ---
@@ -109,7 +109,7 @@ Usuário (Turno N)
 [Guardrail Classifier] (classificador de injeção por LLM; fail-open)
        ↓
 [Supervisor Node] (Supervisor ReAct com ferramentas de delegação)
-       ├── ask_knowledge_agent  → [KnowledgeAgent] (search_knowledge_base, search_web)
+       ├── ask_knowledge_agent  → [KnowledgeAgent] (search_knowledge_base, get_weather_forecast, get_exchange_rate, search_web)
        ├── ask_support_agent    → [SupportAgent]   (get_settlement_status, diagnose_declined_transaction, diagnose_terminal)
        └── escalate_to_human    → Registro formal de transbordo no SQLite (tickets.db)
        ↓
@@ -133,7 +133,7 @@ flowchart TD
     ClassifierNode -->|block| SafeExit
     ClassifierNode -->|allow, ou erro com fail-open| SupervisorNode[Nó: Supervisor ReAct\nTool Calling ReAct Engine]
 
-    SupervisorNode -->|ask_knowledge_agent| KnowledgeSpecialist[KnowledgeAgent Sub-Agent\nContexto Isolado: search_knowledge_base, search_web]
+    SupervisorNode -->|ask_knowledge_agent| KnowledgeSpecialist[KnowledgeAgent Sub-Agent\nContexto Isolado: search_knowledge_base, get_weather_forecast, get_exchange_rate, search_web]
     SupervisorNode -->|ask_support_agent| SupportSpecialist[SupportAgent Sub-Agent\nContexto Isolado: settlement, declined, terminal]
     SupervisorNode -->|escalate_to_human| HumanEscalation[Transbordo Humano Direto\nSQLite tickets.db]
 
@@ -165,7 +165,9 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 | `ask_support_agent` | Supervisor | Delega solicitações de conta de lojista ao Customer Support Agent |
 | `escalate_to_human` | Supervisor | Cria chamado humano persistido em `tickets.db` |
 | `search_knowledge_base` | KnowledgeAgent | Busca vetorial semântica no índice oficial (gemini-embedding-2) com limiar |
-| `search_web` | KnowledgeAgent | Busca pública em tempo real (DuckDuckGo) |
+| `get_weather_forecast` | KnowledgeAgent | Clima atual e previsão diária de uma cidade (API Open-Meteo), com unidade, data e URL da fonte |
+| `get_exchange_rate` | KnowledgeAgent | Cotação PTAX de fechamento do Banco Central (API Olinda), em reais por unidade da moeda, com data e URL da fonte |
+| `search_web` | KnowledgeAgent | Busca pública (DuckDuckGo) só para o que nenhuma outra ferramenta cobre, como notícias |
 | `get_settlement_status` | SupportAgent | Consulta extrato e valores com mascaramento bancário de conta de destino |
 | `diagnose_declined_transaction` | SupportAgent | Diagnóstico de transações negadas pelo emissor |
 | `diagnose_terminal` | SupportAgent | Diagnóstico de conectividade e hardware de maquininhas Get Smart/Clássica |
@@ -212,6 +214,13 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
   * No conjunto de calibração do retrieval (48 consultas; as 8 fora do domínio são fáceis, como receitas e futebol), o limiar 0.61 deixa passar as 30 respondíveis e barra as 8 fora do domínio, com margem de apenas 0.04. Isso mede só o retriever: na avaliação ponta a ponta (`full-1`), dois pedidos fora do tema não foram recusados (`o02`, `o04`).
   * **Abstenção Uncovered**: 0.000 (perguntas *uncovered* estão próximas do vocabulário do domínio Getnet por construção e não são filtradas apenas pelo limiar de similaridade vetorial, dependendo do Knowledge Agent para reconhecer a ausência de resposta no trecho e responder "não encontrado nas fontes oficiais").
   * **Avisos do Relatório**: `[!WARNING]` `uncovered_not_filtered` (comportamento esperado e documentado na especificação).
+
+### Clima e câmbio por API oficial (Fase 10)
+* **Ferramentas do KnowledgeAgent**: `get_weather_forecast` (geocodificação e previsão da [Open-Meteo](https://open-meteo.com/)) e `get_exchange_rate` (PTAX do Banco Central do Brasil, pela API Olinda) são escolhidas pelo modelo por function calling (`src/tools/agent_tools.py`, `src/tools/public_data.py`). Cada resultado traz valor, unidade, data ou hora de referência e a URL da requisição (`source_url`), que entra nas fontes do turno; o resultado completo fica em `metadata.api_results`.
+* **Status explícitos**: `success`, `not_found` (cidade ou moeda desconhecida), `no_data` (dia sem boletim PTAX: fim de semana, feriado ou antes do fechamento), `unavailable` (timeout, erro HTTP ou resposta inválida) e `invalid_request`. Fora de `success` não há valor: nada é estimado nem fixo no código (`tests/test_public_data.py`, sobre respostas reais das duas APIs gravadas em `tests/fixtures/public_data/`).
+* **Câmbio**: a cotação é o boletim de fechamento da PTAX (`tipoBoletim` igual a `Fechamento`), uma taxa de referência do Banco Central em reais por unidade da moeda; não é a taxa que um banco ou casa de câmbio cobra. Sem data, vale o fechamento mais recente dos últimos 10 dias.
+* **Termos de uso**: a API gratuita da Open-Meteo é para uso não comercial (menos de 10.000 chamadas por dia) e os dados são CC BY 4.0, com a atribuição "Weather data by Open-Meteo.com" ([termos](https://open-meteo.com/en/terms), [licença](https://open-meteo.com/en/licence)); um uso comercial pela Getnet exigiria o plano pago. Os dados da PTAX são abertos, sob a licença ODbL, no [Portal de Dados Abertos do Banco Central](https://dadosabertos.bcb.gov.br/dataset/taxas-de-cambio-todos-os-boletins-diarios). Nenhuma das duas APIs usa chave.
+* **`search_web`** fica só para o que não tem API, como notícias.
 
 ### Fontes de Dados e Corpus Oficial (Fase 3A)
 * **Política de Fontes Oficiais**:
@@ -352,6 +361,7 @@ O sistema usa o Gemini via `langchain-google-genai`:
   * `APP_ENV`: Ambiente de execução (`development`, `staging`, `production`, `testing`).
   * `ENABLE_GUARDRAILS`: Ativa ou desativa o bloqueio de prompt injection (padrão: `true`); não desativa o mascaramento de cartão e CPF, que é sempre aplicado.
   * `GUARDRAIL_CLASSIFIER_ENABLED`, `GUARDRAIL_CLASSIFIER_MODEL`, `GUARDRAIL_CLASSIFIER_TIMEOUT_S`, `GUARDRAIL_CLASSIFIER_FAIL_MODE`: classificador de injeção por LLM (padrões: `true`; vazio = `LLM_MODEL`; `10` segundos, sem novas tentativas; `open`). Com `open`, erro ou timeout do classificador deixa a mensagem seguir para o supervisor; com `closed`, o `/chat` responde 503.
+  * `PUBLIC_DATA_TIMEOUT_S`: tempo máximo de cada chamada às APIs de clima e câmbio (padrão: `8` segundos).
   * `WEB_SEARCH_ENABLED`: Habilita busca externa em tempo real via DuckDuckGo (padrão: `true`).
 
 > **Seleção de Modelos e Motivação dos Padrões**: No plano gratuito do Google AI Studio, a família Gemini Flash standard possui limite estrito de apenas 20 requisições por dia (20 requests/day), inviabilizando execuções completas do pipeline agêntico onde cada caso demanda de 3 a 6 chamadas de modelo. Por sua vez, a família Flash-Lite oferece 15 requisições por minuto (RPM) e 500 requisições por dia (RPD), viabilizando testes locais e o harness de avaliação. Por essa razão, definimos `gemini-3.5-flash-lite` como modelo principal (`LLM_MODEL`) e `gemini-3.1-flash-lite` como fallback resiliente (`LLM_FALLBACK_MODEL`), usufruindo de cotas independentes por modelo dentro do mesmo tier gratuito. O juiz LLM (`EVAL_JUDGE_MODEL`) utiliza `gemini-3.1-flash-lite` por padrão para não competir com a cota do modelo avaliado.
@@ -738,3 +748,4 @@ Cada afirmação deste README aponta para o código, o teste, o verificador ou o
 | A imagem e o Compose rodam com `APP_ENV=production`: as chaves públicas de desenvolvimento recebem 401 | `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `tests/test_docker_defaults.py`, `scripts/verify_phase9e.py` |
 | Nenhum registro de log contém texto da conversa (consulta, motivo do chamado, argumentos de ferramenta ou texto de exceção) | `src/core/log_context.py` (`exc_brief`), `tests/test_log_privacy.py`, `scripts/verify_phase9f.py` |
 | O guardrail de injeção tem duas camadas: padrões sem custo e um classificador por LLM com saída estruturada; erro do classificador segue o modo configurado (fail-open por padrão) | `src/agents/guardrails.py`, `src/agents/injection_classifier.py`, `src/prompts/guardrail_classifier.md`, `tests/test_guardrail_classifier.py`, `scripts/verify_phase10b.py` |
+| Clima e câmbio vêm de APIs oficiais (Open-Meteo e PTAX do Banco Central), com unidade, data de referência e URL da fonte; falha, timeout e dia sem cotação viram status explícito, sem valor | `src/tools/public_data.py`, `src/tools/agent_tools.py`, `tests/test_public_data.py`, `tests/test_public_data_tools.py`, `tests/fixtures/public_data/manifest.json`, `scripts/verify_phase10f.py` |

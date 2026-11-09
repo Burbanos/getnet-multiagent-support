@@ -1,4 +1,5 @@
 """Typed agent tools with Pydantic schemas for the LangGraph Supervisor."""
+import datetime as dt
 import json
 import logging
 from typing import Any, Literal
@@ -13,10 +14,17 @@ from src.tools.balance_tools import (
     get_declined_transaction_details,
     get_settlement_and_sales_status,
 )
+from src.tools.public_data import (
+    FX_SOURCE,
+    fetch_exchange_rate,
+    fetch_weather,
+)
 from src.tools.terminal_tools import diagnose_terminal_connectivity
 from src.tools.web_search import web_search_tool
 
 logger = logging.getLogger("multiagent.tools")
+# httpx logs every request URL (city, currency, dates) at INFO: keep it at WARNING so queries never reach the logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 @tool
@@ -102,16 +110,56 @@ def search_knowledge_base(query: str) -> str:
 
 
 @tool
-def search_web(query: str) -> str:
+def get_weather_forecast(city: str, country_code: str | None = None, days: int = 3) -> str:
     """
-    Executa busca pública na web em tempo real via DuckDuckGo.
-    Use estritamente para informações externas que não pertencem ao catálogo Getnet, como:
-    - Previsão do tempo e clima em cidades (ex: Porto Alegre)
-    - Cotação de moedas e câmbio em tempo real (Euro, Dólar)
-    - Notícias e dados públicos externos atuais
+    Previsão do tempo e condição atual de uma cidade pela API Open-Meteo, com unidade, data de referência e URL da fonte.
+    Use para qualquer pergunta sobre clima, temperatura, chuva ou previsão do tempo. Nunca use search_web para clima.
 
     Args:
-        query: Consulta a ser realizada na internet em tempo real.
+        city: Nome da cidade (ex.: 'Porto Alegre').
+        country_code: Código ISO de 2 letras do país, quando conhecido (ex.: 'BR').
+        days: Número de dias de previsão, de 1 a 7 (padrão 3).
+    """
+    result = fetch_weather(city, country_code, days)
+    logger.info(f"[Tool: get_weather_forecast] invoked (status={result['status']})")
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@tool
+def get_exchange_rate(currency: str, date: str | None = None) -> str:
+    """
+    Cotação PTAX de fechamento do Banco Central do Brasil (taxa de referência, em reais por unidade da moeda), com data e URL da fonte.
+    Use para qualquer pergunta sobre câmbio ou cotação de moeda estrangeira (dólar, euro etc.). Nunca use search_web para câmbio.
+
+    Args:
+        currency: Código ISO de 3 letras da moeda (ex.: 'USD', 'EUR').
+        date: Data no formato AAAA-MM-DD; omita para a cotação de fechamento mais recente.
+    """
+    if not date or not date.strip():
+        result = fetch_exchange_rate(currency)
+    else:
+        try:
+            parsed = dt.date.fromisoformat(date.strip())
+            result = fetch_exchange_rate(currency, parsed)
+        except ValueError:
+            result = {
+                "status": "invalid_request",
+                "source": FX_SOURCE,
+                "source_url": None,
+                "error": "invalid_date",
+            }
+    logger.info(f"[Tool: get_exchange_rate] invoked (status={result['status']})")
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@tool
+def search_web(query: str) -> str:
+    """
+    Busca pública na web via DuckDuckGo, para informação externa que nenhuma outra ferramenta cobre (por exemplo, notícias).
+    Nunca use para clima ou câmbio: para isso existem get_weather_forecast e get_exchange_rate. Nunca use para produtos da Getnet.
+
+    Args:
+        query: Consulta a ser realizada na internet.
     """
     logger.info(f"[Tool: search_web] invoked (query_chars={len(query)})")
     result = web_search_tool(query=query, max_results=3)
@@ -161,6 +209,8 @@ ALL_TOOLS: list[Any] = [
     diagnose_declined_transaction,
     diagnose_terminal,
     search_knowledge_base,
+    get_weather_forecast,
+    get_exchange_rate,
     search_web,
     escalate_to_human,
 ]

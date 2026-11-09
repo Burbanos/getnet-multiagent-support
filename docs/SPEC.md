@@ -286,6 +286,14 @@ not an independent review (the same candidate drives both tools); never describe
   bulletin"; an unknown city returns 200 with no `results` key; the forecast snaps the coordinates to its grid
   (-29.98/-51.19 for the geocoded -30.03/-51.23) and returns its own units (`°C`, `%`, `mm`); latitude 999 returns 400 with
   `reason`. EUR closing 2026-11-06: 6.13 / 6.1317.
+- 10E (`2daa711`; reviewer reran `verify_phase10e.py`: 63/63 on 3.11.18 and 3.13.18; reviewer files identical; CI run #61
+  green), no review issues.
+- Re-split of 10F/10G (2026-11-09): 10F as first planned (tools, prompts, `api_results`, eval plumbing, `cases_v2`) is
+  well over ten actions, so it becomes 10F (tools, prompts, state/API, README), 10G (eval plumbing and `cases_v2`) and 10H
+  (the user's real runs and the README numbers). Found while simulating 10F: the `httpx` library logs every request URL
+  (city, currency, dates) at INFO. Today it never reaches an output (only the `multiagent` logger has a handler), but a
+  deployment that configures the root logger would print it; 10F pins the `httpx` logger at WARNING and the verifier
+  checks the logs with the root logger at INFO.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -320,8 +328,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10E** (Open-Meteo and PTAX client with explicit statuses, tested on the 10D fixtures), prompt
-`docs/phase-prompts/10E.md`, verifier `scripts/verify_phase10e.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10F** (weather and exchange-rate tools for the Knowledge Agent, reviewer prompts, `api_results` in
+state and API, README), prompt `docs/phase-prompts/10F.md`, verifier `scripts/verify_phase10f.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1034,7 +1042,7 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   classifier{status, verdict, category, error_type, latency_ms, model}}`, never text; classifier tokens in
   `tokens_by_agent["GuardrailClassifier"]`; metric `getnet_guardrail_decisions_total{decision}`; one log record per
   classifier run without text; `/agents` describes the classifier. README: hybrid limitation (the classifier's real-model
-  rate is "not measured yet" until the runs of 10G), flow diagrams, injection bullet, env vars, claims row. Supersedes 9F
+  rate is "not measured yet" until the runs of 10H), flow diagrams, injection bullet, env vars, claims row. Supersedes 9F
   `H11.claims_row`, 9G `J9.limitations`, 10A `A15.readme_limitation` and `A2.classifier_prompt_preregistered` (re-checked
   as B8, B9 and B2).
 - 10C (checked by `scripts/verify_phase10c.py`; code only, no real-model run): in `src/eval/guardrail_eval.py`,
@@ -1048,7 +1056,7 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   `reports/guardrail_<run_id>.{json,md}`, and `guardrail_summary` over several runs (mean/min/max per metric,
   `all_targets_met`) in `reports/guardrail_summary.{json,md}`; CLI `guardrail-run`, `guardrail-report`,
   `guardrail-summary`. Offline tests with scripted classifiers, including one that misses the targets. The real runs are the
-  user's, in 10G.
+  user's, in 10H.
 - 10D (checked by `scripts/verify_phase10d.py`): `scripts/capture_public_data.py` (implementer file; `httpx`, project user
   agent, no key) fetches 12 fixed requests (geocoding of Porto Alegre, São Paulo and an unknown town; a 3-day forecast with
   `current` and the daily variables; a forecast with an invalid latitude (HTTP 400); the PTAX `Moedas` list; EUR, USD and
@@ -1067,16 +1075,26 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   reference date/time from the API and `source_url`; the WMO weather-code table from the Open-Meteo docs; the PTAX closing
   bulletin of the requested date, or the latest one in the last 10 days when no date is given ("today" in UTC-3, injectable).
   Tests with `httpx.MockTransport` serving the 10D fixtures, plus timeout, HTTP 5xx and invalid JSON.
-- 10F: tools `get_weather_forecast` and `get_exchange_rate` in `KNOWLEDGE_TOOLS` (descriptions dictated by the reviewer),
-  `search_web` description narrowed to news; reviewer prompts (`knowledge_agent.md`, `supervisor.md`) updated; the
-  specialist adds `source_url` to `sources` and records `api_results` (state, `AgentState`, runner, judge passages);
-  metrics and eval know the new tools; logs carry no city or currency; `--cases` for run/judge/report;
-  `data/eval/cases_v2.jsonl`.
-- 10G: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
-  recommended) plus the judge; committed raw files and reports; README: terms of use of both APIs, the fail-open decision,
-  measured extra latency and cost per message, guardrail and weather/FX limitations rewritten (what the hybrid guardrail
-  still does not cover: multi-turn split injections, injections inside web results or tool outputs, encodings the model
-  misses, the small pre-registered set), claims-table rows.
+- 10F (checked by `scripts/verify_phase10f.py`): tools `get_weather_forecast(city, country_code=None, days=3)` and
+  `get_exchange_rate(currency, date=None)` (ISO date string; an unparseable date returns `invalid_request` /
+  `invalid_date` without a request) in `ALL_TOOLS` and `KNOWLEDGE_TOOLS` (order: knowledge base, weather, FX, web),
+  descriptions dictated by the reviewer; `search_web` described as news-only; the tools return the module's result as JSON
+  and log only the status; the `httpx` logger pinned at WARNING. Reviewer prompts updated (`knowledge_agent.md`: tools,
+  how to read weather/FX results, no estimates; `supervisor.md`: routing line and grounding of values, units, dates,
+  PTAX as reference rate). The specialist records every API call in `api_results` (`{"tool", **result}`) and adds
+  `source_url` to `sources` only on `success`; `api_results` goes through `AgentState`, the graph, `run_sync` and the
+  `/chat` metadata; metrics know the two tools. README: limitation item rewritten, flows, tools table, a section on both
+  APIs (statuses, terms of use, attribution), `PUBLIC_DATA_TIMEOUT_S`, claims row. Supersedes 2A `R1.tool_set`, 2D
+  `R2.knowledge_tools`, 10B `B8.readme_texts` and `B9.claims_row` (re-checked as F2, F8 and F9).
+- 10G: evaluation plumbing: `VALID_TOOLS` with the two tools, `observe_turn` records `api_results`, the judge receives the
+  API results as passages, `--cases` for run/judge/report; reviewer-written `data/eval/cases_v2.jsonl` (weather/FX cases
+  re-labelled to the new tools; unknown city, PTAX on a Saturday, a past business day, a currency other than USD/EUR,
+  weather plus knowledge base in one question, news via `search_web`). Offline only.
+- 10H: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
+  recommended) plus the judge; committed raw files and reports; README: the fail-open decision, measured extra latency
+  and cost per message, guardrail and weather/FX limitations rewritten (what the hybrid guardrail still does not cover:
+  multi-turn split injections, injections inside web results or tool outputs, encodings the model misses, the small
+  pre-registered set), claims-table rows; the reply to the V4 feedback and the open items.
 **Acceptance:**
 - AC10.1 No regex outside `src/agents/guardrails.py` and `src/core/pii.py`; routing to the new tools by function calling only.
 - AC10.2 Weather and FX answers come from API tool results with unit, reference time and `source_url`; every failure

@@ -34,13 +34,15 @@ from src.tools.agent_tools import (
     TOOLS_BY_NAME,
     diagnose_declined_transaction,
     diagnose_terminal,
+    get_exchange_rate,
     get_settlement_status,
+    get_weather_forecast,
     search_knowledge_base,
     search_web,
 )
 from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
-KNOWLEDGE_TOOLS = [search_knowledge_base, search_web]
+KNOWLEDGE_TOOLS = [search_knowledge_base, get_weather_forecast, get_exchange_rate, search_web]
 SUPPORT_TOOLS = [get_settlement_status, diagnose_declined_transaction, diagnose_terminal]
 
 logger = logging.getLogger("multiagent.orchestrator")
@@ -687,6 +689,7 @@ class OrchestrationGraph:
         sources = list(state.get("sources", []))
         retrieved_docs = list(state.get("retrieved_docs", []))
         web_results = list(state.get("web_results", []))
+        api_results = list(state.get("api_results", []))
         ticket = state.get("ticket")
         agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
 
@@ -742,6 +745,8 @@ class OrchestrationGraph:
                 retrieved_docs.extend(spec_res["retrieved_docs"])
                 if spec_res.get("web_results"):
                     web_results.extend(spec_res["web_results"])
+                if spec_res.get("api_results"):
+                    api_results.extend(spec_res["api_results"])
 
             elif tool_name == "ask_support_agent":
                 if "SupportAgent" not in agents_used:
@@ -782,6 +787,8 @@ class OrchestrationGraph:
                 retrieved_docs.extend(spec_res["retrieved_docs"])
                 if spec_res.get("web_results"):
                     web_results.extend(spec_res["web_results"])
+                if spec_res.get("api_results"):
+                    api_results.extend(spec_res["api_results"])
 
             elif tool_name == "escalate_to_human":
                 escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
@@ -852,6 +859,7 @@ class OrchestrationGraph:
             "sources": sources,
             "retrieved_docs": retrieved_docs,
             "web_results": web_results,
+            "api_results": api_results,
             "ticket": ticket,
             "tokens_by_agent": tba,
             "tokens": tokens,
@@ -932,6 +940,7 @@ class OrchestrationGraph:
                 "sources": [],
                 "retrieved_docs": [],
                 "web_results": [],
+                "api_results": [],
                 "ticket": None,
                 "handoff": None,
                 "knowledge_outcomes": [],
@@ -1005,6 +1014,7 @@ class OrchestrationGraph:
                 sources=result.get("sources", []),
                 retrieved_docs=result.get("retrieved_docs", []),
                 web_results=result.get("web_results", []),
+                api_results=result.get("api_results", []),
                 context_docs=result.get("retrieved_docs", []),
                 ticket=result.get("ticket"),
                 handoff=result.get("handoff"),

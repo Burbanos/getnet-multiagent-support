@@ -4,6 +4,104 @@
 
 ---
 
+### Fase 10F: Clima e Câmbio — Tools do Knowledge Agent
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 10F (`python scripts/verify_phase10f.py`):
+```text
+INFO python 3.13.3
+PASS F0.py311_syntax
+PASS F1.agent_prompts
+PASS F0.no_regex
+PASS F8.readme_texts
+PASS F9.claims_row
+PASS F8.readme_10b_texts_kept
+PASS F10.tests_named
+PASS S1.status_10f
+PASS E2.scope
+PASS F2.tools
+PASS F3.tools_return_module_results :: EUR 2026-11-06 via tool: {'value': 6.13, 'unit': 'BRL per 1 EUR'}
+PASS F4.specialist_api_results
+PASS F5.graph_and_api
+PASS F6.logs_without_query
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 310 passed in 21.92s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q2.tools_tests :: 7 passed in 0.57s
+
+SUMMARY: 61/61 passed
+```
+
+#### Commit base (`git rev-parse HEAD`):
+```text
+2daa711dacf750e2f136b3f0faf132881186d7a4
+```
+
+#### Não feito
+- Avaliação com modelo real (`src/eval/`, `data/eval/`): escopo da Fase 10G. Esta fase adiciona e integra as tools tipadas ao Knowledge Agent e ao fluxo do Supervisor ReAct, sem executar chamadas com modelo real na avaliação.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma divergência. As novas ferramentas `get_weather_forecast` e `get_exchange_rate` foram implementadas estritamente com as docstrings e validações especificadas. Os logs mascaram cidade, moeda e parâmetros da requisição mantendo privacidade, e o nível de logging do `httpx` foi configurado para WARNING para prevenir vazamento de URLs nos logs da aplicação.
+
+#### Alterações
+- `src/tools/agent_tools.py`: configuração do logger `httpx` em WARNING; implementação de `get_weather_forecast` e `get_exchange_rate`; atualização da docstring de `search_web`; atualização de `ALL_TOOLS` e `TOOLS_BY_NAME`.
+- `src/core/graph.py`: inclusão de `get_weather_forecast` e `get_exchange_rate` em `KNOWLEDGE_TOOLS`; propagação de `api_results` no nó de execução de ferramentas e no retorno de `run_sync`.
+- `src/agents/specialists.py`: definição de `API_TOOLS = frozenset({"get_weather_forecast", "get_exchange_rate"})`; captura e extração de `api_results` e `source_url` apenas quando `status == "success"`; retorno de `api_results` em `SpecialistAgent.run`.
+- `src/core/state.py`: inclusão de `api_results` em `SupervisorState` e `AgentState`.
+- `src/core/metrics.py`: inclusão de `get_weather_forecast` e `get_exchange_rate` em `KNOWN_TOOLS`.
+- `src/main.py`: adição do campo `api_results` no schema `AgentMetadata` e seu preenchimento no endpoint `/chat`.
+- `tests/test_public_data_tools.py`: 7 testes unitários e de integração offline cobrindo registro de tools, retorno de previsão e câmbio, parsing e validação de data, registro de metadados e fontes, ausência de fontes em erros da API, exposição via grafo e `/chat`, e privacidade dos logs.
+- `README.md`: atualização de limitações, diagramas de fluxo ASCII e Mermaid, tabela de ferramentas, adição da seção "Clima e câmbio por API oficial (Fase 10)", configuração de `PUBLIC_DATA_TIMEOUT_S` e nova evidência na tabela de afirmações.
+
+---
+
 ### Fase 10E: Clima e Câmbio — Módulo das APIs
 
 #### Versão do Python (`python --version`):

@@ -61,6 +61,7 @@ class AgentMetadata(BaseModel):
     tokens_by_agent: dict[str, dict[str, int]] | None = Field(default=None, description="Token usage broken down by agent")
     estimated_cost_usd: float | None = Field(default=None, description="Estimated execution cost in USD")
     web_results: list[dict[str, Any]] = Field(default_factory=list, description="Web search results if search_web was used")
+    api_results: list[dict[str, Any]] = Field(default_factory=list, description="Results of the weather and exchange-rate APIs used in the turn")
     error: str | None = Field(default=None, description="Internal error flag if execution failed")
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
@@ -376,6 +377,7 @@ def chat_endpoint(
                 tokens_by_agent=getattr(state, "tokens_by_agent", None),
                 estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
                 web_results=getattr(state, "web_results", []) or [],
+                api_results=getattr(state, "api_results", []) or [],
                 error=getattr(state, "error", None),
                 debug_details={
                     "session_id": state.session_id or active_session,

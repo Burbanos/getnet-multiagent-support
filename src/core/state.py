@@ -36,6 +36,7 @@ class SupervisorState(TypedDict):
     sources: list[str]
     retrieved_docs: list[dict[str, Any]]
     web_results: list[dict[str, Any]]
+    api_results: list[dict[str, Any]]
     ticket: dict[str, Any] | None
     pending_ticket_id: str | None
     handoff: dict[str, Any] | None
@@ -70,6 +71,7 @@ class AgentState(BaseModel):
     context_docs: list[dict[str, Any]] = Field(default_factory=list)
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list)
     web_results: list[dict[str, Any]] = Field(default_factory=list)
+    api_results: list[dict[str, Any]] = Field(default_factory=list)
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
     agents_used: list[str] = Field(default_factory=lambda: ["SupervisorAgent"])
     tools_used: list[str] = Field(default_factory=list)

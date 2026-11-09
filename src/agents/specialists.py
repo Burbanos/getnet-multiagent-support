@@ -19,6 +19,8 @@ from src.core.llm import (
 
 logger = logging.getLogger("multiagent.specialists")
 
+API_TOOLS = frozenset({"get_weather_forecast", "get_exchange_rate"})
+
 
 class SpecialistAgent:
     """Specialist sub-agent delegating to a dedicated model loop with isolated tools."""
@@ -75,6 +77,7 @@ class SpecialistAgent:
         sources: list[str] = []
         retrieved_docs: list[dict[str, Any]] = []
         web_results: list[dict[str, Any]] = []
+        api_results: list[dict[str, Any]] = []
         specialist_usage: dict[str, int] | None = None
 
         steps = 0
@@ -115,6 +118,7 @@ class SpecialistAgent:
                     "sources": sources,
                     "retrieved_docs": retrieved_docs,
                     "web_results": web_results,
+                    "api_results": api_results,
                     "usage": specialist_usage,
                 }
 
@@ -182,6 +186,10 @@ class SpecialistAgent:
                                     "title": r.get("title", ""),
                                     "snippet": r.get("snippet", ""),
                                 })
+                        elif tool_name in API_TOOLS:
+                            api_results.append({"tool": tool_name, **parsed})
+                            if parsed.get("status") == "success" and parsed.get("source_url"):
+                                sources.append(parsed["source_url"])
                 except (json.JSONDecodeError, TypeError, KeyError):
                     pass
 
@@ -204,5 +212,6 @@ class SpecialistAgent:
             "sources": sources,
             "retrieved_docs": retrieved_docs,
             "web_results": web_results,
+            "api_results": api_results,
             "usage": specialist_usage,
         }
