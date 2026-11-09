@@ -4,6 +4,109 @@
 
 ---
 
+### Fase 10G: Clima e Câmbio — Avaliação com o Conjunto v2
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 10G (`python scripts/verify_phase10g.py`):
+```text
+INFO python 3.13.3
+PASS G0.py311_syntax
+PASS G0.no_regex
+PASS G1.reviewer_files
+PASS G9.readme_texts
+PASS G9.claims_row
+PASS G10.tests_named
+PASS G10.existing_test_only_gains_key
+PASS S1.status_10g
+PASS E2.scope
+PASS G2.v2_set
+PASS G3.api_status_validation
+PASS G4.tools_ok_api_status :: 69 ok results with api_status compared
+PASS G5.observe_turn
+PASS G6.judge_sees_api_results
+PASS G7.report_cases_file
+PASS G8.cli_cases
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 316 passed in 22.68s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q2.eval_v2_tests :: 6 passed in 0.44s
+
+SUMMARY: 65/65 passed
+```
+
+#### Commit base (`git rev-parse HEAD`):
+```text
+939b67b5db641e48eb7f4b8cf6bdf69a6c23067f
+```
+
+#### Não feito
+- Execuções da avaliação com modelo real sobre o conjunto v2 (`data/eval/cases_v2.jsonl`): escopo da Fase 10H. Esta fase implementa o suporte offline, validações e infraestrutura para o conjunto v2 sem chamadas de modelo real.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma divergência. O conjunto v1 permanece intacto e congelado. O conjunto v2 (78 casos) é suportado via `--cases` em todas as etapas da CLI de avaliação (`run`, `judge`, `report`, `compare`), com validação rigorosa de `api_status`, registro de `api_results` nas observações do turno e entrega de passagens completas ao juiz LLM.
+
+#### Alterações
+- `src/eval/cases.py`: inclusão de `"public_data"` em `VALID_CATEGORIES`, `"get_weather_forecast"` e `"get_exchange_rate"` em `VALID_TOOLS`, definição de `API_TOOLS`, `API_STATUSES` e `OPTIONAL_EXPECT_KEYS`, e validação do campo `expect.api_status`.
+- `src/eval/checks.py`: checagem de correspondência exata para `api_status` em `evaluate_case` condicionando `tools_ok`.
+- `src/eval/runner.py`: gravação de `api_results` nas observações estruturadas de `observe_turn`.
+- `src/eval/judge.py`: inclusão dos itens de `api_results` como passagens de evidência em `build_judge_input`.
+- `src/eval/report.py`: inclusão de `cases_file` nos metadados do relatório JSON e no resumo Markdown em `write_report`.
+- `src/eval/__main__.py`: suporte ao argumento `--cases` nos subcomandos `run`, `judge`, `report` e `compare`, repassando `cases_file` ao relatório.
+- `tests/test_eval_runner_judge.py`: atualização de `expected_keys` para incluir `"api_results"` no teste de integridade de `observe_turn`.
+- `tests/test_eval_v2.py`: 6 testes unitários e de integração offline cobrindo carregamento do v2, imutabilidade do v1, validação de `api_status`, verificação de `tools_ok`, gravação em `observe_turn`, evidências do juiz e opções da CLI.
+- `README.md`: documentação do conjunto v2, atualização da descrição de `tools_ok`, opção `--cases`, tratamento de resultados de API no juiz, ampliação do escopo de autoria e revisão, e adição da linha de evidência na tabela de afirmações.
+
+---
+
 ### Fase 10F: Clima e Câmbio — Tools do Knowledge Agent
 
 #### Versão do Python (`python --version`):

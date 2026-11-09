@@ -27,6 +27,7 @@ def write_report(
     out_md: str | Path,
     run_id: str = "eval",
     judgments: list[dict[str, Any]] | None = None,
+    cases_file: str | None = None,
 ) -> dict[str, Any]:
     """
     Compute aggregate metrics and write out evaluation report in both JSON and Markdown formats.
@@ -41,6 +42,7 @@ def write_report(
         "run_id": run_id,
         "generated_at": generated_at,
         "cases_sha256": sha,
+        "cases_file": cases_file,
         "complete": complete,
         **agg,
     }
@@ -62,6 +64,7 @@ def write_report(
         "",
         f"- **Gerado em**: `{generated_at}`",
         f"- **Cases SHA256**: `{sha}`",
+        f"- **Conjunto de casos**: `{cases_file or '-'}`",
         f"- **Status de Conclusão (`complete`)**: `{complete}`",
         f"- **Modelos Avaliados (`answer_models`)**: `{answer_models_str}`",
         f"- **Total de Casos**: {agg['n_cases']}",

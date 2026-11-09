@@ -149,6 +149,14 @@ def build_judge_input(case: dict[str, Any], result: dict[str, Any]) -> str:
                 "text": f"{title}\n{snippet}",
             })
 
+    raw_api = last_turn.get("api_results", []) or []
+    for a in raw_api:
+        if isinstance(a, dict):
+            passages.append({
+                "url": a.get("source_url") or "",
+                "text": json.dumps(a, ensure_ascii=False, sort_keys=True),
+            })
+
     tool_outputs = last_turn.get("tool_results", []) or []
 
     payload = {

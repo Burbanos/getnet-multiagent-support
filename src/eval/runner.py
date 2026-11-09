@@ -47,6 +47,11 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
                 "snippet": (w.get("snippet") or "")[:600],
             })
 
+    raw_api = _get_val(state, "api_results", []) or []
+    cleaned_api: list[dict[str, Any]] = [
+        dict(a) for a in raw_api if isinstance(a, dict)
+    ]
+
     ticket_obj = _get_val(state, "ticket")
     ticket_dict = ticket_obj if isinstance(ticket_obj, dict) else {}
     ticket_id = _get_val(state, "escalation_ticket_id") or ticket_dict.get("ticket_id")
@@ -67,6 +72,7 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         "sources": _get_val(state, "sources", []) or [],
         "retrieved_docs": cleaned_docs,
         "web_results": cleaned_web,
+        "api_results": cleaned_api,
         "tool_results": _get_val(state, "tool_results", []) or [],
         "ticket_id": ticket_id,
         "ticket_priority": ticket_priority,

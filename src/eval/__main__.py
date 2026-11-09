@@ -66,6 +66,7 @@ def main() -> int:
     p_run = subparsers.add_parser("run", help="Run evaluation with live models")
     p_run.add_argument("--run-id", required=True, help="Evaluation run ID")
     p_run.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_run.add_argument("--cases", default=str(DEFAULT_CASES_PATH), help="Path to the evaluation cases JSONL")
     p_run.add_argument("--sleep", type=float, default=None, help="Pause between cases in seconds")
     p_run.add_argument("--max-cases", type=int, default=None, help="Maximum cases to attempt")
     p_run.add_argument("--only", default=None, help="Comma-separated case IDs to evaluate")
@@ -74,6 +75,7 @@ def main() -> int:
     p_judge = subparsers.add_parser("judge", help="Run LLM judge evaluation")
     p_judge.add_argument("--run-id", required=True, help="Evaluation run ID")
     p_judge.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_judge.add_argument("--cases", default=str(DEFAULT_CASES_PATH), help="Path to the evaluation cases JSONL")
     p_judge.add_argument("--sleep", type=float, default=None, help="Pause between cases in seconds")
 
     # 4. report
@@ -81,6 +83,7 @@ def main() -> int:
     p_report.add_argument("--run-id", required=True, help="Evaluation run ID")
     p_report.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
     p_report.add_argument("--out-dir", default="reports", help="Output directory for reports")
+    p_report.add_argument("--cases", default=str(DEFAULT_CASES_PATH), help="Path to the evaluation cases JSONL")
 
     # 5. compare
     p_compare = subparsers.add_parser("compare", help="Compare multiple evaluation runs")
@@ -93,6 +96,7 @@ def main() -> int:
     )
     p_compare.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
     p_compare.add_argument("--out-dir", default="reports", help="Output directory for reports")
+    p_compare.add_argument("--cases", default=str(DEFAULT_CASES_PATH), help="Path to the evaluation cases JSONL")
 
     # 6. guardrail-patterns
     p_gp = subparsers.add_parser("guardrail-patterns", help="Evaluate and report guardrail pattern matching layer")
@@ -215,7 +219,11 @@ def main() -> int:
         print(f"guardrail-summary: {s['n_runs']} runs, all_targets_met {s['all_targets_met']}")
         return 0
 
-    cases = load_cases(DEFAULT_CASES_PATH)
+    cases_path = Path(args.cases)
+    if not cases_path.exists():
+        print(f"Error: dataset file not found at {cases_path}", file=sys.stderr)
+        return 1
+    cases = load_cases(cases_path)
 
     if args.subcommand == "run":
         if not settings.GEMINI_API_KEY:
@@ -294,6 +302,7 @@ def main() -> int:
             out_md=out_md,
             run_id=args.run_id,
             judgments=judgments,
+            cases_file=cases_path.as_posix(),
         )
         print(f"Generated report at {out_json} and {out_md}")
         return 0

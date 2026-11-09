@@ -28,17 +28,23 @@ VALID_CATEGORIES = {
     "escalation",
     "multi_turn",
     "multi_intent",
+    "public_data",
 }
 VALID_LANGS = {"pt", "en"}
 VALID_AGENTS = {"KnowledgeAgent", "SupportAgent"}
 VALID_TOOLS = {
     "search_knowledge_base",
+    "get_weather_forecast",
+    "get_exchange_rate",
     "search_web",
     "get_settlement_status",
     "diagnose_declined_transaction",
     "diagnose_terminal",
     "escalate_to_human",
 }
+API_TOOLS = {"get_weather_forecast", "get_exchange_rate"}
+API_STATUSES = {"success", "not_found", "no_data", "unavailable", "invalid_request"}
+OPTIONAL_EXPECT_KEYS = {"api_status"}
 
 
 def load_cases(path: str | Path) -> list[dict[str, Any]]:
@@ -97,7 +103,13 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
                 raise ValueError(f"Line {line_idx}: turn {t_idx} must be a non-empty string")
 
         expect = case["expect"]
-        if not isinstance(expect, dict) or set(expect.keys()) != REQUIRED_EXPECT_KEYS:
+        if not isinstance(expect, dict):
+            raise ValueError(f"Line {line_idx}: expect must be a JSON object")  # noqa: TRY004
+
+        expect_keys = set(expect.keys())
+        if not REQUIRED_EXPECT_KEYS.issubset(expect_keys) or not expect_keys.issubset(
+            REQUIRED_EXPECT_KEYS | OPTIONAL_EXPECT_KEYS
+        ):
             raise ValueError(
                 f"Line {line_idx}: expect keys do not match {REQUIRED_EXPECT_KEYS}"
             )
@@ -121,6 +133,24 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
             raise ValueError(
                 f"Line {line_idx}: expect.tools_none must be list of valid tools {VALID_TOOLS}"
             )
+
+        if "api_status" in expect:
+            api_status = expect["api_status"]
+            if not isinstance(api_status, dict) or len(api_status) == 0:
+                raise ValueError(f"Line {line_idx}: expect.api_status must be a non-empty dict")
+            for tool_k, status_v in api_status.items():
+                if tool_k not in API_TOOLS:
+                    raise ValueError(
+                        f"Line {line_idx}: expect.api_status key '{tool_k}' must be one of {API_TOOLS}"
+                    )
+                if tool_k not in tools_all:
+                    raise ValueError(
+                        f"Line {line_idx}: expect.api_status key '{tool_k}' must be in expect.tools_all"
+                    )
+                if status_v not in API_STATUSES:
+                    raise ValueError(
+                        f"Line {line_idx}: expect.api_status value '{status_v}' must be one of {API_STATUSES}"
+                    )
 
         if case.get("offline") and case.get("category") != "safety":
             raise ValueError(

@@ -294,6 +294,17 @@ not an independent review (the same candidate drives both tools); never describe
   (city, currency, dates) at INFO. Today it never reaches an output (only the `multiagent` logger has a handler), but a
   deployment that configures the root logger would print it; 10F pins the `httpx` logger at WARNING and the verifier
   checks the logs with the root logger at INFO.
+- 10F (`939b67b`; reviewer reran `verify_phase10f.py`: 61/61 on 3.11.18 and 3.13.18; reviewer files identical; CI green
+  (test and docker), 310 tests). Minor, not fixed: STATUS says the logs "mask" city and currency (they never log them) and
+  points the real-model runs to 10G (they are 10H); `get_exchange_rate` wraps the fetch in the same `try` as the date
+  parsing, harmless because `public_data.py` raises nothing. Antigravity first ran the new tests in the background and the
+  `TestClient` test hung the sandbox, as known.
+- 10G decisions (2026-11-09): the API-status expectation is folded into `tools_ok` instead of a new check, because a new
+  entry in `CHECKS` would change every per-case `checks` dict and break the 6A reference comparison on v1; v1 cases have
+  no `api_status`, so their results are unchanged. The four re-labelled weather/FX cases now expect `abstain: false` (an
+  API answer is substantive). The judge prompt names the API results as evidence and says weather and FX values need it;
+  v2 judgments are therefore not directly comparable with the v1 runs, which were judged with the previous prompt. The
+  authorship line keeps `data/eval/cases.jsonl` (pinned by 9A) and lists the other two labeled files.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -328,8 +339,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10F** (weather and exchange-rate tools for the Knowledge Agent, reviewer prompts, `api_results` in
-state and API, README), prompt `docs/phase-prompts/10F.md`, verifier `scripts/verify_phase10f.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10G** (evaluation set v2 with the weather and exchange-rate tools; offline only), prompt
+`docs/phase-prompts/10G.md`, verifier `scripts/verify_phase10g.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1086,10 +1097,15 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   `/chat` metadata; metrics know the two tools. README: limitation item rewritten, flows, tools table, a section on both
   APIs (statuses, terms of use, attribution), `PUBLIC_DATA_TIMEOUT_S`, claims row. Supersedes 2A `R1.tool_set`, 2D
   `R2.knowledge_tools`, 10B `B8.readme_texts` and `B9.claims_row` (re-checked as F2, F8 and F9).
-- 10G: evaluation plumbing: `VALID_TOOLS` with the two tools, `observe_turn` records `api_results`, the judge receives the
-  API results as passages, `--cases` for run/judge/report; reviewer-written `data/eval/cases_v2.jsonl` (weather/FX cases
-  re-labelled to the new tools; unknown city, PTAX on a Saturday, a past business day, a currency other than USD/EUR,
-  weather plus knowledge base in one question, news via `search_web`). Offline only.
+- 10G (checked by `scripts/verify_phase10g.py`): `src/eval/cases.py` accepts category `public_data`, the two API tools and an
+  optional `expect.api_status` ({API tool in `tools_all`: one of `success`, `not_found`, `no_data`, `unavailable`,
+  `invalid_request`}); `tools_ok` also requires, for each pair, an `api_results` entry with that tool and status;
+  `observe_turn` records `api_results` (copies); `build_judge_input` adds one passage per API result (`url` = `source_url`
+  or empty, `text` = the result as sorted JSON); `write_report(..., cases_file)` records the file; `--cases` for `run`,
+  `judge`, `report` and `compare` (default v1; a missing file returns 1). Reviewer files: `data/eval/cases_v2.jsonl` (78
+  cases: v1 with `off02`/`off07`/`w01`/`w02` re-labelled to the API tools, the API tools also forbidden in `off_topic` and
+  `safety`, plus `d01`-`d08` and `x03`; expected PTAX values checked against the 10D fixtures) and `src/prompts/judge.md`.
+  Supersedes 7D `W2.observe_turn` (re-checked as G5) and 10F `F9.claims_row` (re-checked as G9).
 - 10H: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
   recommended) plus the judge; committed raw files and reports; README: the fail-open decision, measured extra latency
   and cost per message, guardrail and weather/FX limitations rewritten (what the hybrid guardrail still does not cover:

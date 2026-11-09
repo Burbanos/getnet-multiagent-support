@@ -65,9 +65,16 @@ def evaluate_case(case: dict[str, Any], result: dict[str, Any]) -> dict[str, Any
         out["routing_ok"] = spec == set(e["agents"])
 
     if e["tools_all"] or e["tools_none"]:
-        out["tools_ok"] = all(x in used for x in e["tools_all"]) and not any(
+        tools_ok = all(x in used for x in e["tools_all"]) and not any(
             x in used for x in e["tools_none"]
         )
+        if e.get("api_status"):
+            for tool, st in e["api_status"].items():
+                tools_ok = tools_ok and any(
+                    a.get("tool") == tool and a.get("status") == st
+                    for a in (t.get("api_results") or [])
+                )
+        out["tools_ok"] = tools_ok
 
     if e["escalate"] is not None:
         out["escalation_ok"] = (t.get("ticket_id") is not None) == e["escalate"]
