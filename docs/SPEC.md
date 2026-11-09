@@ -234,6 +234,14 @@ not an independent review (the same candidate drives both tools); never describe
   innermost code locations, no message); `logger.exception` is gone from the service code. Two new
   `except Exception as exc` need `# noqa: BLE001` (ruff flags a blind except that does not re-raise).
 
+- 9F (`ffb210b`; reviewer reran `verify_phase9f.py`: 53/53 on 3.11.18 and 3.13.18, the marker absent in all 8 log
+  scenarios; reviewer files identical; CI run #55 green, 243 tests), no review issues.
+- Planning 9G: confirmed on `ffb210b` that the guardrail lets both audit paraphrases through and blocks both legitimate
+  questions; corpus 30 pages / 92 chunks (16 from one blog post), `no_content` for the Brazilian home, payment-link and
+  WhatsApp pages; scenario 10's gold URL is the global online-payments page. Known follow-up, out of scope:
+  `src/eval/compare.py` averages with `sum()`, so regenerating `reports/eval_models.json` on 3.11 vs 3.13 can change the
+  last digit of some means (the 8E check K2 compares with a tolerance, so it passes on both).
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -267,8 +275,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9F** (no conversation text in the logs), prompt `docs/phase-prompts/9F.md`,
-verifier `scripts/verify_phase9f.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+**Current phase: 9G** (README residues from the V4 audit), prompt `docs/phase-prompts/9G.md`,
+verifier `scripts/verify_phase9g.py`. After 9G: the video and the resubmission. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
 the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -904,7 +912,8 @@ guardrail and corpus limits honestly instead (9F).
   the openai/anthropic branches are not installed or tested; embeddings always Gemini); `MemorySaver` docstrings in
   `graph.py`; test tree (`test_eval_judge.py` renamed `test_api_key_header.py`); "Limitações atuais" lists the regex
   guardrail (bypassed by paraphrase, false positives), the corpus gaps and the out-of-scope items; claims table rows for
-  PII, logs, mock and Docker point to the 9B–9F tests.
+  PII, logs, mock and Docker point to the 9B–9F tests. Also: `docs/DECISIONS.md` (pre-SPEC notes describing abandoned
+  plans as current) gets a historical-document banner.
 **Acceptance:**
 - AC9.1 Every verifier, including the last one, passes on Python 3.11 (CI compiles them) and on the local 3.13.
 - AC9.2 No README/STATUS sentence calls the reviewer independent; the authorship section names both tools.

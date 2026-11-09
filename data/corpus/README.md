@@ -7,7 +7,6 @@ Este diretório contém o corpus de documentos oficiais coletados para a base de
 Os dados são obtidos a partir dos domínios oficiais listados em `data/sources.yaml`:
 - **getnet.net/en**: Conteúdo global institucional, soluções de pagamento presencial, e-commerce, omnichannel e APIs para desenvolvedores.
 - **site.getnet.com.br**: Conteúdo oficial para o mercado brasileiro (Getnet Brasil), abrangendo maquininhas, Pix, taxas, antecipação e manuais operacionais. O domínio `www.santander.com.br` foi removido porque sua CDN (Akamai) bloqueia o User-Agent do projeto com HTTP 403 no `robots.txt`; já o `site.getnet.com.br` não possui `robots.txt` (retorna HTTP 404), o que pela RFC 9309 indica ausência de restrições de rastreamento.
-- **getnet.com.br**: Portal nacional condicionado ao cumprimento estrito das diretivas do `robots.txt`.
 
 > **Nota de Mercado**: O caminho `getnet.net/pt` é expressamente excluído da coleta por pertencer ao mercado de Portugal.
 

@@ -1,5 +1,7 @@
 # Resumo de Contexto do Projeto
 
+> **Documento histórico** (início da refação, anterior ao `docs/SPEC.md`). Vários planos descritos aqui foram abandonados ou substituídos: o `MemorySaver` deu lugar ao `SqliteSaver`; o ChromaDB com 15 manuais, ao índice próprio sobre 30 páginas oficiais coletadas (`data/index/`); o `data/eval_dataset.json` com 12 casos, ao `data/eval/cases.jsonl` com 69 casos; e o "fallback determinístico" sem chave foi removido (sem `GEMINI_API_KEY`, o `/chat` responde 503). O estado atual está no `README.md` e no `docs/SPEC.md`.
+
 ### 1. Objetivo do Projeto e Restrições Informadas
 
 * **Objetivo:** Refatorar integralmente o projeto `getnet-multiagent-support` para mitigar a nota inicial baixa (4,2/10) atribuída pelo avaliador técnico e alcançar a faixa de excelência agêntica (meta 9,5+ / 95).

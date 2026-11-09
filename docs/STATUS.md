@@ -4,6 +4,112 @@
 
 ---
 
+### Fase 9G: Resíduos do README Apontados pela Auditoria
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9G (`python scripts/verify_phase9g.py`):
+```text
+INFO python 3.13.3
+PASS J0.py311_syntax
+PASS J1.compare_label
+PASS J3.readme_sources_wording
+PASS J4.scenario_10
+PASS J5.no_getnet_com_br
+PASS J6.provider_text
+PASS J7.graph_docstrings
+PASS J8.test_tree
+PASS J9.limitations
+PASS J10.decisions_banner
+PASS S1.status_9g
+PASS E2.scope
+PASS J2.comparison_table
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 243 passed in 21.25s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 53/53 passed
+```
+
+#### Commit Base da Fase 9G (`git rev-parse HEAD`):
+```text
+ffb210b5bb3c0801a506ef4cc55b214d21101c57
+```
+
+#### Diff dos relatórios regenerados (`git diff --stat reports/`):
+```text
+ reports/eval_models.json | 2 +-
+ reports/eval_models.md   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+```
+
+#### Não feito:
+- Nenhum. Todos os checks aplicáveis da Fase 9G passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. Correções textuais, regeneração de relatório e renomeação de arquivo de teste executadas estritamente de acordo com as instruções da Fase 9G.
+
+#### Alterações Realizadas na Fase 9G:
+- **Rótulo da Métrica de Fontes (`src/eval/compare.py`, `reports/eval_models.md`, `reports/eval_models.json`, `README.md`)**:
+  - Substituído o rótulo "Fonte oficial citada" por "Fonte oficial recuperada", refletindo com precisão que a métrica avalia a presença da URL no conjunto recuperado, e não menção textual na resposta.
+  - Adicionada nota explicativa logo após a tabela comparativa de modelos no `README.md` e corrigida a tabela da execução `full-1`.
+- **Correção da Fonte do Cenário 10 (`README.md`)**:
+  - Atualizada a linha do Cenário 10 para referenciar `getnet.net/en/our-solutions/online-payments` com a devida nota sobre a ausência de conteúdo nas páginas brasileiras de Link de Pagamento e WhatsApp.
+- **Remoção do Domínio não Mapeado (`README.md`, `data/corpus/README.md`)**:
+  - Removida a linha referente a `getnet.com.br` puro, mantendo apenas `site.getnet.com.br` e `getnet.net/en`.
+- **Clarificação do Provedor de LLM (`README.md`)**:
+  - Esclarecido que o sistema é testado e opera com o Gemini via `langchain-google-genai`.
+- **Ajuste nas Docstrings do Grafo (`src/core/graph.py`)**:
+  - Substituída a menção a `MemorySaver` por `SqliteSaver` nas docstrings do módulo, da classe e do método `run_sync`.
+- **Renomeação de Arquivo de Teste (`tests/test_api_key_header.py`) e Árvore (`README.md`)**:
+  - Renomeado `tests/test_eval_judge.py` para `tests/test_api_key_header.py` e atualizada a árvore de arquivos no `README.md`.
+- **Complementação das Limitações Atuais (`README.md`)**:
+  - Incluídas limitações detalhadas sobre guardrail de injeção por regex, tamanho da base de conhecimento, busca de clima/câmbio e itens fora de escopo.
+- **Aviso Histórico em Decisões Antigas (`docs/DECISIONS.md`)**:
+  - Adicionado banner informativo no topo de `docs/DECISIONS.md` contextualizando decisões anteriores à especificação definitiva.
+
+---
+
 ### Fase 9F: Logs Sem Texto da Conversa
 
 #### Versão do Python (`python --version`):

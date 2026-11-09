@@ -16,7 +16,7 @@ COMPARE_METRICS = [
     ("tools_rate", "metrics", "tools_rate", "Ferramentas corretas", "pct"),
     ("escalation_rate", "metrics", "escalation_rate", "Escalonamento correto", "pct"),
     ("facts_rate", "metrics", "facts_rate", "Fatos esperados presentes", "pct"),
-    ("sources_rate", "metrics", "sources_rate", "Fonte oficial citada", "pct"),
+    ("sources_rate", "metrics", "sources_rate", "Fonte oficial recuperada", "pct"),
     ("language_rate", "metrics", "language_rate", "Idioma da resposta", "pct"),
     ("judge_grounded_mean", "judge", "grounded_mean", "Juiz: fundamentação (1 a 5)", "dec2"),
     ("judge_answers_mean", "judge", "answers_mean", "Juiz: responde à pergunta (1 a 5)", "dec2"),

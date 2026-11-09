@@ -1,4 +1,4 @@
-"""LangGraph Supervisor ReAct workflow with native MemorySaver checkpointer."""
+"""LangGraph Supervisor ReAct workflow; get_orchestrator() persists sessions with SqliteSaver."""
 import json
 import logging
 import time
@@ -87,8 +87,8 @@ class OrchestrationGraph:
     Guardrails (PII & Injection) -> Supervisor -> [ToolNode -> Supervisor]* -> Response.
 
     Checkpointer:
-        Uses native MemorySaver indexed by 'thread_id' (session_id) to persist
-        multi-turn conversational context across turns.
+        get_orchestrator() uses SqliteSaver (CHECKPOINT_DB_PATH) with thread_id "user_id:session_id";
+        MemorySaver is used only when no checkpointer is passed (tests).
     """
 
     def __init__(
@@ -750,7 +750,7 @@ class OrchestrationGraph:
         trace_id: str | None = None,
     ) -> AgentState:
         """
-        Execute the compiled LangGraph workflow synchronously with MemorySaver session persistence.
+        Execute the compiled LangGraph workflow synchronously; the checkpointer persists the session per user_id:session_id.
         """
         if not user_id or not user_id.strip():
             raise ValueError("user_id is required")
