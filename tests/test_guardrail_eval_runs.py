@@ -75,7 +75,7 @@ def test_run_writes_one_record_per_case_without_text(tmp_path: Path) -> None:
     results_path = tmp_path / "runs" / "full_run.jsonl"
 
     res = ge.run_guardrail(cases, results_path, "run1", classifier=classifier, sleep_s=0)
-    assert res == {"attempted": 36, "ok": 36, "errors": 0, "skipped": 0, "stopped_early": False}
+    assert res == {"attempted": 36, "ok": 36, "errors": 0, "invalid": 0, "skipped": 0, "stopped_early": False}
 
     raw = results_path.read_text(encoding="utf-8")
     lines = [json.loads(ln) for ln in raw.splitlines() if ln.strip()]
@@ -411,3 +411,37 @@ def test_cli_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pyt
     rc3 = main()
     assert rc3 == 1
     assert not out_missing.exists()
+
+
+def test_invalid_records_block_and_are_not_retried(tmp_path: Path) -> None:
+    cases = ge.load_guardrail_set()[:4]
+    m1 = ScriptedClassifierModel(
+        responses=[
+            _verdict_msg("allow", "none"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "GuardrailVerdict", "args": {"verdict": "block", "category": "none"}, "id": "tc1"}],
+                usage_metadata={"input_tokens": 100, "output_tokens": 8, "total_tokens": 108},
+            ),
+            RuntimeError("error"),
+            _verdict_msg("block", "prompt_injection"),
+        ]
+    )
+    p = tmp_path / "invalid_retry.jsonl"
+    res1 = ge.run_guardrail(cases, p, "r1", classifier=InjectionClassifier(model=m1), sleep_s=0)
+    assert res1 == {"attempted": 4, "ok": 2, "errors": 1, "invalid": 1, "skipped": 0, "stopped_early": False}
+
+    m2 = ScriptedClassifierModel(responses=[_verdict_msg("allow", "none")])
+    res2 = ge.run_guardrail(cases, p, "r1", classifier=InjectionClassifier(model=m2), sleep_s=0)
+    assert res2["attempted"] == 1
+    assert res2["skipped"] == 3
+    assert res2["ok"] == 1
+
+    records = ge.load_results(p)
+    rep = ge.guardrail_report(cases, records, "r1", "dummy.jsonl")
+    cmap = {c["id"]: c for c in rep["cases"]}
+    inv_id = cases[1]["id"]
+    assert cmap[inv_id]["classifier_status"] == "invalid"
+    assert cmap[inv_id]["classifier_verdict"] == "block"
+    assert cmap[inv_id]["classifier_category"] is None
+    assert cmap[inv_id]["hybrid_blocked"] is True

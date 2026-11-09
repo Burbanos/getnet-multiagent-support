@@ -19,7 +19,7 @@ from src.eval.runner import load_results
 
 VALID_LABELS = {"block", "allow"}
 VALID_KINDS = {"prompt_injection", "prompt_leak", "attack_request", "legit"}
-VALID_SOURCES = {"audit_probe", "safety_case", "paraphrase", "near_miss"}
+VALID_SOURCES = {"audit_probe", "safety_case", "paraphrase", "near_miss", "author_holdout"}
 VALID_SPLITS = {"dev", "holdout"}
 VALID_LANGS = {"pt", "en"}
 CASE_KEYS = {"id", "lang", "label", "kind", "source", "split", "text"}
@@ -203,6 +203,7 @@ GUARDRAIL_COST_NOTE = (
     "only messages that pass the patterns pay it."
 )
 DEFAULT_GUARDRAIL_RUNS_DIR = Path("reports/guardrail_runs")
+ANSWERED = ("ok", "invalid")  # the classifier answered (invalid = no valid verdict, which blocks)
 RECORD_KEYS = {"id", "run_id", "status", "pattern_category", "classifier", "usage", "recorded_at"}
 
 SUMMARY_METRIC_PATHS = {
@@ -238,6 +239,7 @@ def run_guardrail(
     attempted = 0
     ok_count = 0
     errors_count = 0
+    invalid_count = 0
     skipped_count = 0
     stopped_early = False
     consecutive_errors = 0
@@ -247,7 +249,7 @@ def run_guardrail(
     try:
         for case in cases:
             cid = case["id"]
-            if cid in existing and existing[cid].get("status") == "ok":
+            if cid in existing and existing[cid].get("status") in ANSWERED:
                 skipped_count += 1
                 continue
 
@@ -292,6 +294,9 @@ def run_guardrail(
             if record_status == "ok":
                 consecutive_errors = 0
                 ok_count += 1
+            elif record_status == "invalid":
+                consecutive_errors = 0
+                invalid_count += 1
             else:
                 consecutive_errors += 1
                 errors_count += 1
@@ -306,6 +311,7 @@ def run_guardrail(
         "attempted": attempted,
         "ok": ok_count,
         "errors": errors_count,
+        "invalid": invalid_count,
         "skipped": skipped_count,
         "stopped_early": stopped_early,
     }
@@ -326,10 +332,10 @@ def guardrail_report(
     pat = {c["id"]: agent.match_patterns(sanitize_pii(c["text"])[0]) for c in cases}
     patterns_blocked = {cid: v is not None for cid, v in pat.items()}
 
-    ok_cases = [c for c in cases if records.get(c["id"], {}).get("status") == "ok"]
+    answered_cases = [c for c in cases if records.get(c["id"], {}).get("status") in ANSWERED]
     cblk = {
         c["id"]: records[c["id"]].get("classifier", {}).get("verdict") == "block"
-        for c in ok_cases
+        for c in answered_cases
     }
 
     hyb = {c["id"]: patterns_blocked[c["id"]] or cblk.get(c["id"], False) for c in cases}
@@ -340,7 +346,7 @@ def guardrail_report(
 
     layers = {
         "patterns": layer_metrics(cases, patterns_blocked),
-        "classifier": layer_metrics(ok_cases, cblk),
+        "classifier": layer_metrics(answered_cases, cblk),
         "hybrid": layer_metrics(cases, hyb),
     }
 
@@ -367,7 +373,7 @@ def guardrail_report(
         "p95": pct(lats, 0.95) if lats else None,
     }
 
-    oku = [r for r in recs if r.get("status") == "ok" and r.get("usage")]
+    oku = [r for r in recs if r.get("status") in ANSWERED and r.get("usage")]
     tokens_mean = {
         "n": len(oku),
         "input": round(sum(r["usage"]["input_tokens"] for r in oku) / len(oku), 1) if oku else None,
@@ -395,8 +401,16 @@ def guardrail_report(
             "split": c["split"],
             "pattern_category": pat[c["id"]],
             "classifier_status": records.get(c["id"], {}).get("status", "missing"),
-            "classifier_verdict": records[c["id"]]["classifier"]["verdict"] if c["id"] in cblk else None,
-            "classifier_category": records[c["id"]]["classifier"]["category"] if c["id"] in cblk else None,
+            "classifier_verdict": (
+                "block"
+                if records.get(c["id"], {}).get("status") == "invalid"
+                else (records[c["id"]]["classifier"]["verdict"] if c["id"] in cblk else None)
+            ),
+            "classifier_category": (
+                None
+                if records.get(c["id"], {}).get("status") == "invalid"
+                else (records[c["id"]]["classifier"]["category"] if c["id"] in cblk else None)
+            ),
             "hybrid_blocked": hyb[c["id"]],
         }
         for c in cases

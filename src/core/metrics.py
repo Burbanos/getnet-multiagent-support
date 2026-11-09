@@ -27,6 +27,7 @@ GUARDRAIL_DECISIONS: frozenset[str] = frozenset({
     "classifier_allow",
     "classifier_error_open",
     "classifier_error_closed",
+    "classifier_invalid_block",
 })
 
 # Cumulative histogram bucket thresholds

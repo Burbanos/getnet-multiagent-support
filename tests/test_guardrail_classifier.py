@@ -149,25 +149,10 @@ def test_patterns_short_circuit_classifier() -> None:
         (RuntimeError("generic crash"), "RuntimeError"),
         (CustomQuota429Error("429 resource exhausted"), "CustomQuota429Error"),
         (TimeoutError("classifier timeout"), "TimeoutError"),
-        (AIMessage(content="allow without tool call"), "unparseable"),
-        (
-            AIMessage(
-                content="",
-                tool_calls=[{"name": "GuardrailVerdict", "args": {"verdict": "allow", "category": "prompt_leak"}, "id": "c1"}],
-            ),
-            "unparseable",
-        ),
-        (
-            AIMessage(
-                content="",
-                tool_calls=[{"name": "OtherTool", "args": {}, "id": "c2"}],
-            ),
-            "unparseable",
-        ),
     ],
 )
 def test_fail_open_on_classifier_errors(resp_or_exc: Any, expected_err_type: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Under fail-open, errors and unparseable outputs fall back to supervisor."""
+    """Under fail-open, errors fall back to supervisor."""
     monkeypatch.setattr(settings, "GUARDRAIL_CLASSIFIER_FAIL_MODE", "open")
 
     sup_model = ScriptedChatModel(responses=[AIMessage(content="Resposta do supervisor")])
@@ -183,6 +168,95 @@ def test_fail_open_on_classifier_errors(resp_or_exc: Any, expected_err_type: str
     assert state.guardrail is not None
     assert state.guardrail["classifier"]["status"] == "error"
     assert state.guardrail["classifier"]["error_type"] == expected_err_type
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected_err_type"),
+    [
+        (RuntimeError("provider crash"), "RuntimeError"),
+        (CustomQuota429Error("429 resource exhausted"), "CustomQuota429Error"),
+        (TimeoutError("classifier timeout"), "TimeoutError"),
+    ],
+)
+@pytest.mark.parametrize("mode", ["open", "closed"])
+def test_provider_errors_follow_fail_mode(exc: Exception, expected_err_type: str, mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider exceptions follow the configured fail mode (open -> supervisor, closed -> 503)."""
+    monkeypatch.setattr(settings, "GUARDRAIL_CLASSIFIER_FAIL_MODE", mode)
+
+    sup_model = ScriptedChatModel(responses=[AIMessage(content="Resposta do supervisor")])
+    cls_model = ErrorChatModel(exc=exc)
+    graph = OrchestrationGraph(chat_model=sup_model, guardrail_model=cls_model)
+
+    if mode == "open":
+        state = graph.run_sync("cliente123", "Qual a taxa do crédito?")
+        assert state.agent_response == "Resposta do supervisor"
+        assert state.is_safe is True
+        assert len(sup_model.received) == 1
+        assert state.guardrail is not None
+        c = state.guardrail["classifier"]
+        assert c["status"] == "error"
+        assert c["error_type"] == expected_err_type
+        assert c["verdict"] is None
+    else:
+        with pytest.raises(LLMUnavailableError):
+            graph.run_sync("cliente123", "Qual a taxa do crédito?")
+        assert len(sup_model.received) == 0
+
+
+@pytest.mark.parametrize(
+    ("resp", "expected_err_type"),
+    [
+        (AIMessage(content="allow without tool call"), "no_verdict_call"),
+        (AIMessage(content="", tool_calls=[{"name": "OtherTool", "args": {}, "id": "c2"}]), "no_verdict_call"),
+        (AIMessage(content="", tool_calls=[{"name": "GuardrailVerdict", "args": {"verdict": "maybe"}, "id": "c3"}]), "invalid_arguments"),
+        (AIMessage(content="", tool_calls=[{"name": "GuardrailVerdict", "args": {"verdict": "block", "category": "none"}, "id": "c4"}]), "incoherent_verdict"),
+        (AIMessage(content="", tool_calls=[{"name": "GuardrailVerdict", "args": {"verdict": "allow", "category": "prompt_leak"}, "id": "c5"}]), "incoherent_verdict"),
+    ],
+)
+@pytest.mark.parametrize("mode", ["open", "closed"])
+def test_invalid_output_blocks_in_both_modes(resp: AIMessage, expected_err_type: str, mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Invalid classifier output blocks in both open and closed fail modes."""
+    monkeypatch.setattr(settings, "GUARDRAIL_CLASSIFIER_FAIL_MODE", mode)
+
+    sup_model = ScriptedChatModel(responses=[AIMessage(content="Resposta do supervisor")])
+    cls_model = ScriptedChatModel(responses=[resp])
+    graph = OrchestrationGraph(chat_model=sup_model, guardrail_model=cls_model)
+    state = graph.run_sync("cliente123", "Qual a taxa do crédito?")
+
+    assert state.is_safe is False
+    assert state.agent_response == INJECTION_REFUSAL
+    assert len(sup_model.received) == 0
+    assert state.guardrail is not None
+    assert state.guardrail.get("blocked_by") == "classifier"
+    c = state.guardrail["classifier"]
+    assert c["status"] == "invalid"
+    assert c["verdict"] == "block"
+    assert c["category"] is None
+    assert c["error_type"] == expected_err_type
+
+
+def test_invalid_output_counts_metric_and_tokens() -> None:
+    """Invalid output increments classifier_invalid_block metric and records tokens."""
+    from src.core import metrics
+
+    metrics.reset()
+    try:
+        cls_usage = {"input_tokens": 55, "output_tokens": 5, "total_tokens": 60}
+        resp = AIMessage(
+            content="",
+            tool_calls=[{"name": "GuardrailVerdict", "args": {"verdict": "block", "category": "none"}, "id": "c1"}],
+            usage_metadata=cls_usage,
+        )
+        sup_model = ScriptedChatModel(responses=[AIMessage(content="Sup")])
+        cls_model = ScriptedChatModel(responses=[resp])
+        graph = OrchestrationGraph(chat_model=sup_model, guardrail_model=cls_model)
+        state = graph.run_sync("cliente123", "Qual a taxa?")
+
+        assert state.tokens_by_agent == {"GuardrailClassifier": cls_usage}
+        txt = metrics.render()
+        assert 'getnet_guardrail_decisions_total{decision="classifier_invalid_block"} 1' in txt
+    finally:
+        metrics.reset()
 
 
 def test_fail_closed_returns_503(monkeypatch: pytest.MonkeyPatch) -> None:

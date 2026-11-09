@@ -43,10 +43,10 @@ class GuardrailVerdict(BaseModel):
 
 @dataclass(frozen=True)
 class ClassifierResult:
-    status: str  # "ok" | "error"
-    verdict: str | None  # "block" | "allow" | None (error)
-    category: str | None
-    error_type: str | None  # None when ok
+    status: str  # "ok" | "invalid" | "error"
+    verdict: str | None  # "block" | "allow"; "block" when invalid; None on error
+    category: str | None  # None when invalid or error
+    error_type: str | None  # None when ok; the reason when invalid; the exception class on error
     latency_ms: float
     usage: dict[str, int] | None  # input_tokens, output_tokens, total_tokens
     model: str | None
@@ -134,10 +134,10 @@ class InjectionClassifier:
         verdict_call = next((tc for tc in tool_calls if tc.get("name") == "GuardrailVerdict"), None)
         if not verdict_call:
             return ClassifierResult(
-                status="error",
-                verdict=None,
+                status="invalid",
+                verdict="block",
                 category=None,
-                error_type="unparseable",
+                error_type="no_verdict_call",
                 latency_ms=latency,
                 usage=usage,
                 model=self._model_name,
@@ -148,10 +148,10 @@ class InjectionClassifier:
             parsed = GuardrailVerdict(**args)
         except Exception:  # noqa: BLE001
             return ClassifierResult(
-                status="error",
-                verdict=None,
+                status="invalid",
+                verdict="block",
                 category=None,
-                error_type="unparseable",
+                error_type="invalid_arguments",
                 latency_ms=latency,
                 usage=usage,
                 model=self._model_name,
@@ -159,10 +159,10 @@ class InjectionClassifier:
 
         if (parsed.verdict == "allow") != (parsed.category == "none"):
             return ClassifierResult(
-                status="error",
-                verdict=None,
+                status="invalid",
+                verdict="block",
                 category=None,
-                error_type="unparseable",
+                error_type="incoherent_verdict",
                 latency_ms=latency,
                 usage=usage,
                 model=self._model_name,

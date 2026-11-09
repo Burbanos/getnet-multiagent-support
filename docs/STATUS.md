@@ -4,6 +4,237 @@
 
 ---
 
+### Fase 11A: Saída Inválida do Classificador Bloqueia
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 11A:
+```text
+INFO python 3.13.3
+PASS A0.py311_syntax
+PASS A1.readme_texts
+PASS A2.claims_row
+PASS A3.guardrail_eval_append_only
+PASS A4.no_unparseable
+PASS A5.tests_named
+PASS A5.classifier_prompt_unchanged
+PASS S1.status_11a
+PASS E2.scope
+PASS A6.classifier_results
+{"timestamp": "2026-11-09T14:51:32.477630+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-df66bbe3d20d", "session_id": "c87f81f0-2de8-47f2-a56d-15a80bf749f8", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.484114+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-df66bbe3d20d", "session_id": "c87f81f0-2de8-47f2-a56d-15a80bf749f8", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 1.34}
+{"timestamp": "2026-11-09T14:51:32.485574+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-df66bbe3d20d", "session_id": "c87f81f0-2de8-47f2-a56d-15a80bf749f8", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.489691+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=no_verdict_call)", "trace_id": "trc-df66bbe3d20d", "session_id": "c87f81f0-2de8-47f2-a56d-15a80bf749f8", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.58}
+{"timestamp": "2026-11-09T14:51:32.490007+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-df66bbe3d20d", "session_id": "c87f81f0-2de8-47f2-a56d-15a80bf749f8", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 2.64}
+{"timestamp": "2026-11-09T14:51:32.492118+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 14.66ms. Tools: []", "trace_id": "trc-df66bbe3d20d", "session_id": "c87f81f0-2de8-47f2-a56d-15a80bf749f8", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.503868+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-ae5014b187a3", "session_id": "fa8c06bb-4116-4ad8-a30b-2171f64d9f9e", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.506127+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-ae5014b187a3", "session_id": "fa8c06bb-4116-4ad8-a30b-2171f64d9f9e", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.09}
+{"timestamp": "2026-11-09T14:51:32.506900+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-ae5014b187a3", "session_id": "fa8c06bb-4116-4ad8-a30b-2171f64d9f9e", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.509453+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=no_verdict_call)", "trace_id": "trc-ae5014b187a3", "session_id": "fa8c06bb-4116-4ad8-a30b-2171f64d9f9e", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.13}
+{"timestamp": "2026-11-09T14:51:32.509575+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-ae5014b187a3", "session_id": "fa8c06bb-4116-4ad8-a30b-2171f64d9f9e", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.64}
+{"timestamp": "2026-11-09T14:51:32.511485+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 7.57ms. Tools: []", "trace_id": "trc-ae5014b187a3", "session_id": "fa8c06bb-4116-4ad8-a30b-2171f64d9f9e", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.523331+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-a12c1ddce7dd", "session_id": "032f43d2-3579-4add-939b-9d2d0b91ed96", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.525506+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-a12c1ddce7dd", "session_id": "032f43d2-3579-4add-939b-9d2d0b91ed96", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.07}
+{"timestamp": "2026-11-09T14:51:32.526365+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-a12c1ddce7dd", "session_id": "032f43d2-3579-4add-939b-9d2d0b91ed96", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.530232+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=invalid_arguments)", "trace_id": "trc-a12c1ddce7dd", "session_id": "032f43d2-3579-4add-939b-9d2d0b91ed96", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 2.36}
+{"timestamp": "2026-11-09T14:51:32.530554+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-a12c1ddce7dd", "session_id": "032f43d2-3579-4add-939b-9d2d0b91ed96", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 3.13}
+{"timestamp": "2026-11-09T14:51:32.533691+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 10.21ms. Tools: []", "trace_id": "trc-a12c1ddce7dd", "session_id": "032f43d2-3579-4add-939b-9d2d0b91ed96", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.542971+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-f2d32615cf1c", "session_id": "9b7c57ea-eace-4206-86dd-5057c2aba7e4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.547126+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-f2d32615cf1c", "session_id": "9b7c57ea-eace-4206-86dd-5057c2aba7e4", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.14}
+{"timestamp": "2026-11-09T14:51:32.548655+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-f2d32615cf1c", "session_id": "9b7c57ea-eace-4206-86dd-5057c2aba7e4", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.552959+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=incoherent_verdict)", "trace_id": "trc-f2d32615cf1c", "session_id": "9b7c57ea-eace-4206-86dd-5057c2aba7e4", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.41}
+{"timestamp": "2026-11-09T14:51:32.553087+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-f2d32615cf1c", "session_id": "9b7c57ea-eace-4206-86dd-5057c2aba7e4", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 2.0}
+{"timestamp": "2026-11-09T14:51:32.554378+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 11.47ms. Tools: []", "trace_id": "trc-f2d32615cf1c", "session_id": "9b7c57ea-eace-4206-86dd-5057c2aba7e4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.565337+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-5b87e15a91b7", "session_id": "e2284a28-683c-4072-b727-119eedd3445b", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.568612+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-5b87e15a91b7", "session_id": "e2284a28-683c-4072-b727-119eedd3445b", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.13}
+{"timestamp": "2026-11-09T14:51:32.569716+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-5b87e15a91b7", "session_id": "e2284a28-683c-4072-b727-119eedd3445b", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.572514+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=incoherent_verdict)", "trace_id": "trc-5b87e15a91b7", "session_id": "e2284a28-683c-4072-b727-119eedd3445b", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.15}
+{"timestamp": "2026-11-09T14:51:32.572629+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-5b87e15a91b7", "session_id": "e2284a28-683c-4072-b727-119eedd3445b", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.64}
+{"timestamp": "2026-11-09T14:51:32.574006+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 8.91ms. Tools: []", "trace_id": "trc-5b87e15a91b7", "session_id": "e2284a28-683c-4072-b727-119eedd3445b", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.585160+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-b37d0f6770a3", "session_id": "bfd6139c-be38-4818-8619-0579421c94e0", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.587560+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-b37d0f6770a3", "session_id": "bfd6139c-be38-4818-8619-0579421c94e0", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.08}
+{"timestamp": "2026-11-09T14:51:32.588359+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-b37d0f6770a3", "session_id": "bfd6139c-be38-4818-8619-0579421c94e0", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.591332+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=no_verdict_call)", "trace_id": "trc-b37d0f6770a3", "session_id": "bfd6139c-be38-4818-8619-0579421c94e0", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.4}
+{"timestamp": "2026-11-09T14:51:32.591474+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-b37d0f6770a3", "session_id": "bfd6139c-be38-4818-8619-0579421c94e0", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.98}
+{"timestamp": "2026-11-09T14:51:32.592917+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 7.83ms. Tools: []", "trace_id": "trc-b37d0f6770a3", "session_id": "bfd6139c-be38-4818-8619-0579421c94e0", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.604998+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-0b6b1abdd56d", "session_id": "8d5b4746-dc7a-49e9-a088-af32a17f62a8", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.607276+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-0b6b1abdd56d", "session_id": "8d5b4746-dc7a-49e9-a088-af32a17f62a8", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.1}
+{"timestamp": "2026-11-09T14:51:32.608058+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-0b6b1abdd56d", "session_id": "8d5b4746-dc7a-49e9-a088-af32a17f62a8", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.611343+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=no_verdict_call)", "trace_id": "trc-0b6b1abdd56d", "session_id": "8d5b4746-dc7a-49e9-a088-af32a17f62a8", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.89}
+{"timestamp": "2026-11-09T14:51:32.611676+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-0b6b1abdd56d", "session_id": "8d5b4746-dc7a-49e9-a088-af32a17f62a8", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 2.61}
+{"timestamp": "2026-11-09T14:51:32.614699+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 9.69ms. Tools: []", "trace_id": "trc-0b6b1abdd56d", "session_id": "8d5b4746-dc7a-49e9-a088-af32a17f62a8", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.624486+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-3f29d99f7f8c", "session_id": "f0ed6715-e2f9-4abf-9020-3382ac87c838", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.630087+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-3f29d99f7f8c", "session_id": "f0ed6715-e2f9-4abf-9020-3382ac87c838", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.19}
+{"timestamp": "2026-11-09T14:51:32.631894+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-3f29d99f7f8c", "session_id": "f0ed6715-e2f9-4abf-9020-3382ac87c838", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.636101+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=invalid_arguments)", "trace_id": "trc-3f29d99f7f8c", "session_id": "f0ed6715-e2f9-4abf-9020-3382ac87c838", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.63}
+{"timestamp": "2026-11-09T14:51:32.636269+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-3f29d99f7f8c", "session_id": "f0ed6715-e2f9-4abf-9020-3382ac87c838", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 2.47}
+{"timestamp": "2026-11-09T14:51:32.638216+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 13.72ms. Tools: []", "trace_id": "trc-3f29d99f7f8c", "session_id": "f0ed6715-e2f9-4abf-9020-3382ac87c838", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.652566+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-f26a686ca6f8", "session_id": "3136ed23-4049-4526-ba65-7951a1a497dc", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.656712+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-f26a686ca6f8", "session_id": "3136ed23-4049-4526-ba65-7951a1a497dc", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.26}
+{"timestamp": "2026-11-09T14:51:32.658044+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-f26a686ca6f8", "session_id": "3136ed23-4049-4526-ba65-7951a1a497dc", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.663453+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=incoherent_verdict)", "trace_id": "trc-f26a686ca6f8", "session_id": "3136ed23-4049-4526-ba65-7951a1a497dc", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 3.16}
+{"timestamp": "2026-11-09T14:51:32.663769+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-f26a686ca6f8", "session_id": "3136ed23-4049-4526-ba65-7951a1a497dc", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 4.12}
+{"timestamp": "2026-11-09T14:51:32.667087+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 14.51ms. Tools: []", "trace_id": "trc-f26a686ca6f8", "session_id": "3136ed23-4049-4526-ba65-7951a1a497dc", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.677621+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-95fabaf6758c", "session_id": "c4d77705-c339-4d3f-8b67-ec2130401922", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.683239+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-95fabaf6758c", "session_id": "c4d77705-c339-4d3f-8b67-ec2130401922", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.22}
+{"timestamp": "2026-11-09T14:51:32.684787+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-95fabaf6758c", "session_id": "c4d77705-c339-4d3f-8b67-ec2130401922", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.693279+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=incoherent_verdict)", "trace_id": "trc-95fabaf6758c", "session_id": "c4d77705-c339-4d3f-8b67-ec2130401922", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 6.46}
+{"timestamp": "2026-11-09T14:51:32.693575+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-95fabaf6758c", "session_id": "c4d77705-c339-4d3f-8b67-ec2130401922", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 7.26}
+{"timestamp": "2026-11-09T14:51:32.696372+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 18.83ms. Tools: []", "trace_id": "trc-95fabaf6758c", "session_id": "c4d77705-c339-4d3f-8b67-ec2130401922", "user_hash": "u_a9f6bd311e2b2495"}
+PASS A7.invalid_blocks_both_modes
+{"timestamp": "2026-11-09T14:51:32.709284+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.713992+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.28}
+{"timestamp": "2026-11-09T14:51:32.715558+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.719314+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=error, verdict=None, category=None, error_type=RuntimeError)", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495", "status": "error", "latency_ms": 1.08}
+{"timestamp": "2026-11-09T14:51:32.719484+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 2.08}
+{"timestamp": "2026-11-09T14:51:32.722670+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 2.12}
+{"timestamp": "2026-11-09T14:51:32.723719+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495", "node": "abstention_check", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.725263+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 15.95ms. Tools: []", "trace_id": "trc-1897ea133c70", "session_id": "d109fcf1-b96b-483d-8c26-5df249fed681", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.739328+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-fee41a092e3c", "session_id": "6291daa3-0d8d-4dda-a62a-434f3b7c5292", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.743060+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fee41a092e3c", "session_id": "6291daa3-0d8d-4dda-a62a-434f3b7c5292", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.12}
+{"timestamp": "2026-11-09T14:51:32.744050+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fee41a092e3c", "session_id": "6291daa3-0d8d-4dda-a62a-434f3b7c5292", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.749906+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=error, verdict=None, category=None, error_type=RuntimeError)", "trace_id": "trc-fee41a092e3c", "session_id": "6291daa3-0d8d-4dda-a62a-434f3b7c5292", "user_hash": "u_a9f6bd311e2b2495", "status": "error", "latency_ms": 2.39}
+{"timestamp": "2026-11-09T14:51:32.750128+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fee41a092e3c", "session_id": "6291daa3-0d8d-4dda-a62a-434f3b7c5292", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 3.42}
+{"timestamp": "2026-11-09T14:51:32.762872+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.768207+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.18}
+{"timestamp": "2026-11-09T14:51:32.769767+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.772311+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=error, verdict=None, category=None, error_type=Quota429Error)", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495", "status": "error", "latency_ms": 0.83}
+{"timestamp": "2026-11-09T14:51:32.772420+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.38}
+{"timestamp": "2026-11-09T14:51:32.775124+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 1.84}
+{"timestamp": "2026-11-09T14:51:32.776119+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495", "node": "abstention_check", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.777485+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 14.72ms. Tools: []", "trace_id": "trc-c0a142fda95e", "session_id": "de06849f-5cb2-4837-a032-587b646d6727", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.792953+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-c477039f7700", "session_id": "daa9cfdc-047a-4d0a-aa61-eacbdce115d4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.797008+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c477039f7700", "session_id": "daa9cfdc-047a-4d0a-aa61-eacbdce115d4", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.17}
+{"timestamp": "2026-11-09T14:51:32.798877+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c477039f7700", "session_id": "daa9cfdc-047a-4d0a-aa61-eacbdce115d4", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.01}
+{"timestamp": "2026-11-09T14:51:32.801722+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=error, verdict=None, category=None, error_type=Quota429Error)", "trace_id": "trc-c477039f7700", "session_id": "daa9cfdc-047a-4d0a-aa61-eacbdce115d4", "user_hash": "u_a9f6bd311e2b2495", "status": "error", "latency_ms": 0.97}
+{"timestamp": "2026-11-09T14:51:32.801833+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-c477039f7700", "session_id": "daa9cfdc-047a-4d0a-aa61-eacbdce115d4", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.67}
+{"timestamp": "2026-11-09T14:51:32.812329+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.816570+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.1}
+{"timestamp": "2026-11-09T14:51:32.817599+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.820438+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=error, verdict=None, category=None, error_type=TimeoutError)", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495", "status": "error", "latency_ms": 0.79}
+{"timestamp": "2026-11-09T14:51:32.820617+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.34}
+{"timestamp": "2026-11-09T14:51:32.823233+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 1.61}
+{"timestamp": "2026-11-09T14:51:32.824165+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495", "node": "abstention_check", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.825480+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 13.44ms. Tools: []", "trace_id": "trc-650967be7688", "session_id": "6fb70cb1-1808-44fa-9eb5-72d4f98459b2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.837363+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-08bdac6607dd", "session_id": "3448e0ae-c39f-4fb4-a348-c7b313e3352e", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.839777+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-08bdac6607dd", "session_id": "3448e0ae-c39f-4fb4-a348-c7b313e3352e", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.08}
+{"timestamp": "2026-11-09T14:51:32.840678+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-08bdac6607dd", "session_id": "3448e0ae-c39f-4fb4-a348-c7b313e3352e", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.843275+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=error, verdict=None, category=None, error_type=TimeoutError)", "trace_id": "trc-08bdac6607dd", "session_id": "3448e0ae-c39f-4fb4-a348-c7b313e3352e", "user_hash": "u_a9f6bd311e2b2495", "status": "error", "latency_ms": 0.85}
+{"timestamp": "2026-11-09T14:51:32.843392+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-08bdac6607dd", "session_id": "3448e0ae-c39f-4fb4-a348-c7b313e3352e", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.59}
+{"timestamp": "2026-11-09T14:51:32.855206+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.857685+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.07}
+{"timestamp": "2026-11-09T14:51:32.858522+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.863226+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=ok, verdict=allow, category=none, error_type=None)", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495", "status": "ok", "latency_ms": 3.08}
+{"timestamp": "2026-11-09T14:51:32.863374+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 3.67}
+{"timestamp": "2026-11-09T14:51:32.866759+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 2.41}
+{"timestamp": "2026-11-09T14:51:32.867748+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495", "node": "abstention_check", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.869115+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 13.95ms. Tools: []", "trace_id": "trc-fb034eded9df", "session_id": "e7d6ead6-ca5e-4c70-8eb5-b5d46940ade6", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.879617+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-1dde979b49f6", "session_id": "ca1d2f33-6b02-4372-a11b-5a94c9496d9d", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:32.883872+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1dde979b49f6", "session_id": "ca1d2f33-6b02-4372-a11b-5a94c9496d9d", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.08}
+{"timestamp": "2026-11-09T14:51:32.884943+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1dde979b49f6", "session_id": "ca1d2f33-6b02-4372-a11b-5a94c9496d9d", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:32.888256+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=ok, verdict=block, category=attack_request, error_type=None)", "trace_id": "trc-1dde979b49f6", "session_id": "ca1d2f33-6b02-4372-a11b-5a94c9496d9d", "user_hash": "u_a9f6bd311e2b2495", "status": "ok", "latency_ms": 1.4}
+{"timestamp": "2026-11-09T14:51:32.888385+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-1dde979b49f6", "session_id": "ca1d2f33-6b02-4372-a11b-5a94c9496d9d", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.97}
+{"timestamp": "2026-11-09T14:51:32.890023+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 10.58ms. Tools: []", "trace_id": "trc-1dde979b49f6", "session_id": "ca1d2f33-6b02-4372-a11b-5a94c9496d9d", "user_hash": "u_a9f6bd311e2b2495"}
+PASS A8.provider_errors_follow_mode
+{"timestamp": "2026-11-09T14:51:33.274207+00:00", "level": "INFO", "logger": "multiagent.tickets_db", "message": "Tickets database initialized at: C:\\Users\\burba\\AppData\\Local\\Temp\\verify_p11a_8ytkjbs3\\tickets.db"}
+{"timestamp": "2026-11-09T14:51:33.287882+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-7c2a60556504", "session_id": "0d977c41bab9454691d3c3eab7880005", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T14:51:33.293296+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-7c2a60556504", "session_id": "0d977c41bab9454691d3c3eab7880005", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.21}
+{"timestamp": "2026-11-09T14:51:33.295555+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-7c2a60556504", "session_id": "0d977c41bab9454691d3c3eab7880005", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T14:51:33.301465+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=incoherent_verdict)", "trace_id": "trc-7c2a60556504", "session_id": "0d977c41bab9454691d3c3eab7880005", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 2.54}
+{"timestamp": "2026-11-09T14:51:33.301722+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-7c2a60556504", "session_id": "0d977c41bab9454691d3c3eab7880005", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 3.57}
+{"timestamp": "2026-11-09T14:51:33.304251+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 16.27ms. Tools: []", "trace_id": "trc-7c2a60556504", "session_id": "0d977c41bab9454691d3c3eab7880005", "user_hash": "u_a9f6bd311e2b2495"}
+PASS A8b.api_invalid_refusal
+PASS A9.run_guardrail
+PASS A10.report_invalid_is_blocked
+PASS A11.committed_reports_unchanged
+PASS A12.author_holdout_source
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 331 passed in 24.82s
+PASS Q2.mode_matrix_tests :: 16 passed in 1.08s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 69/69 passed
+
+#### Commit base:
+`e8eb27e32e292d5f4ffa114187f014ea1585844c`
+
+#### Testes criados e alterados:
+- `tests/test_guardrail_classifier.py`:
+  - `test_fail_open_on_classifier_errors`: restrito aos três casos de exceção de provedor (`RuntimeError`, `CustomQuota429Error`, `TimeoutError`).
+  - `test_provider_errors_follow_fail_mode`: novo teste parametrizado (3 exceções × modos `open` e `closed` = 6 casos) garantindo que erro de provedor segue o modo configurado.
+  - `test_invalid_output_blocks_in_both_modes`: novo teste parametrizado (5 respostas inválidas × modos `open` e `closed` = 10 casos) garantindo bloqueio por precaução em ambos os modos.
+  - `test_invalid_output_counts_metric_and_tokens`: novo teste para registro de métrica `classifier_invalid_block` e acúmulo de tokens.
+- `tests/test_guardrail_eval_runs.py`:
+  - `test_run_writes_one_record_per_case_without_text`: assert atualizado incluindo `"invalid": 0`.
+  - `test_invalid_records_block_and_are_not_retried`: novo teste verificando contagem `invalid`, não-retomada de registros inválidos e tratamento no `guardrail_report`.
+
+#### Não feito:
+Nada. Todas as instruções e critérios da Fase 11A foram cumpridos.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma. O comportamento do classificador foi ajustado conforme especificado para bloquear respostas inválidas (sem chamada válida de `GuardrailVerdict`, argumentos inválidos ou incoerência entre veredito e categoria), mantendo o fail-open estritamente para indisponibilidade da API do provedor.
+
+#### Alterações:
+- `src/agents/injection_classifier.py`: `ClassifierResult` e método `classify` atualizados para retornar `status="invalid"`, `verdict="block"`, `category=None` com `error_type` descritivo (`"no_verdict_call"`, `"invalid_arguments"`, `"incoherent_verdict"`), eliminando a string `"unparseable"`.
+- `src/core/graph.py`: nó `_guardrail_classifier_node` atualizado para bloquear quando `status == "invalid"` com a recusa padrão, violação descritiva e incremento da métrica `classifier_invalid_block`.
+- `src/core/metrics.py`: adicionada decisão `"classifier_invalid_block"` a `GUARDRAIL_DECISIONS`.
+- `src/eval/guardrail_eval.py`: adição de `"author_holdout"` a `VALID_SOURCES`, constante `ANSWERED`, suporte a contagem `invalid` e retomada no `run_guardrail`, e tratamento no `guardrail_report`.
+- `tests/test_guardrail_classifier.py` e `tests/test_guardrail_eval_runs.py`: testes atualizados e novos casos adicionados.
+- `README.md`: documentação atualizada nas seções de limitações atuais, configuração, medição do guardrail híbrido e tabela de afirmações e evidências.
+
+---
+
 ### Fase 10I: README com os Resultados Reais
 
 #### Versão do Python:

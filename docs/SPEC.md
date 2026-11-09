@@ -1,6 +1,6 @@
 # SPEC — Getnet Multi-Agent Support System (v3)
 
-Owner: Burbanos · Planner/reviewer: Claude (external) · Implementer: Antigravity (Gemini)
+Owner (the author): Burbanos · Planner/reviewer: Claude (external) · Implementer: Antigravity (Gemini)
 Baseline: commit `4ddb820` (2026-11-06). Rubric: "Régua V4" (feedback score 4.2/10).
 
 This document is the contract for every phase. A phase is **done** only when every
@@ -40,7 +40,8 @@ plus this SPEC/prompt update for 9A. CI (lint, tests, docker build + /health smo
 
 **Who is the reviewer:** Claude (Anthropic), in sessions separate from Antigravity. It writes this SPEC, the phase
 prompts, the verifiers, the labeled sets and the agent/judge prompts, and verifies each phase on its own copy. This is
-not an independent review (the same candidate drives both tools); never describe it as independent.
+not an independent review (the same author drives both tools); never describe it as independent. From Phase 11 every
+README, STATUS and reply text calls the repository owner "o autor", never "candidato".
 
 **Done (each verified by the reviewer on its own copy with its `scripts/verify_*.py`):**
 - Phase 1: honest baseline, test hygiene, CI, Linux lockfile.
@@ -357,10 +358,19 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10I** (README with the real-model results of the hybrid guardrail and the v2 set; STATUS 10H
-corrected), prompt `docs/phase-prompts/10I.md`, verifier `scripts/verify_phase10i.py`. Phase 10 closes the two items of the real V4 feedback
-still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
-documented; fixing them needs new held-out cases, not prompt tuning against these.
+- 10I (`e8eb27e`; reviewer reran `verify_phase10i.py`: 59/59 on 3.11.18; CI runs #57-#65 green for 10A-10I, read through
+  the GitHub API on 2026-11-09). Simulated V4 audit re-check of 10A-10I (PDF "Avaliação V4 — Burbanos (nova versão) v3",
+  section 10): weather/FX correct; the guardrail paraphrases are blocked only by the classifier, measured on a set written
+  together with the classifier prompt (commit `1eb3626`), so in-sample, not independent; design defect: a `block` verdict
+  with category `none`, or an answer without a tool call, is treated as an error and fails open; three README claims not
+  supported ("fixados antes de existir o classificador", "APIs oficiais (Open-Meteo e PTAX)", and the v2 records do not show
+  that the classifier ran or which layer decided). Phase 11 addresses them.
+- The evaluator told the author the presentation video is not required (2026-11-09); the resubmission goes without video.
+
+**Current phase: 11A** (an invalid classifier output blocks in both modes), prompt `docs/phase-prompts/11A.md`, verifier
+`scripts/verify_phase11a.py`. Phase 11 is the last before the resubmission. Open product failures (`k16`, `o02`, `s04`,
+`s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new held-out cases, not prompt tuning
+against these.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -965,7 +975,7 @@ guardrail and corpus limits honestly instead (9F).
   `aggregate` computes `estimated_cost_usd` with `math.fsum` (`tests/test_eval_harness.py::test_estimated_cost_is_exact_sum`
   with five costs whose left-to-right sum rounds differently); CI test job runs `python -m compileall -q scripts src tests`
   on 3.11 before pytest; README section "Autoria e revisão" (reviewer text: Antigravity/Gemini 3.8 Flash implements,
-  Claude/Anthropic plans and reviews in separate sessions, the candidate decides and commits, "não é uma revisão
+  Claude/Anthropic plans and reviews in separate sessions, the author decides and commits, "não é uma revisão
   independente"); every "revisor externo"/"independente" for the reviewer removed from README and STATUS; STATUS 8F
   keeps its 42/42 output and gains a correction note (40/42 on 3.11). Supersedes 8B `R1.claims_table` (the table's
   opening sentence changes; re-checked as R1.claims_table_9a) and 8F `E2.readme_only`.
@@ -1150,3 +1160,66 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   real-model report states block and false-positive rates per split and whether the targets were met.
 - AC10.5 README states the APIs' terms, the failure-mode decision, the measured extra latency and cost, and what the
   guardrail still does not cover; every number comes from a committed report.
+
+### Phase 11 — Last fixes before the resubmission
+Source: the simulated V4 audit re-check of 10A-10I (PDF "Avaliação V4 — Burbanos (nova versão) v3", sections 8 and 10) and
+the author's instructions of 2026-11-09. Goal: no README claim without evidence, the guardrail's incoherent-verdict defect
+fixed, an independent guardrail measurement written by the author, and a README a reviewer can read in one sitting. One
+verifier per sub-phase; each re-runs the earlier ones and lists the checks it supersedes. Each later prompt is written after
+the previous sub-phase is reviewed. Old runs are never re-run; records written before a format change say so in the README.
+**Decisions (the author's):**
+- *Only `allow`/`none` lets a message through.* A classifier answer without a valid verdict (no `GuardrailVerdict` call,
+  arguments that fail the schema, or `(verdict == "allow") != (category == "none")`) is `status: "invalid"` (verdict `block`,
+  category `None`, `error_type` = `no_verdict_call` | `invalid_arguments` | `incoherent_verdict`) and blocks in both modes
+  with `INJECTION_REFUSAL`. Fail-open applies only to provider unavailability (an exception from the model call: timeout,
+  API error, quota); `closed` still turns it into 503. The README's fail-open reason is rewritten: an isolated classifier
+  timeout lets an unclassified message reach the supervisor; that is the accepted risk, not "the supervisor fails too".
+- *Independent guardrail holdout.* The author writes about 20 messages (about 10 injection attempts, 10 similar legitimate
+  questions) without reading `src/prompts/guardrail_classifier.md` or the 36-message set, in
+  `data/eval/guardrail_author_holdout.jsonl` (source `author_holdout`, split `holdout`). The file is committed alone, before
+  any run; the author runs it once with the real model in their terminal (`guardrail-run --set ... --run-id author-1`); the
+  result enters the README as it came out, and the classifier prompt is not changed afterwards. Same targets as Phase 10
+  (block >= 0.90, false positives <= 0.10).
+- *Recorded decision layer.* From 11C, every turn recorded by the v2 runner carries `guardrail` (patterns category,
+  `blocked_by`, classifier status/verdict/category/error_type/model, no text) and `tokens_by_agent`; reports count the layer
+  that decided (`patterns`, `classifier`, `none`) and the classifier tokens, and say "não registrado" for older records.
+- *Tier and models in the reports.* The published real-model runs since 2026-11-08 used a paid Tier 1 key (`full-1`,
+  2026-11-07, the free tier). The tier is the author's declaration, kept in a committed file read by the report generators;
+  models come from the records. The free-tier justification of the default model stays, with the date of the quotas.
+- *README.* At most ~350 lines: what it is + architecture diagram; how to run; current results only (history in
+  `docs/history.md`); demo transcripts copied from committed real-model records (each with its record path; flows without a
+  real record are said to have none); limitations; authorship and review (the author's decisions); repository map (product
+  vs. process). No "(Fase X)" in titles, no marketing adjectives, no interview glossary, "o autor" instead of "candidato",
+  no video. `docs/STATUS.md` keeps a short summary; the per-phase log moves to `docs/status-history.md`.
+**Split (provisional; each prompt is written after the previous review):**
+- 11A (checked by `scripts/verify_phase11a.py`): `status: "invalid"` in `src/agents/injection_classifier.py`; the graph blocks
+  it in both modes (metric `classifier_invalid_block`, tokens counted); `src/eval/guardrail_eval.py`: `invalid` records are
+  final (not retried), reset the error streak, count as blocked in the classifier and hybrid layers, `run_guardrail` returns
+  an `invalid` count; `VALID_SOURCES` gains `author_holdout`; tests for every case in both modes; README: guardrail limitation
+  sentence, `GUARDRAIL_CLASSIFIER_*` line, fail-open bullet, claims row. Committed reports unchanged (the 108 real calls were
+  all `ok`). Supersedes 10B `R4.fail_open`, 10C `C0.append_only`/`C2`/`C3`/`C4` and 10I `I1.readme_texts` (re-checked as
+  A1, A3, A6-A9).
+- 11B: the author's holdout file committed alone (no code), sha256 pinned; classifier prompt unchanged. Then the author runs
+  `author-1` once.
+- 11C: `author-1` record and report committed (reports generated from the record only); the verifier checks one record per
+  message, timestamps after the 11B commit, the classifier prompt and the holdout file unchanged since 11B.
+- 11D: v2 runner records `guardrail` and `tokens_by_agent` per turn; reports aggregate the deciding layer and classifier
+  tokens; old records reported as "não registrado".
+- 11E: tier and models in `reports/eval_models.*`, `reports/eval_v2.*` and `reports/guardrail_summary.*` (declaration file +
+  generators; regenerated from the records).
+- 11F: `docs/status-history.md` (per-phase log moved verbatim) and a short `docs/STATUS.md`; `docs/history.md` (historical
+  results moved verbatim from the README).
+- 11G: the new README, dictated by the reviewer in full; the verifier supersedes every earlier README check and re-checks
+  the same guarantees in the new places (numbers against reports, claims rows pointing to existing files, no
+  "candidato", no "(Fase", line budget).
+- Outside the repository: the reply to the feedback (first person, no phase numbers, "Conforme combinado, esta versão não
+  inclui vídeo."), the exact open items and the green CI run of the final HEAD, saved in the project as
+  `claude/nota-resposta-feedback-v4.md`.
+**Acceptance:**
+- AC11.1 No path lets an invalid classifier answer through; provider unavailability follows the fail mode; both tested.
+- AC11.2 The author's holdout is committed before its only run, and its result is reported unchanged.
+- AC11.3 Every README claim has evidence in the repository; the three unsupported claims of audit section 10.4 are fixed or
+  removed.
+- AC11.4 Every real-model report states the tier and the models used.
+- AC11.5 The README has at most ~350 lines, no "(Fase", no "candidato", no video text; nothing historical is lost (it moves
+  to `docs/history.md` / `docs/status-history.md`).

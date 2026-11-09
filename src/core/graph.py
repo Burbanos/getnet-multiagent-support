@@ -357,16 +357,21 @@ class OrchestrationGraph:
                 "tokens": tokens,
             }
 
-        if result.verdict == "block":
-            metrics.inc_guardrail("classifier_block")
-            guardrail["blocked_by"] = "classifier"
-            if result.category in ("prompt_injection", "prompt_leak"):
-                violations = ["Tentativa de injeção de prompt detectada pelo classificador."]
+        if result.status == "invalid" or result.verdict == "block":
+            if result.status == "invalid":
+                metrics.inc_guardrail("classifier_invalid_block")
+                violations = ["Saída do classificador sem veredito válido: mensagem bloqueada por precaução."]
                 refusal_content = INJECTION_REFUSAL
             else:
-                violations = ["Pedido de ataque detectado pelo classificador."]
-                refusal_content = ATTACK_REFUSAL
+                metrics.inc_guardrail("classifier_block")
+                if result.category in ("prompt_injection", "prompt_leak"):
+                    violations = ["Tentativa de injeção de prompt detectada pelo classificador."]
+                    refusal_content = INJECTION_REFUSAL
+                else:
+                    violations = ["Pedido de ataque detectado pelo classificador."]
+                    refusal_content = ATTACK_REFUSAL
 
+            guardrail["blocked_by"] = "classifier"
             refusal_msg = AIMessage(content=refusal_content)
             return {
                 "is_safe": False,
