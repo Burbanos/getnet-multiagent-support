@@ -397,10 +397,14 @@ use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` imag
   `full-7`, `v2-1` to `v2-3`, `hybrid-1` to `hybrid-3`, `author-1`) used the paid Tier 1 project, and that `full-1`
   (2026-11-07) used the free tier.
 
-**Current phase: 11E** (account tier and models in the results reports), prompt `docs/phase-prompts/11E.md`, verifier
-`scripts/verify_phase11e.py`. Phase 11 is the last before the resubmission. Open product failures (`k16`, `o02`, `s04`,
-`s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new held-out cases, not prompt tuning
-against these.
+- 11E (`c6a3aeb`; reviewer reran `verify_phase11e.py`: 65/65 on 3.11.18; reviewer files identical; CI run #70 green, test and
+  docker). Minor, accepted: `write_guardrail_summary` also gained an optional `context` parameter passed to
+  `guardrail_summary` (not asked; harmless).
+
+**Current phase: 11F** (per-phase log moved to `docs/status-history.md`, old README results to `docs/history.md`), prompt
+`docs/phase-prompts/11F.md`, verifier `scripts/verify_phase11f.py`. Phase 11 is the last before the resubmission. Open
+product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new
+held-out cases, not prompt tuning against these.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -1253,8 +1257,13 @@ the previous sub-phase is reviewed. Old runs are never re-run; records written b
   `math.fsum`. `reports/eval_models.*`, `reports/eval_v2.*` and `reports/guardrail_summary.*` regenerated from the committed
   records (same numbers, same tables). Supersedes 10C `C10.summary` and 10H `E3.old_reports_untouched` (re-checked as E5,
   E3 and E4).
-- 11F: `docs/status-history.md` (per-phase log moved verbatim) and a short `docs/STATUS.md`; `docs/history.md` (historical
-  results moved verbatim from the README).
+- 11F (checked by `scripts/verify_phase11f.py`): a script given in the prompt (run outside the repository, then deleted)
+  rebuilds from the 11E commit: `docs/status-history.md` = the old STATUS body (only " do candidato " -> " do autor "),
+  `docs/history.md` = the README sections that leave in 11G (model comparison on v1, `full-1` results, the `full-1`
+  official-scenario matrix, the hand-written-KB paragraph, the interview glossary), and `docs/STATUS.md` = a short summary
+  followed by the phase sections from 11F on. README unchanged. Supersedes the STATUS checks 6D `S4.status_next_phase`, 6E
+  `S4.status`, 6F `C7.status`, 8C `C3.status`, 8D `E4.status`, 8E `E1.status`, 8F `E1.status`, 9A `A8.status_8f_correction`
+  and 10I `I5.status_10h_corrected` (re-checked on `docs/status-history.md` as F4).
 - 11G: the new README, dictated by the reviewer in full; the verifier supersedes every earlier README check and re-checks
   the same guarantees in the new places (numbers against reports, claims rows pointing to existing files, no
   "candidato", no "(Fase", line budget).
