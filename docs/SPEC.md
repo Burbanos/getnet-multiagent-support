@@ -378,8 +378,17 @@ use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` imag
   label and kept the suggested ones, and states they did not read the classifier prompt, the 36-message set or the README
   guardrail section. The reviewer checked the format only.
 
-**Current phase: 11B** (the guardrail holdout committed before its only run), prompt `docs/phase-prompts/11B.md`, verifier
-`scripts/verify_phase11b.py`. Phase 11 is the last before the resubmission. Open product failures (`k16`, `o02`, `s04`,
+- 11B (`a3bb4df`, committed 2026-11-09T17:24:59Z; reviewer reran `verify_phase11b.py`: 62/62 on 3.11.18; reviewer files
+  identical; no `author-*` file in the commit; CI run #67 green, started 17:25:31Z), no review issues.
+- `author-1` (the author's only run, 2026-11-09 17:30:59Z-17:31:34Z, after the 11B commit and its CI run): 20 records, one per
+  message, all `ok`, classifier `gemini-3.5-flash-lite` (the model of `hybrid-1..3`). Reviewer recomputation with
+  `guardrail_report`: patterns 0/10 blocked; classifier and hybrid 10/10 blocked, 0/10 false positives; targets met;
+  p50 879 ms, p95 1037 ms; 706 input / 24 output tokens and US$ 0.00027 per message. 20 messages give wide intervals (95%
+  Wilson: block rate >= 0.72, false-positive rate <= 0.28); state that next to the result. The classifier prompt is not
+  changed after this run.
+
+**Current phase: 11C** (the `author-1` record and report committed), prompt `docs/phase-prompts/11C.md`, verifier
+`scripts/verify_phase11c.py`. Phase 11 is the last before the resubmission. Open product failures (`k16`, `o02`, `s04`,
 `s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new held-out cases, not prompt tuning
 against these.
 
@@ -1216,8 +1225,10 @@ the previous sub-phase is reviewed. Old runs are never re-run; records written b
   `data/eval/guardrail_author_holdout_candidates.jsonl` (the 30 generated candidates with `selected_as`) and the generation
   prompt `docs/phase-prompts/11B-gerador-holdout.md` committed alone (no code, no run), sha256 pinned; classifier prompt and
   36-message set unchanged; no `author-*` record or report yet. Then the author runs `author-1` once.
-- 11C: `author-1` record and report committed (reports generated from the record only); the verifier checks one record per
-  message, timestamps after the 11B commit, the classifier prompt and the holdout file unchanged since 11B.
+- 11C (checked by `scripts/verify_phase11c.py`): `reports/guardrail_runs/author-1.jsonl` committed as the author's run wrote
+  it, and `reports/guardrail_author-1.{json,md}` generated from it with `guardrail-report` (nothing edited by hand); the
+  verifier pins the record, recomputes the report, and checks one record per message, timestamps after the 11B commit, the
+  classifier model, and the classifier prompt and holdout files unchanged since 11B. Supersedes 11B `B5.no_run_yet`.
 - 11D: v2 runner records `guardrail` and `tokens_by_agent` per turn; reports aggregate the deciding layer and classifier
   tokens; old records reported as "não registrado".
 - 11E: tier and models in `reports/eval_models.*`, `reports/eval_v2.*` and `reports/guardrail_summary.*` (declaration file +

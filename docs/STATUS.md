@@ -4,6 +4,100 @@
 
 ---
 
+### Fase 11C: Registro e Relatório da Execução author-1
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Saída do relatório:
+```text
+guardrail-report: hybrid block_rate 1.0, false_positive_rate 0.0, targets_met True
+```
+
+#### Verificação Fase 11C:
+```text
+INFO python 3.13.3
+PASS C0.py311_syntax
+PASS C0.files_unchanged
+PASS C0.only_author_1
+PASS S1.status_11c
+PASS S2.status_without_messages
+PASS E2.scope
+PASS C1.single_run_after_11b :: 20 records, statuses ['ok'], 2026-11-09T17:30:59.439186+00:00 .. 2026-11-09T17:31:34.880664+00:00, 11B committed 2026-11-09T14:24:59-03:00
+PASS C2.report_matches_record :: hybrid block 1.0, false positives 0.0, targets_met True
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q0.verify_phase11b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 331 passed in 24.01s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 61/61 passed
+```
+
+#### Commit base:
+`a3bb4dfdc816ead13b9b70ced277f0301daee047`
+
+#### Não feito:
+Nada pendente.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+Gerados os relatórios `reports/guardrail_author-1.json` e `reports/guardrail_author-1.md` a partir do registro bruto `reports/guardrail_runs/author-1.jsonl` com o comando `guardrail-report`; registro mantido intacto.
+
+---
+
 ### Fase 11B: Holdout do Guardrail Commitado Antes da Execução
 
 #### Versão do Python:
