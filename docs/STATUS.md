@@ -4,6 +4,101 @@
 
 ---
 
+### Fase 10E: Clima e Câmbio — Módulo das APIs
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 10E (`python scripts/verify_phase10e.py`):
+```text
+INFO python 3.13.3
+PASS E0.py311_syntax
+PASS E0.no_regex_no_logs_no_values
+PASS E1.config
+PASS E9.tests_named
+PASS E9.fixtures_unchanged
+PASS S1.status_10e
+PASS E2.scope
+PASS E3.constants
+PASS E4.url_builders
+PASS E5.weather_success :: day 2: 2026-11-10 max {'value': 25.5, 'unit': '°C'} Overcast
+PASS E6.weather_not_found_and_invalid
+PASS E7.weather_unavailable
+PASS E8.fx_success :: EUR 2026-11-06 buy {'value': 6.13, 'unit': 'BRL per 1 EUR'}; latest EUR 2026-11-06 13:06:13.966362 {'value': 6.13, 'unit': 'BRL per 1 EUR'}
+PASS E9.fx_no_data_not_found_invalid
+PASS E10.fx_unavailable
+PASS E10.only_the_closing_bulletin
+PASS E11.default_client_and_today
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 303 passed in 21.88s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q2.public_data_tests :: 23 passed in 0.81s
+
+SUMMARY: 63/63 passed
+```
+
+#### Commit base (`git rev-parse HEAD`):
+```text
+74f9ee1603ba08e561f38e68e4c7604d5500e28f
+```
+
+#### Não feito
+- Tools integradas ao agente LangGraph e chamadas com modelo real: escopo da Fase 10F. Esta fase implementa o módulo cliente com validação, normalização de respostas e testes offline.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma. O módulo `src/tools/public_data.py` atende a todas as especificações de URLs, validação e formatos de status explícitos (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`).
+
+#### Alterações
+- `src/config.py` e `.env.example`: adicionada configuração `PUBLIC_DATA_TIMEOUT_S=8` logo após `DDGS_TIMEOUT`.
+- `src/tools/public_data.py`: implementado cliente completo para Open-Meteo (geocodificação e previsão de 1 a 7 dias com códigos WMO) e PTAX do Banco Central (catálogo de moedas e cotações de fechamento por data ou período lookback de 10 dias).
+- `tests/test_public_data.py`: criados 23 testes unitários offline exercitando requisições válidas, cidades e moedas inexistentes, entradas inválidas, erros de rede/timeout/HTTP 500/400 e payload malformado.
+
+---
+
 ### Fase 10D: Clima e Câmbio — Captura das APIs
 
 #### Versão do Python (`python --version`):

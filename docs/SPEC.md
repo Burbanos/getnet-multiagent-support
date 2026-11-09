@@ -277,6 +277,15 @@ not an independent review (the same candidate drives both tools); never describe
 - Re-split of the rest of Phase 10 (2026-11-09): the reviewer's sandbox cannot reach Open-Meteo or Olinda, and the docs
   leave open details that decide the module's behaviour (the exact closing-bulletin name, whether USD is in the `Moedas`
   list, what geocoding returns for an unknown city). So 10D captures real responses first; the module follows in 10E.
+- 10D (`74f9ee1`; reviewer reran `verify_phase10d.py`: 54/54 on 3.11.18; reviewer files identical; CI run #60 green, 280
+  tests), no review issues. The captured bodies carry the server's own `@odata.context` host, microsecond timestamps and
+  per-day bulletin sequences, consistent with real responses. Findings that fix the 10E contract: PTAX publishes
+  `Abertura`, three `Intermediário` and one `Fechamento` per business day (the closing shares the timestamp of the last
+  intermediate), weekends and the 2 November holiday return `"value": []`; `Moedas` lists 10 currencies including USD; an
+  unknown currency (XYZ) also returns 200 with `"value": []`, so `Moedas` is what tells "unknown currency" from "no
+  bulletin"; an unknown city returns 200 with no `results` key; the forecast snaps the coordinates to its grid
+  (-29.98/-51.19 for the geocoded -30.03/-51.23) and returns its own units (`°C`, `%`, `mm`); latitude 999 returns 400 with
+  `reason`. EUR closing 2026-11-06: 6.13 / 6.1317.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -311,8 +320,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10D** (real Open-Meteo and PTAX responses captured as test fixtures; no API key), prompt
-`docs/phase-prompts/10D.md`, verifier `scripts/verify_phase10d.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10E** (Open-Meteo and PTAX client with explicit statuses, tested on the 10D fixtures), prompt
+`docs/phase-prompts/10E.md`, verifier `scripts/verify_phase10e.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1049,7 +1058,10 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   files are never edited by hand. The verifier checks the script offline with an in-memory transport and the fixtures for
   plausibility (coordinates, units, WMO codes, PTAX fields and ranges, empty Saturday, no weekend rows) and prints the
   bulletin names and whether USD is listed, which fix the 10E contract.
-- 10E: `src/tools/public_data.py` (no regex, `httpx` with an injectable client, `PUBLIC_DATA_TIMEOUT_S`):
+- 10E (checked by `scripts/verify_phase10e.py`): `src/tools/public_data.py` (no regex, no logging, `httpx` with an
+  injectable client, `PUBLIC_DATA_TIMEOUT_S=8`; URL builders reproduce the 10D manifest URLs exactly; only
+  `tipoBoletim == "Fechamento"` counts, the latest one on the requested date or in the last 10 days; `Moedas` decides
+  `not_found`):
   `fetch_weather(city, country_code=None, forecast_days=3)` and `fetch_exchange_rate(currency, date=None)` returning the
   documented statuses (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`), every value with its unit, the
   reference date/time from the API and `source_url`; the WMO weather-code table from the Open-Meteo docs; the PTAX closing

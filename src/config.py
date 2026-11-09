@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     WEB_SEARCH_ENABLED: bool = True
     WEB_SEARCH_MAX_RESULTS: int = 3
     DDGS_TIMEOUT: int = 8
+    PUBLIC_DATA_TIMEOUT_S: float = 8.0
     EMBEDDING_MODEL: str = "gemini-embedding-2"
     EMBEDDING_DIM: int = 768
     RAG_TOP_K: int = 4
