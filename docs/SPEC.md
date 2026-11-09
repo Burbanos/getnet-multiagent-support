@@ -216,6 +216,15 @@ not an independent review (the same candidate drives both tools); never describe
   account was not found, give no values, suggest a human agent). The committed real-model runs predate it; it only fires
   for unknown merchants, and every eval case uses `cliente1988`, so the reported numbers are unaffected.
 
+- 9D (`613991b`; reviewer reran `verify_phase9d.py`: 50/50 on 3.11.18 and 3.13.18; reviewer files identical; CI run
+  #53 green, 236 tests on 3.11.18), no review issues.
+- Planning 9E (reproduced on `613991b`): with the Dockerfile's ENV and no `API_KEYS`, the app runs in `development`,
+  `POST /chat` with `getnet-dev-key` passes auth and `GET /tickets` with `getnet-dev-operator` returns 200 (every ticket,
+  with transcripts). `docker compose config` with `.env` copied from `.env.example` (as the README instructs) resolves
+  `APP_ENV: development`. The reviewer's container has the docker CLI and compose plugin but no daemon: the image build
+  and the new CI steps are checked in Actions; `verify_phase9e.py` runs the CI curl step against uvicorn started with
+  the Dockerfile's ENV when bash and curl exist.
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -249,8 +258,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9D** (the account mock never invents a merchant), prompt `docs/phase-prompts/9D.md`,
-verifier `scripts/verify_phase9d.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+**Current phase: 9E** (image and Compose default to production), prompt `docs/phase-prompts/9E.md`,
+verifier `scripts/verify_phase9e.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
 the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -841,7 +850,8 @@ Source: the simulated V4 audit (6.9/10, HEAD `c5e2698`), sections 4–6. Goal: e
 code, and the four defects the audit reproduced (raw PII on disk, orphan tool call, invented merchant, public keys in the
 image) fixed, plus conversation text out of the logs. One verifier per sub-phase; each re-runs the earlier ones and
 lists the checks it supersedes. Each later prompt is written after the previous sub-phase is reviewed (its verifier pins
-the previous commit).
+the previous commit). The original 9E (Docker + logs) was split into 9E (Docker) and 9F (logs) to keep prompts
+small; the README residues moved to 9G.
 **Out of scope until the real evaluator's feedback:** LLM-based guardrail, `interrupt()`, a write action in the support
 domain, weather/FX APIs, a larger corpus, conversation trimming/summarisation, CORS tightening. The README states the
 guardrail and corpus limits honestly instead (9F).
@@ -868,21 +878,24 @@ guardrail and corpus limits honestly instead (9F).
 - 9D: `MockDatabase.get_user` returns `None` for an unknown merchant (no generated account); no `hash()` anywhere in
   `src/`; the three support functions return `{"status": "not_found", "error": "merchant_not_found"}` without echoing
   the id; the support prompt says to report it and offer escalation. Tests for the three tools with an unknown id.
-- 9E: `ENV APP_ENV=production` in the Dockerfile runner stage; CI docker job asserts `/health` reports
-  `environment: production` and that `POST /chat` with `getnet-dev-key` returns 401; README Docker text for a plain
-  `docker run` (needs `API_KEYS`). Logs carry no conversation text: no query, reason, task or provider exception text
-  in any record (lengths only, as an extra field the formatter keeps); `logger.exception` with provider errors replaced
-  by `logger.error` with the class name. Test: a unique marker in the message, the specialist task, the search query,
-  the escalation reason and a provider exception never appears in captured log output.
-- 9F: README residues from audit section 5: "Fonte oficial citada" becomes "Fonte oficial recuperada" (compare.py,
+- 9E: `ENV APP_ENV=production` in the Dockerfile runner stage and `APP_ENV=production` pinned in `docker-compose.yml`
+  (the README's `cp .env.example .env` made Compose resolve `development`); CI docker job asserts `/health` reports
+  `environment: production`, `POST /chat` with `getnet-dev-key` and `GET /tickets` with `getnet-dev-operator` return 401,
+  and `docker compose config` with the example `.env` resolves production; README Docker text (no `--env-file .env` in a
+  plain `docker run`) and `python -m src.core.auth hash` without an argument; `tests/test_docker_defaults.py`.
+- 9F: logs carry no conversation text: no query, reason, task, error code, serial or exception text in any record
+  (lengths only); `logger.exception` replaced where the exception text can carry conversation or provider text (class
+  name and code locations only). Test: a unique marker in the message, the specialist task, the search query, the
+  escalation reason, a tool argument and a provider/internal exception never appears in captured log output.
+- 9G: README residues from audit section 5: "Fonte oficial citada" becomes "Fonte oficial recuperada" (compare.py,
   regenerated `reports/eval_models.{json,md}`, README tables) with a sentence that it checks retrieved URLs, not
   citations in the text; scenario 10 source is `getnet.net/en/our-solutions/online-payments` (the Brazilian payment-link
   and WhatsApp pages were `no_content`); `getnet.com.br` removed from the source policy (README and
-  `data/corpus/README.md`); `python -m src.core.auth hash` without an argument; provider text (Gemini only in practice;
+  `data/corpus/README.md`); provider text (Gemini only in practice;
   the openai/anthropic branches are not installed or tested; embeddings always Gemini); `MemorySaver` docstrings in
   `graph.py`; test tree (`test_eval_judge.py` renamed `test_api_key_header.py`); "Limitações atuais" lists the regex
   guardrail (bypassed by paraphrase, false positives), the corpus gaps and the out-of-scope items; claims table rows for
-  PII, logs, mock and Docker point to the 9B–9E tests.
+  PII, logs, mock and Docker point to the 9B–9F tests.
 **Acceptance:**
 - AC9.1 Every verifier, including the last one, passes on Python 3.11 (CI compiles them) and on the local 3.13.
 - AC9.2 No README/STATUS sentence calls the reviewer independent; the authorship section names both tools.

@@ -278,7 +278,7 @@ O sistema avalia a qualidade do retrieval e a política de abstenção sobre um 
 * **Configuração de Chaves (`API_KEYS`) e Ambientes**:
   * O mapeamento é configurado via variável de ambiente `API_KEYS` no formato `hash:user_id:role;hash:user_id:role;...`, onde `hash` é o SHA-256 (64 hexadecimais em minúsculas) da chave.
   * O utilitário de linha de comando `python -m src.core.auth hash` lê a chave de forma mascarada com `getpass` e exibe apenas o hash para que credenciais reais nunca sejam persistidas em arquivos de configuração ou histórico.
-  * **Chaves de Desenvolvimento**: Fora de produção (`APP_ENV != production`), quando `API_KEYS` estiver vazio, são aceitas as chaves padrão de desenvolvimento `getnet-dev-key` (`cliente1988`, `customer`) e `getnet-dev-operator` (`operador_dev`, `operator`).
+  * **Chaves de Desenvolvimento**: Fora de produção (`APP_ENV != production`), quando `API_KEYS` estiver vazio, são aceitas as chaves padrão de desenvolvimento `getnet-dev-key` (`cliente1988`, `customer`) e `getnet-dev-operator` (`operador_dev`, `operator`). A imagem Docker e o `docker-compose.yml` fixam `APP_ENV=production`, então essas chaves são recusadas no container.
   * **Produção Obrigatória no Docker Compose**: Como o `docker-compose.yml` opera com `APP_ENV=production`, é obrigatório configurar a variável `API_KEYS`; sem isso, o modo de autenticação é `none` e nenhuma requisição é aceita (todas respondem 401).
 * **Isolamento de Sessão e Persistência em SQLite (`user_id:session_id`)**:
   * O identificador de thread do checkpointer é montado como `f"{user_id}:{session_id}"`. Mesmo que dois usuários diferentes utilizem o mesmo `session_id`, suas conversas e memórias permanecem completamente isoladas.
@@ -351,11 +351,13 @@ O sistema opera com arquitetura agnóstica de provedores via `langchain-google-g
 
 O arquivo `docker-compose.yml` opera configurado com `APP_ENV=production`. Em produção, a autenticação por chave de API é estritamente obrigatória: a variável `API_KEYS` é obrigatória (sem ela toda requisição aos endpoints protegidos recebe HTTP 401 Unauthorized) e o hash seguro de cada chave permitida é gerado com `python -m src.core.auth hash`.
 
+A própria imagem também define `APP_ENV=production` (`Dockerfile`), e o `docker-compose.yml` fixa esse valor, então nem um `.env` copiado do `.env.example` (que traz `APP_ENV=development` para a execução local) o troca. Nos dois casos as chaves públicas de desenvolvimento (`getnet-dev-key` e `getnet-dev-operator`) recebem HTTP 401, e o CI confere isso a cada push. Num `docker run` sem Compose, passe as variáveis com `-e` (por exemplo, `-e API_KEYS=... -e GEMINI_API_KEY=...`) em vez de `--env-file .env`, que traria de volta o `APP_ENV=development` do arquivo de exemplo.
+
 O volume nomeado `getnet_app_state` guarda exclusivamente os bancos de dados SQLite em `/app/state` (`/app/state/checkpoints.db` e `/app/state/tickets.db`). O índice vetorial e o corpus documental vêm diretamente da imagem Docker (atualizar a imagem atualiza a base automaticamente, sem servir índices antigos guardados em volume). Para começar do zero com os bancos limpos, basta executar `docker compose down -v`.
 
 ```bash
-# Gerar o hash SHA-256 de uma chave de API para o arquivo .env:
-python -m src.core.auth hash "sua-chave-aqui"
+# Gerar o hash SHA-256 de uma chave de API para o arquivo .env (a chave é digitada sem eco):
+python -m src.core.auth hash
 ```
 
 ```bash
@@ -718,3 +720,4 @@ Cada afirmação deste README aponta para o código, o teste, o verificador ou o
 | Comparação de modelos com 3 execuções cada (média, mínimo e máximo) | `src/eval/compare.py`, `reports/eval_models.md`, `tests/test_eval_compare.py`, `scripts/verify_phase8e.py` |
 | Uma falha do provedor no meio do turno não deixa chamada de ferramenta sem resposta no histórico da sessão | `src/core/graph.py` (`run_sync`), `tests/test_dangling_tool_calls.py`, `scripts/verify_phase9c.py` |
 | As ferramentas de conta não inventam dados: lojista desconhecido recebe `not_found` | `src/core/mock_db.py`, `src/tools/balance_tools.py`, `src/tools/terminal_tools.py`, `tests/test_mock_not_found.py`, `scripts/verify_phase9d.py` |
+| A imagem e o Compose rodam com `APP_ENV=production`: as chaves públicas de desenvolvimento recebem 401 | `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `tests/test_docker_defaults.py`, `scripts/verify_phase9e.py` |

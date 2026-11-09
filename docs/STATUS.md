@@ -4,6 +4,99 @@
 
 ---
 
+### Fase 9E: Imagem e Compose em Produção por Padrão
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9E (`python scripts/verify_phase9e.py`):
+```text
+INFO python 3.13.3
+PASS G0.py311_syntax
+PASS G1.dockerfile_production
+PASS G2.compose_pinned
+INFO G3 skipped: `docker compose` not available here (the CI step covers it)
+PASS G5.ci_steps
+PASS G7.tests
+PASS G8.readme_docker
+PASS G9.readme_devkeys
+PASS G10.claims_row
+PASS S1.status_9e
+PASS E2.scope
+PASS G4.image_env_rejects_dev_keys :: {'environment': 'production', 'auth_mode': 'none', 'chat': 401, 'tickets': 401}
+INFO G6 skipped: bash/curl not available here, or the CI step is missing (G5 covers its text)
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 238 passed in 21.33s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 49/49 passed
+```
+
+#### Commit Base da Fase 9E (`git rev-parse HEAD`):
+```text
+613991b65b4cac3105a1ee8da0b6457b86d69490
+```
+
+#### Não feito:
+- Nenhum. Todos os checks aplicáveis da Fase 9E passaram com sucesso.
+- O build da imagem Docker e os dois passos novos do CI (`Production defaults in the image` e `Compose resolves APP_ENV=production with the example .env`) serão conferidos automaticamente no GitHub Actions após o push (ambiente local Windows sem daemon Docker ativo).
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. O `Dockerfile` define `ENV APP_ENV=production`, o `docker-compose.yml` fixa `APP_ENV=production` sem interpolação, e as chaves públicas de desenvolvimento recebem HTTP 401 em ambiente de produção.
+
+#### Alterações Realizadas na Fase 9E:
+- **Dockerfile com Produção por Padrão (`Dockerfile`)**:
+  - Adicionada a instrução `ENV APP_ENV=production` no estágio final (`runner`), garantindo que execuções avulsas com `docker run` iniciem em modo de produção por padrão e recusem credenciais públicas de desenvolvimento.
+- **Fixação de Produção no Docker Compose (`docker-compose.yml`)**:
+  - Fixado `- APP_ENV=production` sem interpolação `${APP_ENV:-production}`, impedindo que um arquivo `.env` copiado de `.env.example` altere o ambiente para `development`.
+- **Validação de Produção no CI (`.github/workflows/ci.yml`)**:
+  - Adicionados dois passos ao job `docker`: validação de que `/health` reporta `production` e que requisições com `getnet-dev-key` e `getnet-dev-operator` recebem HTTP 401, e validação de que `docker compose config` com `.env` do exemplo resolve `APP_ENV: production`.
+- **Testes Automatizados de Padrões Docker (`tests/test_docker_defaults.py`)**:
+  - Implementados testes unitários estáticos verificando a presença de `ENV APP_ENV=production` no `Dockerfile` e a fixação de `- APP_ENV=production` no `docker-compose.yml`.
+- **Documentação e Evidências (`README.md`)**:
+  - Atualizada a seção "Execução via Docker Compose" explicando a fixação de produção na imagem e no Compose, e corrigido o comando `python -m src.core.auth hash` (sem argumento).
+  - Atualizado o item "Chaves de Desenvolvimento" indicando a recusa no container.
+  - Incluída nova linha na tabela da Seção 9 de Afirmações e Evidências.
+
+---
+
 ### Fase 9D: Mock de Conta Sem Lojista Inventado
 
 #### Versão do Python (`python --version`):

@@ -54,3 +54,16 @@ jobs:
           test "$(docker exec app id -u)" != "0"
           docker exec app sh -c '! test -w /app/data/index/chunks.jsonl && ! test -w /app/src/main.py && test -w /app/state'
           docker logs app
+      - name: Production defaults in the image
+        run: |
+          curl -s http://localhost:8000/health | python3 -c "import json, sys; h = json.load(sys.stdin); assert h['environment'] == 'production', h; print('environment:', h['environment'])"
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "X-API-Key: getnet-dev-key" -d '{"message": "oi"}')
+          echo "POST /chat with getnet-dev-key -> HTTP $code"
+          test "$code" = "401"
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/tickets -H "X-API-Key: getnet-dev-operator")
+          echo "GET /tickets with getnet-dev-operator -> HTTP $code"
+          test "$code" = "401"
+      - name: Compose resolves APP_ENV=production with the example .env
+        run: |
+          cp .env.example .env
+          docker compose config | grep -E "^\s+APP_ENV: production$"

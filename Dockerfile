@@ -26,6 +26,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CHECKPOINT_DB_PATH=state/checkpoints.db \
     TICKETS_DB_PATH=state/tickets.db
 
+# Production by default: the public development keys are never accepted by the image.
+ENV APP_ENV=production
+
 # Create non-root system group and user
 RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser
 
