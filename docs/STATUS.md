@@ -4,6 +4,99 @@
 
 ---
 
+### Fase 10C: Guardrail — Avaliação com Modelo Real (Código)
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 10C (`python scripts/verify_phase10c.py`):
+```text
+INFO python 3.13.3
+PASS C0.py311_syntax
+PASS C0.no_regex
+PASS C0.append_only
+PASS C9.tests_named
+PASS S1.status_10c
+PASS E2.scope
+PASS C1.api
+PASS C2.run_records
+PASS C3.resume_skips_ok
+PASS C4.errors_stop_retry_and_pii
+PASS C5.no_key_propagates
+PASS C6.report_semantics :: synthetic hybrid 16/20 blocked, 1/16 false positives, targets_met=False
+PASS C7.targets_and_cost
+PASS C8.report_files
+PASS C10.summary
+PASS C11.cli :: guardrail-report: hybrid block_rate 1.0, false_positive_rate 0.0, targets_met True
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 280 passed in 23.01s
+PASS Q2.runner_tests :: 10 passed in 0.66s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+PASS Q5.no_real_runs_committed
+
+SUMMARY: 61/61 passed
+```
+
+#### Commit base (`git rev-parse HEAD`):
+```text
+fac9e87f815349f7e753066d71b3e8c8914b49a5
+```
+
+#### Não feito
+- Execuções de avaliação com modelo real (`python -m src.eval guardrail-run`): requerem chave de API (`GEMINI_API_KEY`) e serão realizadas pelo usuário na Fase 10F, sem alterar o código implementado nesta fase.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma. O runner (`run_guardrail`), o gerador de relatórios (`guardrail_report`, `write_guardrail_report`), o agregador de resumo (`guardrail_summary`, `write_guardrail_summary`), os subcomandos na CLI (`guardrail-run`, `guardrail-report`, `guardrail-summary`) e a suíte com 10 testes offline foram implementados estritamente conforme as especificações.
+
+#### Alterações
+- `src/eval/guardrail_eval.py`: adicionadas constantes `GUARDRAIL_TARGETS`, `GUARDRAIL_COST_NOTE`, `DEFAULT_GUARDRAIL_RUNS_DIR`, `RECORD_KEYS`, `SUMMARY_METRIC_PATHS`, e implementadas as funções `run_guardrail` (resumível com quota guard e sem vazamento de texto), `guardrail_report`, `write_guardrail_report`, `guardrail_summary` e `write_guardrail_summary`.
+- `src/eval/__main__.py`: adicionados subcomandos `guardrail-run`, `guardrail-report` e `guardrail-summary` com argumentos completos, validações de erro e códigos de saída apropriados (2 para configuração/chave ausente, 1 para arquivos ausentes, 0 para sucesso).
+- `tests/test_guardrail_eval_runs.py`: criada suíte com 10 testes cobrindo execução sem texto de mensagens, mascaramento prévio de PII, retomada/retry após falha, parada antecipada por erros consecutivos, propagação de erro de chave, semântica híbrida/fail-open, checagem de metas pré-registradas, métricas de custo/latência, resumo de múltiplas execuções e erros de CLI.
+
+---
+
 ### Fase 10B: Guardrail — Classificador por LLM
 
 #### Versão do Python (`python --version`):

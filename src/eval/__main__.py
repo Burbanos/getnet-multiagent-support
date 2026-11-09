@@ -1,13 +1,21 @@
 """Evaluation CLI entry point for offline regression, model execution, judge, and reports."""
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from src.config import settings
+from src.core.llm import LLMConfigurationError, LLMNotConfiguredError
 from src.eval.cases import load_cases
 from src.eval.checks import evaluate_case
 from src.eval.compare import write_comparison
-from src.eval.guardrail_eval import load_guardrail_set, write_pattern_report
+from src.eval.guardrail_eval import (
+    load_guardrail_set,
+    run_guardrail,
+    write_guardrail_report,
+    write_guardrail_summary,
+    write_pattern_report,
+)
 from src.eval.judge import load_judgments, run_judge
 from src.eval.offline import run_offline
 from src.eval.report import write_report
@@ -91,6 +99,25 @@ def main() -> int:
     p_gp.add_argument("--set", default="data/eval/guardrail_labeled.jsonl", help="Path to guardrail labeled JSONL dataset")
     p_gp.add_argument("--out-dir", default="reports", help="Output directory for reports")
 
+    # 7. guardrail-run
+    p_grun = subparsers.add_parser("guardrail-run", help="Run guardrail evaluation on live models")
+    p_grun.add_argument("--run-id", required=True, help="Guardrail run ID")
+    p_grun.add_argument("--set", default="data/eval/guardrail_labeled.jsonl", help="Path to guardrail labeled dataset")
+    p_grun.add_argument("--runs-dir", default="reports/guardrail_runs", help="Directory for raw run JSONL")
+    p_grun.add_argument("--sleep", type=float, default=None, help="Pause between cases in seconds")
+
+    # 8. guardrail-report
+    p_grep = subparsers.add_parser("guardrail-report", help="Generate guardrail JSON and Markdown report")
+    p_grep.add_argument("--run-id", required=True, help="Guardrail run ID")
+    p_grep.add_argument("--set", default="data/eval/guardrail_labeled.jsonl", help="Path to guardrail labeled dataset")
+    p_grep.add_argument("--runs-dir", default="reports/guardrail_runs", help="Directory for raw run JSONL")
+    p_grep.add_argument("--out-dir", default="reports", help="Output directory for reports")
+
+    # 9. guardrail-summary
+    p_gsum = subparsers.add_parser("guardrail-summary", help="Aggregate multiple guardrail run reports")
+    p_gsum.add_argument("--run-ids", required=True, help="Comma-separated run IDs to summarize")
+    p_gsum.add_argument("--out-dir", default="reports", help="Output directory for reports")
+
     args = parser.parse_args()
 
     if args.subcommand == "offline":
@@ -115,6 +142,77 @@ def main() -> int:
         b_rate = report["metrics"]["all"]["block_rate"]
         fp_rate = report["metrics"]["all"]["false_positive_rate"]
         print(f"patterns: block_rate {b_rate}, false_positive_rate {fp_rate}")
+        return 0
+
+    if args.subcommand == "guardrail-run":
+        try:
+            set_path = Path(args.set)
+            if not set_path.exists():
+                print(f"Error: dataset file not found at {set_path}", file=sys.stderr)
+                return 1
+            cases = load_guardrail_set(set_path)
+            results_file = Path(args.runs_dir) / f"{args.run_id}.jsonl"
+            out = run_guardrail(cases, results_file, args.run_id, sleep_s=args.sleep)
+            print(
+                f"guardrail-run: attempted {out['attempted']}, ok {out['ok']}, errors {out['errors']}, "
+                f"skipped {out['skipped']}, stopped_early {out['stopped_early']}"
+            )
+            return 0
+        except LLMNotConfiguredError as exc:
+            print(f"Error: GEMINI_API_KEY is required ({exc})", file=sys.stderr)
+            return 2
+        except LLMConfigurationError as exc:
+            print(f"Error: LLMConfigurationError - {exc}", file=sys.stderr)
+            return 2
+
+    if args.subcommand == "guardrail-report":
+        runs_dir = Path(args.runs_dir)
+        results_file = runs_dir / f"{args.run_id}.jsonl"
+        if not results_file.exists():
+            print(f"Error: results file not found at {results_file}", file=sys.stderr)
+            return 1
+        try:
+            set_path = Path(args.set)
+            if not set_path.exists():
+                print(f"Error: dataset file not found at {set_path}", file=sys.stderr)
+                return 1
+            cases = load_guardrail_set(set_path)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Error loading dataset: {exc}", file=sys.stderr)
+            return 1
+
+        records = load_results(results_file)
+        out_dir = Path(args.out_dir)
+        out_json = out_dir / f"guardrail_{args.run_id}.json"
+        out_md = out_dir / f"guardrail_{args.run_id}.md"
+
+        rep = write_guardrail_report(cases, records, out_json, out_md, args.run_id, set_path=set_path)
+        h = rep["layers"]["hybrid"]["all"]
+        print(
+            f"guardrail-report: hybrid block_rate {h['block_rate']}, "
+            f"false_positive_rate {h['false_positive_rate']}, targets_met {rep['targets_met']}"
+        )
+        return 0
+
+    if args.subcommand == "guardrail-summary":
+        run_ids = [r.strip() for r in args.run_ids.split(",") if r.strip()]
+        out_dir = Path(args.out_dir)
+        reports = []
+        for rid in run_ids:
+            rep_file = out_dir / f"guardrail_{rid}.json"
+            if not rep_file.exists():
+                print(f"Error: report file not found at {rep_file}", file=sys.stderr)
+                return 1
+            try:
+                reports.append(json.loads(rep_file.read_text(encoding="utf-8")))
+            except Exception as exc:  # noqa: BLE001
+                print(f"Error reading report {rep_file}: {exc}", file=sys.stderr)
+                return 1
+
+        out_json = out_dir / "guardrail_summary.json"
+        out_md = out_dir / "guardrail_summary.md"
+        s = write_guardrail_summary(reports, out_json, out_md)
+        print(f"guardrail-summary: {s['n_runs']} runs, all_targets_met {s['all_targets_met']}")
         return 0
 
     cases = load_cases(DEFAULT_CASES_PATH)

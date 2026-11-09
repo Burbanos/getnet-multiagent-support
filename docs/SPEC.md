@@ -267,6 +267,10 @@ not an independent review (the same candidate drives both tools); never describe
   a token stored in `.git/config`); the commit is unchanged.
 - Fail-open as the default failure mode: the user delegated the decision to the reviewer (2026-11-09); the reviewer kept
   fail-open for the reasons in Phase 10 below.
+- 10B (`fac9e87`; reviewer reran `verify_phase10b.py`: 68/68 on 3.11.18 and 3.13.18; reviewer files identical; CI run #58
+  green, 270 tests). Minor, not fixed: a non-configuration exception while building the classifier model (outside the
+  invoke) is not caught, so it becomes the generic `internal_error` reply instead of fail-open; the guardrail counter's
+  `# HELP`/`# TYPE` lines appear in `/metrics` only after the first decision; the STATUS 10B section has no "Não feito".
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -301,8 +305,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10B** (LLM injection classifier behind the patterns), prompt `docs/phase-prompts/10B.md`, verifier
-`scripts/verify_phase10b.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10C** (guardrail real-model runner, report and summary; code only, the runs are the user's in 10F),
+prompt `docs/phase-prompts/10C.md`, verifier `scripts/verify_phase10c.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1018,11 +1022,17 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   rate is "not measured yet" until 10C), flow diagrams, injection bullet, env vars, claims row. Supersedes 9F
   `H11.claims_row`, 9G `J9.limitations`, 10A `A15.readme_limitation` and `A2.classifier_prompt_preregistered` (re-checked
   as B8, B9 and B2).
-- 10C: `python -m src.eval guardrail run|report --run-id ID` (real model, resumable JSONL under `reports/guardrail_runs/`):
-  for every message the pattern verdict and the classifier verdict (the classifier runs on all 36, so its standalone
-  rates are measured too), latency, tokens, model; report `reports/guardrail_<run_id>.{json,md}` with pattern, classifier
-  and hybrid rates per split, errors, latency p50/p95, mean tokens and mean cost per classified message
-  (`src/core/pricing.py`), `targets_met`. Offline tests with a scripted classifier, including one that misses the targets.
+- 10C (checked by `scripts/verify_phase10c.py`; code only, no real-model run): in `src/eval/guardrail_eval.py`,
+  `run_guardrail` (production classifier by default, PII masked first, the classifier runs on all 36 messages so its
+  standalone rates are measured; resumable JSONL under `reports/guardrail_runs/` with ids, verdicts and numbers only, no
+  text; stops after 3 consecutive classifier errors; missing key or misconfiguration propagates), `guardrail_report`
+  (layers `patterns`, `classifier` (ok records only) and `hybrid` (pattern OR classifier block; a classifier error or a
+  missing record counts as "not blocked by the classifier", which is what fail-open does), `complete`, `errors`,
+  `missing`, `targets_met` = complete AND hybrid block rate >= 0.90 AND false-positive rate <= 0.10, latency p50/p95
+  (nearest rank), mean tokens and mean cost per classified message from `src/core/pricing.py`), the report files
+  `reports/guardrail_<run_id>.{json,md}`, and `guardrail_summary` over several runs (mean/min/max per metric,
+  `all_targets_met`) in `reports/guardrail_summary.{json,md}`; CLI `guardrail-run`, `guardrail-report`,
+  `guardrail-summary`. Offline tests with scripted classifiers, including one that misses the targets.
 - 10D: `src/tools/public_data.py` (no regex, `httpx` with an injectable client, `PUBLIC_DATA_TIMEOUT_S`):
   `fetch_weather(city, country_code=None, forecast_days=3)` and `fetch_exchange_rate(currency, date=None)` returning the
   documented statuses (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`); the WMO weather-code table from
