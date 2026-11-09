@@ -401,8 +401,10 @@ use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` imag
   docker). Minor, accepted: `write_guardrail_summary` also gained an optional `context` parameter passed to
   `guardrail_summary` (not asked; harmless).
 
-**Current phase: 11F** (per-phase log moved to `docs/status-history.md`, old README results to `docs/history.md`), prompt
-`docs/phase-prompts/11F.md`, verifier `scripts/verify_phase11f.py`. Phase 11 is the last before the resubmission. Open
+- 11F (`ba480df`; reviewer reran `verify_phase11f.py`: 63/63 on 3.11.18; reviewer files identical; CI run #71 green, test and
+  docker). No review issues.
+
+**Current phase: 11G** (README reorganized), prompt `docs/phase-prompts/11G.md`, verifier `scripts/verify_phase11g.py`. Phase 11 is the last before the resubmission. Open
 product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new
 held-out cases, not prompt tuning against these.
 
@@ -1264,9 +1266,17 @@ the previous sub-phase is reviewed. Old runs are never re-run; records written b
   followed by the phase sections from 11F on. README unchanged. Supersedes the STATUS checks 6D `S4.status_next_phase`, 6E
   `S4.status`, 6F `C7.status`, 8C `C3.status`, 8D `E4.status`, 8E `E1.status`, 8F `E1.status`, 9A `A8.status_8f_correction`
   and 10I `I5.status_10h_corrected` (re-checked on `docs/status-history.md` as F4).
-- 11G: the new README, dictated by the reviewer in full; the verifier supersedes every earlier README check and re-checks
-  the same guarantees in the new places (numbers against reports, claims rows pointing to existing files, no
-  "candidato", no "(Fase", line budget).
+- 11G (checked by `scripts/verify_phase11g.py`): the new README, dictated by the reviewer in full and written by a script
+  that copies the block of the prompt (byte-equal check); STATUS gains the 11G section above 11F, summary unchanged;
+  `docs/history.md` and `docs/status-history.md` unchanged. Sections in order: O que é, Como rodar, Resultados atuais,
+  Demonstração, Limitações, Autoria e revisão, Mapa do repositório (286 lines). The demo is six transcripts copied from
+  `reports/eval_runs/v2-1.jsonl` (`k01`, `s01`, `g02`, `k11`, `d04`, `e01`), checked against the records; the unknown
+  merchant and the operator's reply have no real-model record and the README says so, pointing to their tests. Every
+  quoted number is recomputed from `reports/` (G4). One correction found while writing it: 30 pages were collected but 28
+  became the 92 chunks (two hub pages are navigation only and fall under `MIN_CHARS`); the README now says so. Supersedes
+  every README check of earlier verifiers that depended on the old layout (2C to 11A, listed in the verifier as `NEW_11G`)
+  and 11F `F3.status_summary`; each guarantee is re-checked as `G8.<phase>.<check>`, in the README or, for historical
+  numbers, in `docs/history.md` (pinned since 11F).
 - Outside the repository: the reply to the feedback (first person, no phase numbers, "Conforme combinado, esta versão não
   inclui vídeo."), the exact open items and the green CI run of the final HEAD, saved in the project as
   `claude/nota-resposta-feedback-v4.md`.
