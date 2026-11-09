@@ -1,6 +1,6 @@
 {
   "name": "v2",
-  "generated_at": "2026-11-09T12:12:31.778397+00:00",
+  "generated_at": "2026-11-09T18:50:06.358262+00:00",
   "cases_sha256": "e32b61a20c57fd3fb6c919b848339b56c6c57a7f7cf9b74959cb617f3b28bb10",
   "groups": [
     {
@@ -189,6 +189,44 @@
         "s04",
         "s06",
         "u01"
+      ]
+    }
+  ],
+  "runs_context": [
+    {
+      "run_id": "v2-1",
+      "group": "flash-lite",
+      "date": "2026-11-09",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "v2-2",
+      "group": "flash-lite",
+      "date": "2026-11-09",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "v2-3",
+      "group": "flash-lite",
+      "date": "2026-11-09",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
       ]
     }
   ]

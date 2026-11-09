@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from src.eval.cases import cases_sha256
 from src.eval.metrics import aggregate
+from src.eval.run_context import CONTEXT_NOTE, load_run_context, tier_label
 
 COMPARE_METRICS = [
     ("pass_rate", "metrics", "pass_rate", "Casos aprovados (checagens determinísticas)", "pct"),
@@ -45,7 +47,7 @@ def compare_runs(
             else:
                 mets[name] = {
                     "values": vals,
-                    "mean": sum(vals) / len(vals),
+                    "mean": math.fsum(vals) / len(vals),
                     "min": min(vals),
                     "max": max(vals),
                 }
@@ -120,25 +122,62 @@ def build_markdown_table(groups: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def runs_context(
+    groups: list[tuple[str, list[tuple[str, list, list | None]]]],
+    context: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Date and declared tier of each run, with the answer and judge models read from its records."""
+    out = []
+    for label, runs in groups:
+        for rid, res, jud in runs:
+            ctx = context.get(rid) or {}
+            out.append({
+                "run_id": rid,
+                "group": label,
+                "date": ctx.get("date"),
+                "tier": ctx.get("tier"),
+                "answer_models": sorted({t["llm_model"] for r in res if r.get("status") == "ok"
+                                         for t in r.get("turns", []) if t.get("llm_model")}),
+                "judge_models": sorted({j["judge_model"] for j in (jud or []) if j.get("status") == "ok" and j.get("judge_model")}),
+            })
+    return out
+
+
+def runs_context_lines(rows: list[dict[str, Any]]) -> list[str]:
+    """Markdown section listing date, tier and models of each run."""
+    lines = ["", "## Execuções", ""]
+    for r in rows:
+        ctx = {"tier": r["tier"]} if r["tier"] else None
+        lines.append(
+            f"- `{r['run_id']}` ({r['group']}): {r['date'] or 'data não informada'}, conta {tier_label(ctx)}; "
+            f"respostas: {', '.join(r['answer_models']) or 'n/d'}; juiz: {', '.join(r['judge_models']) or 'sem juiz'}"
+        )
+    lines += ["", CONTEXT_NOTE]
+    return lines
+
+
 def write_comparison(
     cases: list[dict],
     groups: list[tuple[str, list[tuple[str, list, list | None]]]],
     out_json: str | Path,
     out_md: str | Path,
     name: str,
+    context: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """Write comparison artifacts to JSON and Markdown."""
     comparison = compare_runs(cases, groups)
+    rows = runs_context(groups, load_run_context() if context is None else context)
     doc = {
         "name": name,
         "generated_at": datetime.now(UTC).isoformat(),
         **comparison,
+        "runs_context": rows,
     }
     out_json_path = Path(out_json)
     out_json_path.parent.mkdir(parents=True, exist_ok=True)
     out_json_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    lines = [f"# Comparação de execuções: {name}", ""] + build_markdown_table(comparison["groups"])
+    lines = [f"# Comparação de execuções: {name}", ""] + build_markdown_table(comparison["groups"]) + runs_context_lines(rows)
     out_md_path = Path(out_md)
     out_md_path.parent.mkdir(parents=True, exist_ok=True)
     out_md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

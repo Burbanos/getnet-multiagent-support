@@ -20,3 +20,14 @@
 | Latência por caso, p95 | 8,8 s (8,1–9,7) | 31,6 s (29,8–33,2) |
 | Tokens por execução | 421.140 (413.563–426.999) | 566.646 (549.248–581.298) |
 | Custo estimado por execução (USD, plano pago) | US$ 0,167 (0,163–0,170) | US$ 0,640 (0,622–0,654) |
+
+## Execuções
+
+- `full-2` (flash-lite): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+- `full-4` (flash-lite): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+- `full-5` (flash-lite): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+- `full-3` (3.8-flash): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.8-flash; juiz: gemini-3.6-flash
+- `full-6` (3.8-flash): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.8-flash; juiz: gemini-3.6-flash
+- `full-7` (3.8-flash): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.8-flash; juiz: gemini-3.6-flash
+
+Tier da conta declarado pelo autor em `reports/run_context.json`; modelos lidos dos registros das execuções.

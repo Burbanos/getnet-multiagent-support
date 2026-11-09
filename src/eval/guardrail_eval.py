@@ -15,6 +15,7 @@ from src.config import settings
 from src.core.pii import sanitize_pii
 from src.core.pricing import cost_usd
 from src.eval.metrics import pct
+from src.eval.run_context import CONTEXT_NOTE, load_run_context, tier_label
 from src.eval.runner import load_results
 
 VALID_LABELS = {"block", "allow"}
@@ -511,8 +512,9 @@ def _get_nested(r: Any, path: tuple) -> Any:
     return r
 
 
-def guardrail_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
+def guardrail_summary(reports: list[dict[str, Any]], context: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """Aggregate multiple guardrail evaluation reports into summary metrics."""
+    ctx_all = load_run_context() if context is None else context
     now_iso = datetime.now(UTC).isoformat()
     n_runs = len(reports)
     runs_list = [
@@ -521,6 +523,8 @@ def guardrail_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
             "models": r["models"],
             "complete": r["complete"],
             "targets_met": r["targets_met"],
+            "date": (ctx_all.get(r["run_id"]) or {}).get("date"),
+            "tier": (ctx_all.get(r["run_id"]) or {}).get("tier"),
         }
         for r in reports
     ]
@@ -559,7 +563,9 @@ def _render_guardrail_summary_md(summary: dict[str, Any]) -> str:
         models_str = ", ".join(r["models"]) or "n/d"
         comp_str = "sim" if r["complete"] else "não"
         targ_str = "atingidas" if r["targets_met"] else "não atingidas"
-        lines.append(f"- {r['run_id']}: modelos {models_str}; completa {comp_str}; metas {targ_str}")
+        conta = tier_label({"tier": r.get("tier")}) if r.get("tier") else "não informado"
+        lines.append(f"- {r['run_id']}: modelos {models_str}; completa {comp_str}; metas {targ_str}; "
+                     f"{r.get('date') or 'data não informada'}, conta {conta}")
 
     lines.append("")
     lines.append("| Métrica | Média | Mínimo | Máximo |")
@@ -579,6 +585,8 @@ def _render_guardrail_summary_md(summary: dict[str, Any]) -> str:
         lines.append(f"| {name} | {mean_s} | {min_s} | {max_s} |")
 
     lines.append("")
+    lines.append(CONTEXT_NOTE)
+    lines.append("")
     lines.append(f"Metas atingidas em todas as execuções: {'sim' if summary['all_targets_met'] else 'não'}")
     return "\n".join(lines) + "\n"
 
@@ -587,9 +595,10 @@ def write_guardrail_summary(
     reports: list[dict[str, Any]],
     out_json: Path | str,
     out_md: Path | str,
+    context: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Generate summary of multiple guardrail runs and write JSON and Markdown files."""
-    summary = guardrail_summary(reports)
+    summary = guardrail_summary(reports, context=context)
 
     p_json = Path(out_json)
     p_json.parent.mkdir(parents=True, exist_ok=True)

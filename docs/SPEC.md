@@ -390,10 +390,17 @@ use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` imag
 - 11C (`aac5773`; reviewer reran `verify_phase11c.py`: 61/61 on 3.11.18; reviewer files identical; the committed record is
   byte-identical (LF) to the file the author's run wrote; CI run #68 green), no review issues.
 
-**Current phase: 11D** (the eval runner records the deciding guardrail layer and the classifier tokens per turn), prompt
-`docs/phase-prompts/11D.md`, verifier `scripts/verify_phase11d.py`. Phase 11 is the last before the resubmission. Open
-product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new
-held-out cases, not prompt tuning against these.
+- 11D (`1f7e93d`; reviewer reran `verify_phase11d.py`: 64/64 on 3.11.18; reviewer files identical; 334 tests). CI run #69
+  first ended as failure with only the `test` job (green): the `docker` job was never created; re-run by the author
+  (attempt 2), both jobs green. No review issues.
+- Tier declaration (2026-11-09): the author confirmed in AI Studio that every real-model run from 2026-11-08 on (`full-2` to
+  `full-7`, `v2-1` to `v2-3`, `hybrid-1` to `hybrid-3`, `author-1`) used the paid Tier 1 project, and that `full-1`
+  (2026-11-07) used the free tier.
+
+**Current phase: 11E** (account tier and models in the results reports), prompt `docs/phase-prompts/11E.md`, verifier
+`scripts/verify_phase11e.py`. Phase 11 is the last before the resubmission. Open product failures (`k16`, `o02`, `s04`,
+`s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new held-out cases, not prompt tuning
+against these.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -1239,8 +1246,13 @@ the previous sub-phase is reviewed. Old runs are never re-run; records written b
   matches its records); the Markdown report gains a "Guardrail por Turno" section that says "Não registrado" for old runs.
   No run and no committed report regenerated. Also fixes the 11A test so the invalid answer falls on a legitimate message.
   Supersedes 10G `G5.observe_turn` and `G10.existing_test_only_gains_key` (re-checked as D2 and D7).
-- 11E: tier and models in `reports/eval_models.*`, `reports/eval_v2.*` and `reports/guardrail_summary.*` (declaration file +
-  generators; regenerated from the records).
+- 11E (checked by `scripts/verify_phase11e.py`): `reports/run_context.json` (the author's declaration: date and tier of every
+  real-model run) and `src/eval/run_context.py` (loader, labels, note); `write_comparison` adds `runs_context` (date, tier,
+  answer and judge models per run, models read from the records) and a "## Execuções" Markdown section after the unchanged
+  table; `guardrail_summary` adds `date` and `tier` to each run and the Markdown names the tier; `compare_runs` averages with
+  `math.fsum`. `reports/eval_models.*`, `reports/eval_v2.*` and `reports/guardrail_summary.*` regenerated from the committed
+  records (same numbers, same tables). Supersedes 10C `C10.summary` and 10H `E3.old_reports_untouched` (re-checked as E5,
+  E3 and E4).
 - 11F: `docs/status-history.md` (per-phase log moved verbatim) and a short `docs/STATUS.md`; `docs/history.md` (historical
   results moved verbatim from the README).
 - 11G: the new README, dictated by the reviewer in full; the verifier supersedes every earlier README check and re-checks

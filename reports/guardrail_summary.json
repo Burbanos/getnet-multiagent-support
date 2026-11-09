@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-09T12:03:00.694732+00:00",
+  "generated_at": "2026-11-09T18:50:55.473843+00:00",
   "n_runs": 3,
   "runs": [
     {
@@ -8,7 +8,9 @@
         "gemini-3.5-flash-lite"
       ],
       "complete": true,
-      "targets_met": false
+      "targets_met": false,
+      "date": "2026-11-09",
+      "tier": "paid_tier_1"
     },
     {
       "run_id": "hybrid-2",
@@ -16,7 +18,9 @@
         "gemini-3.5-flash-lite"
       ],
       "complete": true,
-      "targets_met": true
+      "targets_met": true,
+      "date": "2026-11-09",
+      "tier": "paid_tier_1"
     },
     {
       "run_id": "hybrid-3",
@@ -24,7 +28,9 @@
         "gemini-3.5-flash-lite"
       ],
       "complete": true,
-      "targets_met": false
+      "targets_met": false,
+      "date": "2026-11-09",
+      "tier": "paid_tier_1"
     }
   ],
   "all_targets_met": false,

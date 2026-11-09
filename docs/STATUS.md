@@ -4,6 +4,109 @@
 
 ---
 
+### Fase 11E: Tier da Conta e Modelos nos Relatórios
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Saída dos relatórios:
+```text
+Generated comparison report at reports\eval_models.json and reports\eval_models.md
+Generated comparison report at reports\eval_v2.json and reports\eval_v2.md
+guardrail-summary: 3 runs, all_targets_met False
+```
+
+#### Verificação Fase 11E:
+```text
+INFO python 3.13.3
+PASS E0.py311_syntax
+PASS E0.no_regex
+PASS E1.run_context_declaration
+PASS E6.tests_named
+PASS S1.status_11e
+PASS E2.scope
+PASS E5.module
+PASS E3.eval_models :: - `full-2` (flash-lite): 2026-11-08, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+PASS E3.eval_v2 :: - `v2-1` (flash-lite): 2026-11-09, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+PASS E4.guardrail_summary
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q0.verify_phase11b
+PASS Q0.verify_phase11c
+PASS Q0.verify_phase11d
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 338 passed in 23.96s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 65/65 passed
+```
+
+#### Commit base:
+`1f7e93d60c6bc3e775588564cd8c2b204a908b8e`
+
+#### Testes criados:
+- `tests/test_run_context.py`: criado com `test_load_run_context_valid_and_missing`, `test_load_run_context_rejects_bad_entries`, `test_write_comparison_lists_runs_context` e `test_guardrail_summary_has_tier_and_date`.
+
+#### Não feito:
+Nada pendente.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+Criados `reports/run_context.json` (declaração de tier/data do autor) e `src/eval/run_context.py`; atualizados `src/eval/compare.py` (uso de `math.fsum` na média e inclusão da seção de execuções com tier/modelos) e `src/eval/guardrail_eval.py` (tier/data nos sumários do guardrail); regenerados os relatórios `eval_models`, `eval_v2` e `guardrail_summary`.
+
+---
+
 ### Fase 11D: Camada do Guardrail e Tokens do Classificador por Turno
 
 #### Versão do Python:

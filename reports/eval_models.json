@@ -1,6 +1,6 @@
 {
   "name": "models",
-  "generated_at": "2026-11-09T02:37:03.382384+00:00",
+  "generated_at": "2026-11-09T18:49:20.546632+00:00",
   "cases_sha256": "2d7d8e746a2322c2e61306f837b8176eabba838810b5a4f160584c433754ad07",
   "groups": [
     {
@@ -377,6 +377,80 @@
         "off01",
         "u03",
         "u05"
+      ]
+    }
+  ],
+  "runs_context": [
+    {
+      "run_id": "full-2",
+      "group": "flash-lite",
+      "date": "2026-11-08",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "full-4",
+      "group": "flash-lite",
+      "date": "2026-11-08",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "full-5",
+      "group": "flash-lite",
+      "date": "2026-11-08",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "full-3",
+      "group": "3.8-flash",
+      "date": "2026-11-08",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.8-flash"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "full-6",
+      "group": "3.8-flash",
+      "date": "2026-11-08",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.8-flash"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
+      ]
+    },
+    {
+      "run_id": "full-7",
+      "group": "3.8-flash",
+      "date": "2026-11-08",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.8-flash"
+      ],
+      "judge_models": [
+        "gemini-3.6-flash"
       ]
     }
   ]

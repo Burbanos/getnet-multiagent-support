@@ -1,0 +1,21 @@
+{
+  "declared_by": "author",
+  "declared_at": "2026-11-09",
+  "note": "Tier da conta do Gemini API usada em cada execução com modelo real, declarado pelo autor. A conta passou ao Tier 1 pago em 2026-11-08; a full-1 (2026-11-07) usou o nível gratuito.",
+  "runs": {
+    "full-1": {"date": "2026-11-07", "tier": "free"},
+    "full-2": {"date": "2026-11-08", "tier": "paid_tier_1"},
+    "full-3": {"date": "2026-11-08", "tier": "paid_tier_1"},
+    "full-4": {"date": "2026-11-08", "tier": "paid_tier_1"},
+    "full-5": {"date": "2026-11-08", "tier": "paid_tier_1"},
+    "full-6": {"date": "2026-11-08", "tier": "paid_tier_1"},
+    "full-7": {"date": "2026-11-08", "tier": "paid_tier_1"},
+    "v2-1": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "v2-2": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "v2-3": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "hybrid-1": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "hybrid-2": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "hybrid-3": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "author-1": {"date": "2026-11-09", "tier": "paid_tier_1"}
+  }
+}
