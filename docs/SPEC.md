@@ -271,6 +271,12 @@ not an independent review (the same candidate drives both tools); never describe
   green, 270 tests). Minor, not fixed: a non-configuration exception while building the classifier model (outside the
   invoke) is not caught, so it becomes the generic `internal_error` reply instead of fail-open; the guardrail counter's
   `# HELP`/`# TYPE` lines appear in `/metrics` only after the first decision; the STATUS 10B section has no "Não feito".
+- 10C (`b06dec3`; reviewer reran `verify_phase10c.py`: 61/61 on 3.11.18 and 3.13.18; reviewer files identical; CI run #59
+  green, 280 tests), no review issues. The reviewer's first 10C verifier let two wrong implementations pass (targets met on
+  an incomplete run; p95 = maximum); found by mutation testing before publishing and fixed (C7).
+- Re-split of the rest of Phase 10 (2026-11-09): the reviewer's sandbox cannot reach Open-Meteo or Olinda, and the docs
+  leave open details that decide the module's behaviour (the exact closing-bulletin name, whether USD is in the `Moedas`
+  list, what geocoding returns for an unknown city). So 10D captures real responses first; the module follows in 10E.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -305,8 +311,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10C** (guardrail real-model runner, report and summary; code only, the runs are the user's in 10F),
-prompt `docs/phase-prompts/10C.md`, verifier `scripts/verify_phase10c.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10D** (real Open-Meteo and PTAX responses captured as test fixtures; no API key), prompt
+`docs/phase-prompts/10D.md`, verifier `scripts/verify_phase10d.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1019,7 +1025,7 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   classifier{status, verdict, category, error_type, latency_ms, model}}`, never text; classifier tokens in
   `tokens_by_agent["GuardrailClassifier"]`; metric `getnet_guardrail_decisions_total{decision}`; one log record per
   classifier run without text; `/agents` describes the classifier. README: hybrid limitation (the classifier's real-model
-  rate is "not measured yet" until 10C), flow diagrams, injection bullet, env vars, claims row. Supersedes 9F
+  rate is "not measured yet" until the runs of 10G), flow diagrams, injection bullet, env vars, claims row. Supersedes 9F
   `H11.claims_row`, 9G `J9.limitations`, 10A `A15.readme_limitation` and `A2.classifier_prompt_preregistered` (re-checked
   as B8, B9 and B2).
 - 10C (checked by `scripts/verify_phase10c.py`; code only, no real-model run): in `src/eval/guardrail_eval.py`,
@@ -1032,20 +1038,29 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   (nearest rank), mean tokens and mean cost per classified message from `src/core/pricing.py`), the report files
   `reports/guardrail_<run_id>.{json,md}`, and `guardrail_summary` over several runs (mean/min/max per metric,
   `all_targets_met`) in `reports/guardrail_summary.{json,md}`; CLI `guardrail-run`, `guardrail-report`,
-  `guardrail-summary`. Offline tests with scripted classifiers, including one that misses the targets.
-- 10D: `src/tools/public_data.py` (no regex, `httpx` with an injectable client, `PUBLIC_DATA_TIMEOUT_S`):
+  `guardrail-summary`. Offline tests with scripted classifiers, including one that misses the targets. The real runs are the
+  user's, in 10G.
+- 10D (checked by `scripts/verify_phase10d.py`): `scripts/capture_public_data.py` (implementer file; `httpx`, project user
+  agent, no key) fetches 12 fixed requests (geocoding of Porto Alegre, São Paulo and an unknown town; a 3-day forecast with
+  `current` and the daily variables; a forecast with an invalid latitude (HTTP 400); the PTAX `Moedas` list; EUR, USD and
+  JPY on 2026-11-06 (Friday); EUR on 2026-11-07 (Saturday); EUR from 2026-10-30 to 2026-11-09 (includes the 2 November
+  holiday); the unknown currency XYZ) and stores the raw bodies in `tests/fixtures/public_data/` with a manifest (URL,
+  status, content type, size, sha256 of the LF-normalised body, capture time). Antigravity runs it (network, no key); the
+  files are never edited by hand. The verifier checks the script offline with an in-memory transport and the fixtures for
+  plausibility (coordinates, units, WMO codes, PTAX fields and ranges, empty Saturday, no weekend rows) and prints the
+  bulletin names and whether USD is listed, which fix the 10E contract.
+- 10E: `src/tools/public_data.py` (no regex, `httpx` with an injectable client, `PUBLIC_DATA_TIMEOUT_S`):
   `fetch_weather(city, country_code=None, forecast_days=3)` and `fetch_exchange_rate(currency, date=None)` returning the
-  documented statuses (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`); the WMO weather-code table from
-  the Open-Meteo docs; PTAX closing bulletin (`tipoBoletim` closing) of the requested date, or the latest one in the last 10
-  days when no date is given. Fixtures in `tests/fixtures/public_data/` captured from the live APIs by the user (no key)
-  with a capture script; tests with `httpx.MockTransport` for success, unknown city, unknown currency, Saturday with no
-  bulletin, timeout, HTTP 5xx and invalid JSON.
-- 10E: tools `get_weather_forecast` and `get_exchange_rate` in `KNOWLEDGE_TOOLS` (descriptions dictated by the reviewer),
+  documented statuses (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`), every value with its unit, the
+  reference date/time from the API and `source_url`; the WMO weather-code table from the Open-Meteo docs; the PTAX closing
+  bulletin of the requested date, or the latest one in the last 10 days when no date is given ("today" in UTC-3, injectable).
+  Tests with `httpx.MockTransport` serving the 10D fixtures, plus timeout, HTTP 5xx and invalid JSON.
+- 10F: tools `get_weather_forecast` and `get_exchange_rate` in `KNOWLEDGE_TOOLS` (descriptions dictated by the reviewer),
   `search_web` description narrowed to news; reviewer prompts (`knowledge_agent.md`, `supervisor.md`) updated; the
   specialist adds `source_url` to `sources` and records `api_results` (state, `AgentState`, runner, judge passages);
   metrics and eval know the new tools; logs carry no city or currency; `--cases` for run/judge/report;
   `data/eval/cases_v2.jsonl`.
-- 10F: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
+- 10G: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
   recommended) plus the judge; committed raw files and reports; README: terms of use of both APIs, the fail-open decision,
   measured extra latency and cost per message, guardrail and weather/FX limitations rewritten (what the hybrid guardrail
   still does not cover: multi-turn split injections, injections inside web results or tool outputs, encodings the model

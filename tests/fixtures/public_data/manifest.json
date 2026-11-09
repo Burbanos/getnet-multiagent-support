@@ -1,0 +1,90 @@
+{
+  "captured_at": "2026-11-09T05:53:47.805383+00:00",
+  "files": {
+    "forecast_invalid": {
+      "bytes": 81,
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "8b54f5ce28d53c185c8b77ad6b0f4f8b1ceca1a82b25fef2b310626e6a481b7a",
+      "status_code": 400,
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=999&longitude=0&daily=temperature_2m_max&timezone=auto&forecast_days=3"
+    },
+    "forecast_porto_alegre": {
+      "bytes": 801,
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "5f0fc67212f9c6d95b57c9228612cbf86931c6a72f3ba21007d45732780d32b6",
+      "status_code": 200,
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=-30.03283&longitude=-51.23019&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto&forecast_days=3"
+    },
+    "geocoding_porto_alegre": {
+      "bytes": 368,
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "9db146868952e46bc08f26778f1560631d799c683907414106b6b3fd78bdca59",
+      "status_code": 200,
+      "url": "https://geocoding-api.open-meteo.com/v1/search?name=Porto%20Alegre&count=1&language=pt&format=json&countryCode=BR"
+    },
+    "geocoding_sao_paulo": {
+      "bytes": 354,
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "83f017bb423af156741172133a4d4188550bd0c3e51efba6f2a8b86ab90fb07c",
+      "status_code": 200,
+      "url": "https://geocoding-api.open-meteo.com/v1/search?name=S%C3%A3o%20Paulo&count=1&language=pt&format=json&countryCode=BR"
+    },
+    "geocoding_unknown": {
+      "bytes": 31,
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "0141c9a2a96ef476959bdfb5d1e1381b2223622346f85aab3cb43c84940f0958",
+      "status_code": 200,
+      "url": "https://geocoding-api.open-meteo.com/v1/search?name=Xqzvbnm%20Nowhereville&count=1&language=pt&format=json"
+    },
+    "ptax_eur_20261030_20261109": {
+      "bytes": 4474,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "723b375b9443be927da8c55467c7825bc8dee601aec0df3f883b939097ed4c64",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='EUR'&@dataInicial='10-30-2026'&@dataFinalCotacao='11-09-2026'&$format=json"
+    },
+    "ptax_eur_20261106": {
+      "bytes": 995,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "6c88b6f4f48008731f51973130eea755362a9d564c7d221d4821e0f546fc8edc",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='EUR'&@dataInicial='11-06-2026'&@dataFinalCotacao='11-06-2026'&$format=json"
+    },
+    "ptax_eur_20261107": {
+      "bytes": 128,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "53402fe71b53fd1b5691f76af799b05d21de81adb4a47d02f9b67b344ab5c5f7",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='EUR'&@dataInicial='11-07-2026'&@dataFinalCotacao='11-07-2026'&$format=json"
+    },
+    "ptax_jpy_20261106": {
+      "bytes": 1015,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "58427a75fcee2c7a5838512a46debca8d22d7ba7a3dad5fb1dbf06e774c4eefa",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='JPY'&@dataInicial='11-06-2026'&@dataFinalCotacao='11-06-2026'&$format=json"
+    },
+    "ptax_moedas": {
+      "bytes": 784,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "248823b5dbe4d9cca03a4304a12717f34a3327202d9be70a6e8e99bb5d7ad027",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/Moedas?$format=json"
+    },
+    "ptax_usd_20261106": {
+      "bytes": 995,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "8938124ddd45ee99e452b41a4ad75349fc9205aaa07d112c9706c12e539f1143",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='USD'&@dataInicial='11-06-2026'&@dataFinalCotacao='11-06-2026'&$format=json"
+    },
+    "ptax_xyz_20261106": {
+      "bytes": 128,
+      "content_type": "application/json;charset=UTF-8;odata.metadata=minimal",
+      "sha256": "53402fe71b53fd1b5691f76af799b05d21de81adb4a47d02f9b67b344ab5c5f7",
+      "status_code": 200,
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='XYZ'&@dataInicial='11-06-2026'&@dataFinalCotacao='11-06-2026'&$format=json"
+    }
+  },
+  "user_agent": "getnet-multiagent-support/1.0 (+https://github.com/Burbanos/getnet-multiagent-support)"
+}

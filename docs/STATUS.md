@@ -4,6 +4,110 @@
 
 ---
 
+### Fase 10D: Clima e Câmbio — Captura das APIs
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Saída da captura (`python scripts/capture_public_data.py`):
+```text
+geocoding_porto_alegre 200 368
+geocoding_sao_paulo 200 354
+geocoding_unknown 200 31
+forecast_porto_alegre 200 801
+forecast_invalid 400 81
+ptax_moedas 200 784
+ptax_eur_20261106 200 995
+ptax_usd_20261106 200 995
+ptax_jpy_20261106 200 1015
+ptax_eur_20261107 200 128
+ptax_eur_20261030_20261109 200 4474
+ptax_xyz_20261106 200 128
+```
+
+#### Verificação Fase 10D (`python scripts/verify_phase10d.py`):
+```text
+INFO python 3.13.3
+PASS D0.py311_syntax
+PASS D0.no_regex_no_secrets
+PASS S1.status_10d
+PASS E2.scope
+PASS D1.script_api
+PASS D2.capture_offline
+PASS D2.capture_network_error
+PASS D3.fixtures_and_manifest :: captured_at 2026-11-09T05:53:47.805383+00:00; status codes geocoding_porto_alegre=200, geocoding_sao_paulo=200, geocoding_unknown=200, forecast_porto_alegre=200, forecast_invalid=400, ptax_moedas=200, ptax_eur_20261106=200, ptax_usd_20261106=200, ptax_jpy_20261106=200, ptax_eur_20261107=200, ptax_eur_20261030_20261109=200, ptax_xyz_20261106=200
+PASS D4.weather_fixtures :: Porto Alegre -30.03283,-51.23019 tz=America/Sao_Paulo; forecast tz=America/Sao_Paulo units={'time': 'iso8601', 'weather_code': 'wmo code', 'temperature_2m_max': '°C', 'temperature_2m_min': '°C', 'precipitation_probability_max': '%', 'precipitation_sum': 'mm'}; unknown city keys=['generationtime_ms']
+INFO Moedas: 10 currencies; USD listed: True; sample ['AUD', 'CAD', 'CHF', 'DKK', 'EUR', 'GBP', 'JPY', 'NOK']
+INFO tipoBoletim values seen: ['Abertura', 'Fechamento', 'Intermediário']
+PASS D5.ptax_fixtures :: EUR closing 2026-11-06 6.13/6.1317 (Fechamento); USD rows=5; period days=['2026-10-30', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06']; 2026-11-02 present=False
+INFO unknown currency XYZ: status 200 body '{"@odata.context":"https://was-p.bcnet.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata$metadata#_CotacaoMoedaPeriodo","value":[]}'
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 280 passed in 22.82s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 54/54 passed
+```
+
+#### Commit base (`git rev-parse HEAD`):
+```text
+b06dec32c1cba5600ff0976ff27a4d529227c752
+```
+
+#### Não feito
+- Módulo de clima e câmbio em `src/tools/` e agentes/testes associados: escopo da Fase 10E. Esta fase apenas captura as fixtures reais para que a 10E possa ser implementada e testada offline.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma. Todas as 12 requisições retornaram respostas reais das APIs públicas sem autenticação, com os cabeçalhos e formatos esperados, gravadas integralmente em `tests/fixtures/public_data/` junto ao `manifest.json`.
+
+#### Alterações
+- `scripts/capture_public_data.py`: script criado para capturar respostas reais das APIs Open-Meteo e PTAX do Banco Central (Olinda), registrando corpo cru em bytes, status, content-type, tamanho e sha256 no manifesto.
+- `tests/fixtures/public_data/`: gravados 12 arquivos de fixture (`.json`) e `manifest.json` com respostas reais capturadas sem alteração.
+
+---
+
 ### Fase 10C: Guardrail — Avaliação com Modelo Real (Código)
 
 #### Versão do Python (`python --version`):
