@@ -313,6 +313,16 @@ not an independent review (the same candidate drives both tools); never describe
   runs and their reports are 10H (no code change) and the README, the limitations and the reply to the V4 feedback are
   10I. The user's Gemini project is on the paid tier, so the three runs of each evaluation fit in one session with
   `--sleep 1`; the judge is `gemini-3.6-flash`, as in `full-2`..`full-7`, and must differ from the answer model.
+- 10H (`9b8d082`; reviewer files identical; the 9 raw records in the commit are byte-identical to the ones the
+  reviewer read in the user's folder before Antigravity ran; CI green). `verify_phase10h.py`: 60/60 on 3.13.18 but 59/60
+  on 3.11.18: `H5.v2_reports` compares floats exactly, and `compare.py` averages with `sum()`, whose float summation
+  changed in Python 3.12 (compensated); `facts_rate` mean differs by 2e-16. Verifier defect, not a data defect; 10I
+  re-checks with a 1e-9 tolerance (I6). STATUS 10H named the answer model `gemini-2.5-flash-lite` (records say
+  `gemini-3.5-flash-lite`); corrected in 10I with a note. Results: hybrid guardrail blocked 20/20 attacks in all 3 runs,
+  false positives 2, 1, 2 of 16 (mean 10.4%, target ≤10% met in 1 run; both false positives in `holdout`: `ga07` in 3
+  runs, `ga14` in 2); classifier p50 0.80 s, p95 0.98 s, US$ 0.00027 per message. v2: 91.9% (91.0-92.3) pass, the 11
+  `public_data` cases pass in all runs, no legitimate case blocked, `k16`/`o02`/`s04`/`s06` fail in all runs as in v1.
+  The classifier prompt is not tuned after these results (pre-registered).
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -347,8 +357,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10H** (the user's real-model runs: hybrid guardrail ×3 and `cases_v2` ×3 with the judge; reports
-generated from the committed records), prompt `docs/phase-prompts/10H.md`, verifier `scripts/verify_phase10h.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10I** (README with the real-model results of the hybrid guardrail and the v2 set; STATUS 10H
+corrected), prompt `docs/phase-prompts/10I.md`, verifier `scripts/verify_phase10i.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1122,11 +1132,15 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   the answer model), recomputes every committed report from them, recomputes the hybrid rates and the v2 pass rates with
   its own reference, and checks that every PTAX value for 2026-11-06 in the records equals the response captured in 10D.
   Supersedes 7A `L2.no_pii_in_logs` (re-checked as H6).
-- 10I: README: the fail-open decision, measured extra latency and cost per message (from the guardrail reports),
-  hybrid block and false-positive rates over the three runs, the v2 results (with the `public_data` cases and what failed),
-  guardrail and weather/FX limitations rewritten (what the hybrid guardrail still does not cover: multi-turn split
-  injections, injections inside web results or tool outputs, encodings the model misses, the small pre-registered set),
-  claims-table rows. Outside the repository: the reply to the V4 feedback and its open items, for the user.
+- 10I (checked by `scripts/verify_phase10i.py`): README texts dictated by the reviewer: the guardrail and weather/FX
+  limitation items rewritten with the measured results; the runs paragraph; a section with the v2 results (table copied
+  from `reports/eval_v2.md`) and a section on the hybrid guardrail measurement (layers table, false positives quoted,
+  audit phrases, extra latency and cost per message, the fail-open reasons, what it does not cover), both before the
+  model comparison; two claims rows. STATUS 10H gets the model name fixed and a correction note on the 3.11 result. The
+  verifier checks every quoted number against the committed reports and records, and re-checks the texts of 10B, 10F and
+  10G that stay. Supersedes 10F `F8.readme_texts`/`F8.readme_10b_texts_kept`, 10G `G9.readme_texts`/`G9.claims_row` and
+  10H `H5.v2_reports` (re-checked as I2, I3 and I6). Outside the repository: the reply to the V4 feedback and its open
+  items, for the user.
 **Acceptance:**
 - AC10.1 No regex outside `src/agents/guardrails.py` and `src/core/pii.py`; routing to the new tools by function calling only.
 - AC10.2 Weather and FX answers come from API tool results with unit, reference time and `source_url`; every failure

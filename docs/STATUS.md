@@ -4,6 +4,95 @@
 
 ---
 
+### Fase 10I: README com os Resultados Reais
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 10I:
+```text
+INFO python 3.13.3
+PASS I0.py311_syntax
+PASS I1.readme_texts
+PASS I2.readme_kept
+PASS I3.claims_rows
+PASS I5.status_10h_corrected
+PASS S1.status_10i
+PASS E2.scope
+PASS I4.numbers_match_reports
+PASS I6.v2_reports_tolerant
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 316 passed in 31.50s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 59/59 passed
+```
+
+#### Commit base:
+`9b8d082218d0816f80bcfe3142a234b95d77a4dd`
+
+#### Não feito:
+Nada de código ou testes foi alterado nesta fase. Todos os requisitos da Fase 10I foram implementados e o ciclo de desenvolvimento do projeto está concluído conforme o SPEC.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma. Todos os textos, números e tabelas das medições reais do guardrail e do conjunto v2 foram transpostos para o README.md e validados pelo verificador.
+
+#### Alterações:
+- Atualização do README.md nas seções de limitações atuais, execuções registradas, avaliação v2 e guardrail híbrido com os números oficiais das execuções reais.
+- Inclusão das afirmações e evidências correspondentes na tabela do README.md.
+- Registro da nota técnica de precisão de ponto flutuante na seção da Fase 10H e registro de status da Fase 10I.
+
+---
+
 ### Fase 10H: Execuções com Modelo Real (Guardrail e Conjunto v2)
 
 #### Versão do Python:
@@ -123,6 +212,8 @@ PASS Q4.tests_do_not_touch_data_dbs
 SUMMARY: 60/60 passed
 ```
 
+> Nota de correção (Fase 10I): esse resultado vale em Python 3.13. Em Python 3.11, a versão do CI e do Dockerfile, o mesmo verificador dá 59/60: `H5.v2_reports` falha porque a média de `facts_rate` em `reports/eval_v2.json` difere na 16ª casa decimal do recálculo (o `sum()` de números de ponto flutuante mudou no Python 3.12). O `scripts/verify_phase10i.py` refaz essa checagem com tolerância de 1e-9.
+
 #### Commit base:
 `d2744b1fce4fe7842eda3e832ccf4e9a1bdaa755`
 
@@ -130,7 +221,7 @@ SUMMARY: 60/60 passed
 Nada de código ou testes foi alterado nesta fase. A atualização do README.md com os números finais das métricas reais e a revisão geral do projeto estão reservadas para a Fase 10I.
 
 #### Perguntas / divergências com o SPEC:
-Nenhuma. Os 9 arquivos de execuções brutas gerados pelo usuário com modelo real (`gemini-2.5-flash-lite` para o agente e `gemini-3.6-flash` para o juiz) foram validados com sucesso e todos os 8 relatórios foram gerados sem divergências.
+Nenhuma. Os 9 arquivos de execuções brutas gerados pelo usuário com modelo real (`gemini-3.5-flash-lite` para o agente e `gemini-3.6-flash` para o juiz) foram validados com sucesso e todos os 8 relatórios foram gerados sem divergências.
 
 #### Alterações:
 - Inclusão dos registros brutos em `reports/guardrail_runs/` e `reports/eval_runs/`.
