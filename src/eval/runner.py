@@ -1,4 +1,5 @@
 """Evaluation runner for real-model execution with resumption and quota guards."""
+import copy
 import gc
 import json
 import shutil
@@ -19,6 +20,18 @@ def _get_val(state: Any, key: str, default: Any = None) -> Any:
     if isinstance(state, dict):
         return state.get(key, default)
     return getattr(state, key, default)
+
+
+def guardrail_layer(guardrail: Any) -> str | None:
+    """Which guardrail layer decided the turn: "patterns", "classifier", "none" (message passed), None (not recorded)."""
+    if not isinstance(guardrail, dict):
+        return None
+    blocked_by = guardrail.get("blocked_by")
+    if blocked_by in ("patterns", "empty_message"):
+        return "patterns"
+    if blocked_by == "classifier":
+        return "classifier"
+    return "none"
 
 
 def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
@@ -52,6 +65,11 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         dict(a) for a in raw_api if isinstance(a, dict)
     ]
 
+    raw_guard = _get_val(state, "guardrail")
+    guard = copy.deepcopy(raw_guard) if isinstance(raw_guard, dict) else None
+    raw_tba = _get_val(state, "tokens_by_agent")
+    tba = copy.deepcopy(raw_tba) if isinstance(raw_tba, dict) else None
+
     ticket_obj = _get_val(state, "ticket")
     ticket_dict = ticket_obj if isinstance(ticket_obj, dict) else {}
     ticket_id = _get_val(state, "escalation_ticket_id") or ticket_dict.get("ticket_id")
@@ -80,6 +98,9 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         "handoff": _get_val(state, "handoff"),
         "llm_model": _get_val(state, "llm_model"),
         "tokens": _get_val(state, "tokens"),
+        "tokens_by_agent": tba,
+        "guardrail": guard,
+        "guardrail_layer": guardrail_layer(guard),
         "latency_ms": latency_ms,
     }
 

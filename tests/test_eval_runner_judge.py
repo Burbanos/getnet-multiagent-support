@@ -86,7 +86,7 @@ def test_observe_turn_truncation_and_fields():
     expected_keys = {
         "message", "response", "agents_used", "tools_used", "sources", "retrieved_docs",
         "web_results", "api_results", "tool_results", "ticket_id", "ticket_priority", "is_safe", "handoff", "llm_model",
-        "tokens", "latency_ms",
+        "tokens", "tokens_by_agent", "guardrail", "guardrail_layer", "latency_ms",
     }
     assert set(turn.keys()) == expected_keys
     assert turn["latency_ms"] == 45.2

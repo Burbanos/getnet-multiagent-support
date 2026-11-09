@@ -7,6 +7,11 @@ from typing import Any
 from src.eval.cases import cases_sha256
 from src.eval.metrics import aggregate
 
+GUARDRAIL_NOT_RECORDED = (
+    "Não registrado: esta execução foi gravada antes de o runner registrar, por turno, a camada do guardrail que "
+    "decidiu e os tokens do classificador."
+)
+
 
 def _fmt_pct(val: float | None) -> str:
     return f"{val * 100:.2f}%" if val is not None else "-"
@@ -18,6 +23,22 @@ def _fmt_ms(val: float | None) -> str:
 
 def _fmt_val(val: Any) -> str:
     return str(val) if val is not None else "-"
+
+
+def _guardrail_lines(g: dict[str, Any] | None) -> list[str]:
+    """Markdown lines for the deciding guardrail layer and the classifier tokens."""
+    if g is None:
+        return [GUARDRAIL_NOT_RECORDED]
+    lay, tok = g["by_layer"], g["classifier_tokens"]
+    status = ", ".join(f"{k} {v}" for k, v in g["classifier_status"].items()) or "-"
+    return [
+        f"- **Turnos com registro**: {g['recorded_turns']} (sem registro: {g['unrecorded_turns']})",
+        f"- **Camada que decidiu**: padrões {lay['patterns']}, classificador {lay['classifier']}, nenhuma (mensagem liberada) {lay['none']}",
+        f"- **Status do classificador**: {status}",
+        f"- **Tokens do classificador**: entrada {tok['input_tokens']}, saída {tok['output_tokens']}, total {tok['total_tokens']}",
+        f"- **Bloqueados pelos padrões**: {', '.join(g['blocked_by_patterns']) or 'nenhum'}",
+        f"- **Bloqueados pelo classificador**: {', '.join(g['blocked_by_classifier']) or 'nenhum'}",
+    ]
 
 
 def write_report(
@@ -150,6 +171,10 @@ def write_report(
         "",
         f"- **Casos Avaliados**: {agg['official']['n']}",
         f"- **Pass Rate**: {_fmt_pct(agg['official']['pass_rate'])}",
+        "",
+        "## Guardrail por Turno",
+        "",
+        *_guardrail_lines(agg.get("guardrail")),
         "",
         "## Casos Reprovados",
         "",

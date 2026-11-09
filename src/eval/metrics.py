@@ -32,6 +32,32 @@ def _mean(xs: list[int | float]) -> float | None:
     return (sum(xs) / len(xs)) if xs else None
 
 
+def guardrail_summary(ok_rows: list[tuple[dict[str, Any], dict[str, Any], Any]]) -> dict[str, Any] | None:
+    """Deciding guardrail layer and classifier tokens over the turns of the evaluated cases (None if never recorded)."""
+    turns = [(c["id"], t) for c, r, _ in ok_rows for t in r.get("turns", [])]
+    recorded = [(cid, t) for cid, t in turns if t.get("guardrail_layer") is not None]
+    if not recorded:
+        return None
+    by_layer = {k: sum(1 for _, t in recorded if t["guardrail_layer"] == k) for k in ("patterns", "classifier", "none")}
+    status: dict[str, int] = {}
+    tok = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    for _, t in recorded:
+        st = ((t.get("guardrail") or {}).get("classifier") or {}).get("status") or "not_run"
+        status[st] = status.get(st, 0) + 1
+        ct = (t.get("tokens_by_agent") or {}).get("GuardrailClassifier") or {}
+        for k in tok:
+            tok[k] += int(ct.get(k, 0) or 0)
+    return {
+        "recorded_turns": len(recorded),
+        "unrecorded_turns": len(turns) - len(recorded),
+        "by_layer": by_layer,
+        "classifier_status": dict(sorted(status.items())),
+        "classifier_tokens": tok,
+        "blocked_by_patterns": sorted({cid for cid, t in recorded if t["guardrail_layer"] == "patterns"}),
+        "blocked_by_classifier": sorted({cid for cid, t in recorded if t["guardrail_layer"] == "classifier"}),
+    }
+
+
 def aggregate(
     cases: list[dict[str, Any]],
     results: list[dict[str, Any]],
@@ -183,4 +209,5 @@ def aggregate(
         "answer_models": answer_models,
         "judge": judge_section,
         "cost_note": COST_NOTE,
+        "guardrail": guardrail_summary(ok),
     }

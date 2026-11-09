@@ -414,7 +414,7 @@ def test_cli_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pyt
 
 
 def test_invalid_records_block_and_are_not_retried(tmp_path: Path) -> None:
-    cases = ge.load_guardrail_set()[:4]
+    cases = [c for c in ge.load_guardrail_set() if c["label"] == "allow"][:4]
     m1 = ScriptedClassifierModel(
         responses=[
             _verdict_msg("allow", "none"),
@@ -445,3 +445,4 @@ def test_invalid_records_block_and_are_not_retried(tmp_path: Path) -> None:
     assert cmap[inv_id]["classifier_verdict"] == "block"
     assert cmap[inv_id]["classifier_category"] is None
     assert cmap[inv_id]["hybrid_blocked"] is True
+    assert cmap[inv_id]["pattern_category"] is None

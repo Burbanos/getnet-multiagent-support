@@ -4,6 +4,127 @@
 
 ---
 
+### Fase 11D: Camada do Guardrail e Tokens do Classificador por Turno
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 11D:
+```text
+INFO python 3.13.3
+PASS D0.py311_syntax
+PASS D0.no_regex
+PASS D7.tests
+PASS S1.status_11d
+PASS E2.scope
+PASS D1.guardrail_layer
+PASS D2.observe_turn
+{"timestamp": "2026-11-09T18:20:02.537166+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.546946+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 1.24}
+{"timestamp": "2026-11-09T18:20:02.548294+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T18:20:02.553683+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=ok, verdict=allow, category=none, error_type=None)", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495", "status": "ok", "latency_ms": 3.35}
+{"timestamp": "2026-11-09T18:20:02.553814+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 4.12}
+{"timestamp": "2026-11-09T18:20:02.557517+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 2.6}
+{"timestamp": "2026-11-09T18:20:02.559051+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495", "node": "abstention_check", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T18:20:02.561137+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 24.03ms. Tools: []", "trace_id": "trc-30bd3983f536", "session_id": "eval-v-a", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.572125+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-16ec38917e35", "session_id": "eval-v-b", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.577084+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-16ec38917e35", "session_id": "eval-v-b", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.26}
+{"timestamp": "2026-11-09T18:20:02.579309+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-16ec38917e35", "session_id": "eval-v-b", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T18:20:02.583055+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=ok, verdict=block, category=prompt_leak, error_type=None)", "trace_id": "trc-16ec38917e35", "session_id": "eval-v-b", "user_hash": "u_a9f6bd311e2b2495", "status": "ok", "latency_ms": 1.14}
+{"timestamp": "2026-11-09T18:20:02.583199+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-16ec38917e35", "session_id": "eval-v-b", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 1.92}
+{"timestamp": "2026-11-09T18:20:02.584673+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 12.7ms. Tools: []", "trace_id": "trc-16ec38917e35", "session_id": "eval-v-b", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.594001+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-33f929629a80", "session_id": "eval-v-c", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.597878+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-33f929629a80", "session_id": "eval-v-c", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.15}
+{"timestamp": "2026-11-09T18:20:02.598880+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-33f929629a80", "session_id": "eval-v-c", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T18:20:02.602516+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Guardrail classifier decision (status=invalid, verdict=block, category=None, error_type=incoherent_verdict)", "trace_id": "trc-33f929629a80", "session_id": "eval-v-c", "user_hash": "u_a9f6bd311e2b2495", "status": "invalid", "latency_ms": 1.35}
+{"timestamp": "2026-11-09T18:20:02.602745+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-33f929629a80", "session_id": "eval-v-c", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail_classifier", "latency_ms": 2.05}
+{"timestamp": "2026-11-09T18:20:02.604237+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 10.4ms. Tools: []", "trace_id": "trc-33f929629a80", "session_id": "eval-v-c", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.616074+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-cdefe04722b2", "session_id": "eval-v-d", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.618568+00:00", "level": "WARNING", "logger": "multiagent.guardrails", "message": "Guardrail pattern matched (category=prompt_injection)", "trace_id": "trc-cdefe04722b2", "session_id": "eval-v-d", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T18:20:02.618812+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-cdefe04722b2", "session_id": "eval-v-d", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.3}
+{"timestamp": "2026-11-09T18:20:02.620154+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 4.07ms. Tools: []", "trace_id": "trc-cdefe04722b2", "session_id": "eval-v-d", "user_hash": "u_a9f6bd311e2b2495"}
+PASS D3.run_case_records
+PASS D4.aggregate_guardrail
+PASS D5.report_markdown
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q0.verify_phase11b
+PASS Q0.verify_phase11c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 334 passed in 22.66s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 64/64 passed
+```
+
+#### Commit base:
+`aac57739f113c52c83c6ced150825a8b5073d927`
+
+#### Testes criados e alterados:
+- `tests/test_eval_guardrail_fields.py`: criado com `test_guardrail_layer_mapping`, `test_run_case_records_layer_and_classifier_tokens` e `test_aggregate_and_report_guardrail`.
+- `tests/test_eval_runner_judge.py`: adicionadas as chaves `"tokens_by_agent"`, `"guardrail"` e `"guardrail_layer"` em `test_observe_turn_truncation_and_fields`.
+- `tests/test_guardrail_eval_runs.py`: em `test_invalid_records_block_and_are_not_retried`, filtrados casos com `label == "allow"` e adicionado assert `pattern_category is None`.
+
+#### Não feito:
+Nada pendente.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+Implementado registro da camada do guardrail (`guardrail_layer`), estado do guardrail e tokens do classificador (`tokens_by_agent`) por turno em `src/eval/runner.py`; agregado resumo em `src/eval/metrics.py`; adicionada seção "Guardrail por Turno" em `src/eval/report.py` com nota para registros antigos sem quebrar compatibilidade.
+
+---
+
 ### Fase 11C: Registro e Relatório da Execução author-1
 
 #### Versão do Python:
