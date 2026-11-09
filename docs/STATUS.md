@@ -4,6 +4,141 @@
 
 ---
 
+### Fase 10H: Execuções com Modelo Real (Guardrail e Conjunto v2)
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Saída dos relatórios:
+```text
+$ python -m src.eval guardrail-report --run-id hybrid-1
+guardrail-report: hybrid block_rate 1.0, false_positive_rate 0.125, targets_met False
+
+$ python -m src.eval guardrail-report --run-id hybrid-2
+guardrail-report: hybrid block_rate 1.0, false_positive_rate 0.0625, targets_met True
+
+$ python -m src.eval guardrail-report --run-id hybrid-3
+guardrail-report: hybrid block_rate 1.0, false_positive_rate 0.125, targets_met False
+
+$ python -m src.eval guardrail-summary --run-ids hybrid-1,hybrid-2,hybrid-3
+guardrail-summary: 3 runs, all_targets_met False
+
+$ python -m src.eval report --cases data/eval/cases_v2.jsonl --run-id v2-1
+Generated report at reports\eval_v2-1.json and reports\eval_v2-1.md
+
+$ python -m src.eval report --cases data/eval/cases_v2.jsonl --run-id v2-2
+Generated report at reports\eval_v2-2.json and reports\eval_v2-2.md
+
+$ python -m src.eval report --cases data/eval/cases_v2.jsonl --run-id v2-3
+Generated report at reports\eval_v2-3.json and reports\eval_v2-3.md
+
+$ python -m src.eval compare --cases data/eval/cases_v2.jsonl --name v2 --group "flash-lite=v2-1,v2-2,v2-3"
+Generated comparison report at reports\eval_v2.json and reports\eval_v2.md
+```
+
+#### Verificação Fase 10H:
+```text
+INFO python 3.13.3
+PASS H0.py311_syntax
+PASS H0.files_present
+PASS S1.status_10h
+PASS E2.scope
+PASS E3.old_reports_untouched
+PASS H1.guardrail_raw :: hybrid-1 ok=36/36 lines=36; hybrid-2 ok=36/36 lines=36; hybrid-3 ok=36/36 lines=36
+PASS H2.guardrail_reports :: hybrid-1 block=1.000 fp=0.125 targets_met=False p50=817.86ms cost=0.00026889; hybrid-2 block=1.000 fp=0.062 targets_met=True p50=779.28ms cost=0.00026875; hybrid-3 block=1.000 fp=0.125 targets_met=False p50=796.18ms cost=0.00026889
+PASS H3.v2_raw :: v2-1 ok=78/78 judged=72; v2-2 ok=78/78 judged=72; v2-3 ok=78/78 judged=72; answers=['gemini-3.5-flash-lite'] judge=['gemini-3.6-flash']
+PASS H4.api_provenance :: {'weather_success': 12, 'fx_success': 15, 'd04': 6, 'd05': 3}
+PASS H5.v2_reports :: v2-1 pass=0.9230769230769231; v2-2 pass=0.9102564102564102; v2-3 pass=0.9230769230769231
+{"timestamp": "2026-11-09T12:15:19.369204+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651"}
+{"timestamp": "2026-11-09T12:15:19.378442+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "guardrail", "latency_ms": 0.14}
+{"timestamp": "2026-11-09T12:15:19.379641+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T12:15:19.382078+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "guardrail_classifier", "latency_ms": 0.01}
+{"timestamp": "2026-11-09T12:15:19.390558+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "supervisor", "latency_ms": 6.78}
+{"timestamp": "2026-11-09T12:15:19.392489+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: get_settlement_status] invoked", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651"}
+{"timestamp": "2026-11-09T12:15:19.392718+00:00", "level": "INFO", "logger": "multiagent.specialists", "message": "tool finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "agent": "SupportAgent", "tool": "get_settlement_status", "status": "error", "latency_ms": 0.68}
+{"timestamp": "2026-11-09T12:15:19.393172+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "tool finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "agent": "SupervisorAgent", "tool": "ask_support_agent", "status": "ok", "latency_ms": 1.58}
+{"timestamp": "2026-11-09T12:15:19.393298+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "tools", "latency_ms": 1.72}
+{"timestamp": "2026-11-09T12:15:19.395461+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "supervisor", "latency_ms": 0.72}
+{"timestamp": "2026-11-09T12:15:19.397192+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: escalate_to_human] priority=standard, reason_chars=26", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651"}
+{"timestamp": "2026-11-09T12:15:19.409887+00:00", "level": "INFO", "logger": "multiagent.tickets_db", "message": "Tickets database initialized at: C:\\Users\\burba\\AppData\\Local\\Temp\\verify_p10h_y3o1sqb5\\tickets\\tickets.db", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651"}
+{"timestamp": "2026-11-09T12:15:19.418959+00:00", "level": "INFO", "logger": "multiagent.tickets_db", "message": "Persisted escalation ticket GET-TKT-20261109-0B0B3161C1", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651"}
+{"timestamp": "2026-11-09T12:15:19.419527+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "tool finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "agent": "SupervisorAgent", "tool": "escalate_to_human", "status": "ok", "latency_ms": 23.16}
+{"timestamp": "2026-11-09T12:15:19.419701+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "tools", "latency_ms": 23.38}
+{"timestamp": "2026-11-09T12:15:19.422447+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "supervisor", "latency_ms": 1.36}
+{"timestamp": "2026-11-09T12:15:19.423589+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651", "node": "abstention_check", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T12:15:19.425086+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 56.09ms. Tools: ['get_settlement_status', 'escalate_to_human']", "trace_id": "trc-10h10h10h10h", "session_id": "sess-10h", "user_hash": "u_3e53151cd1ac1651"}
+PASS H6.no_pii_in_logs_strict :: 18 log records
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 316 passed in 24.51s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 60/60 passed
+```
+
+#### Commit base:
+`d2744b1fce4fe7842eda3e832ccf4e9a1bdaa755`
+
+#### Não feito:
+Nada de código ou testes foi alterado nesta fase. A atualização do README.md com os números finais das métricas reais e a revisão geral do projeto estão reservadas para a Fase 10I.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma. Os 9 arquivos de execuções brutas gerados pelo usuário com modelo real (`gemini-2.5-flash-lite` para o agente e `gemini-3.6-flash` para o juiz) foram validados com sucesso e todos os 8 relatórios foram gerados sem divergências.
+
+#### Alterações:
+- Inclusão dos registros brutos em `reports/guardrail_runs/` e `reports/eval_runs/`.
+- Geração dos relatórios em `reports/` (`guardrail_hybrid-1`, `guardrail_hybrid-2`, `guardrail_hybrid-3`, `guardrail_summary`, `eval_v2-1`, `eval_v2-2`, `eval_v2-3`, `eval_v2`).
+- Registro do status de execução da Fase 10H em `docs/STATUS.md`.
+
+---
+
 ### Fase 10G: Clima e Câmbio — Avaliação com o Conjunto v2
 
 #### Versão do Python (`python --version`):

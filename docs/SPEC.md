@@ -305,6 +305,14 @@ not an independent review (the same candidate drives both tools); never describe
   API answer is substantive). The judge prompt names the API results as evidence and says weather and FX values need it;
   v2 judgments are therefore not directly comparable with the v1 runs, which were judged with the previous prompt. The
   authorship line keeps `data/eval/cases.jsonl` (pinned by 9A) and lists the other two labeled files.
+- 10G (`d2744b1`; reviewer reran `verify_phase10g.py`: 65/65 on 3.11.18 and 3.13.18; reviewer files identical; CI green
+  (test and docker), 316 tests), no review issues. Found while reviewing: 7A `L2.no_pii_in_logs` looks for the bare
+  substring `4111`, which a log timestamp's microseconds can contain; reproduced 2 times in 240 runs, both from a
+  timestamp, never from a card. 10H supersedes it and re-checks with markers a timestamp cannot contain (H6).
+- 10H/10I split (2026-11-09): the README numbers can only be written after the reviewer reads the real runs, so the real
+  runs and their reports are 10H (no code change) and the README, the limitations and the reply to the V4 feedback are
+  10I. The user's Gemini project is on the paid tier, so the three runs of each evaluation fit in one session with
+  `--sleep 1`; the judge is `gemini-3.6-flash`, as in `full-2`..`full-7`, and must differ from the answer model.
 
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
@@ -339,8 +347,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10G** (evaluation set v2 with the weather and exchange-rate tools; offline only), prompt
-`docs/phase-prompts/10G.md`, verifier `scripts/verify_phase10g.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10H** (the user's real-model runs: hybrid guardrail ×3 and `cases_v2` ×3 with the judge; reports
+generated from the committed records), prompt `docs/phase-prompts/10H.md`, verifier `scripts/verify_phase10h.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -1106,11 +1114,19 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   cases: v1 with `off02`/`off07`/`w01`/`w02` re-labelled to the API tools, the API tools also forbidden in `off_topic` and
   `safety`, plus `d01`-`d08` and `x03`; expected PTAX values checked against the 10D fixtures) and `src/prompts/judge.md`.
   Supersedes 7D `W2.observe_turn` (re-checked as G5) and 10F `F9.claims_row` (re-checked as G9).
-- 10H: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
-  recommended) plus the judge; committed raw files and reports; README: the fail-open decision, measured extra latency
-  and cost per message, guardrail and weather/FX limitations rewritten (what the hybrid guardrail still does not cover:
-  multi-turn split injections, injections inside web results or tool outputs, encodings the model misses, the small
-  pre-registered set), claims-table rows; the reply to the V4 feedback and the open items.
+- 10H (checked by `scripts/verify_phase10h.py`): the user runs, in a terminal with the key typed via `Read-Host`,
+  `guardrail-run` for `hybrid-1`..`hybrid-3`, `run` and `judge` with `--cases data/eval/cases_v2.jsonl` for `v2-1`..`v2-3`
+  (`EVAL_JUDGE_MODEL=gemini-3.6-flash`); Antigravity only generates the reports (`guardrail-report`, `guardrail-summary`,
+  `report`, `compare --name v2`) and commits records and reports, editing nothing in `reports/` by hand. The verifier checks
+  the records (one per message or case, keys, dates, no message text in the guardrail records, judge model different from
+  the answer model), recomputes every committed report from them, recomputes the hybrid rates and the v2 pass rates with
+  its own reference, and checks that every PTAX value for 2026-11-06 in the records equals the response captured in 10D.
+  Supersedes 7A `L2.no_pii_in_logs` (re-checked as H6).
+- 10I: README: the fail-open decision, measured extra latency and cost per message (from the guardrail reports),
+  hybrid block and false-positive rates over the three runs, the v2 results (with the `public_data` cases and what failed),
+  guardrail and weather/FX limitations rewritten (what the hybrid guardrail still does not cover: multi-turn split
+  injections, injections inside web results or tool outputs, encodings the model misses, the small pre-registered set),
+  claims-table rows. Outside the repository: the reply to the V4 feedback and its open items, for the user.
 **Acceptance:**
 - AC10.1 No regex outside `src/agents/guardrails.py` and `src/core/pii.py`; routing to the new tools by function calling only.
 - AC10.2 Weather and FX answers come from API tool results with unit, reference time and `source_url`; every failure
