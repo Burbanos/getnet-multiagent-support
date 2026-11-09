@@ -10,7 +10,7 @@ def get_settlement_and_sales_status(user_id: str) -> dict[str, Any]:
     db = get_mock_db()
     user = db.get_user(user_id)
     if not user:
-        return {"error": f"Lojista '{user_id}' não encontrado."}
+        return {"status": "not_found", "error": "merchant_not_found"}
 
     settlement = user.get("settlements", {})
     yesterday = settlement.get("yesterday_sales", {})
@@ -39,7 +39,7 @@ def get_declined_transaction_details(user_id: str, error_code: str | None = None
     db = get_mock_db()
     user = db.get_user(user_id)
     if not user:
-        return {"error": f"Lojista '{user_id}' não encontrado."}
+        return {"status": "not_found", "error": "merchant_not_found"}
 
     recent_txns = user.get("recent_transactions", [])
     declined = [t for t in recent_txns if t.get("status") == "DECLINED"]

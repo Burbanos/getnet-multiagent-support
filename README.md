@@ -158,6 +158,8 @@ Todas as ferramentas são decoradas com `@tool` do LangChain e contratos tipados
 | `diagnose_declined_transaction` | SupportAgent | Diagnóstico de transações negadas pelo emissor |
 | `diagnose_terminal` | SupportAgent | Diagnóstico de conectividade e hardware de maquininhas Get Smart/Clássica |
 
+As ferramentas de conta leem uma base simulada (`src/core/mock_db.py`) com um único lojista, `cliente1988`, ao qual a chave de desenvolvimento `getnet-dev-key` está vinculada. Para qualquer outro `user_id`, elas devolvem `{"status": "not_found", "error": "merchant_not_found"}` e nenhum valor: o mock não inventa conta, terminal nem transação (`tests/test_mock_not_found.py`). O Customer Support Agent então informa que a conta não foi encontrada e sugere o atendimento humano.
+
 ---
 
 ## 2. Pilares de Engenharia e Diferenciais
@@ -715,3 +717,4 @@ Cada afirmação deste README aponta para o código, o teste, o verificador ou o
 | Container sem root, com healthcheck, e o índice vem da imagem (o volume guarda só os bancos) | `Dockerfile`, `docker-compose.yml`, `.github/workflows/ci.yml`, `scripts/verify_phase8b.py` |
 | Comparação de modelos com 3 execuções cada (média, mínimo e máximo) | `src/eval/compare.py`, `reports/eval_models.md`, `tests/test_eval_compare.py`, `scripts/verify_phase8e.py` |
 | Uma falha do provedor no meio do turno não deixa chamada de ferramenta sem resposta no histórico da sessão | `src/core/graph.py` (`run_sync`), `tests/test_dangling_tool_calls.py`, `scripts/verify_phase9c.py` |
+| As ferramentas de conta não inventam dados: lojista desconhecido recebe `not_found` | `src/core/mock_db.py`, `src/tools/balance_tools.py`, `src/tools/terminal_tools.py`, `tests/test_mock_not_found.py`, `scripts/verify_phase9d.py` |

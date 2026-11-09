@@ -21,7 +21,7 @@ def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = N
     db = get_mock_db()
     user = db.get_user(user_id)
     if not user:
-        return {"error": f"Lojista '{user_id}' não encontrado."}
+        return {"status": "not_found", "error": "merchant_not_found"}
 
     terminals = user.get("terminals", [])
     if not terminals:

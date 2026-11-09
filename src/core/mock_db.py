@@ -111,73 +111,8 @@ class MockDatabase:
         }
 
     def get_user(self, user_id: str) -> dict[str, Any] | None:
-        """Fetch user by id or create a dynamic fallback record if not exists."""
-        if user_id in self.users:
-            return self.users[user_id]
-        
-        # Dynamic fallback merchant so arbitrary user_ids can still test
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        return {
-            "user_id": user_id,
-            "trade_name": f"Estabelecimento {user_id}",
-            "document": "00.000.000/0001-00",
-            "contact_name": "Lojista Getnet",
-            "contact_email": f"{user_id}@getnet-exemplo.com.br",
-            "contact_phone": "+55 11 99999-0000",
-            "plan": "Getnet Padrão",
-            "anticipation_type": "D+1",
-            "pix_enabled": True,
-            "bank_account": {
-                "bank": "Banco Santander (033)",
-                "agency": "0001",
-                "account": "12345-6",
-                "account_type": "Conta Corrente PJ"
-            },
-            "terminals": [
-                {
-                    "serial_number": f"GET-{hash(user_id) % 1000000:06d}",
-                    "model": "Get Smart",
-                    "status": "ACTIVE",
-                    "connection_type": "4G + Wi-Fi",
-                    "sim_operator": "Vivo",
-                    "sim_status": "ONLINE",
-                    "wifi_connected": True,
-                    "signal_level": "Bom / 3 barras",
-                    "battery_level": "90%",
-                    "firmware_version": "v4.2.1-prod",
-                    "last_ping": "1 minuto atrás"
-                }
-            ],
-            "settlements": {
-                "yesterday_sales": {
-                    "date": yesterday_str,
-                    "total_transactions": 25,
-                    "gross_amount": 1500.00,
-                    "discounts_fees": 35.00,
-                    "net_amount": 1465.00,
-                    "settlement_date": today_str,
-                    "estimated_deposit_time": "Até as 20h00 de hoje",
-                    "status": "PROGRAMADO_PARA_HOJE",
-                    "destination_account": "Banco Santander (033) Ag: 0001 CC: 12345-6"
-                },
-                "accumulated_balance": 4500.00,
-                "available_for_anticipation": 3200.00
-            },
-            "recent_transactions": [
-                {
-                    "transaction_id": f"TXN-{hash(user_id) % 900000 + 100000}",
-                    "timestamp": f"{today_str} 09:30:00",
-                    "terminal_serial": f"GET-{hash(user_id) % 1000000:06d}",
-                    "amount": 89.90,
-                    "payment_method": "Crédito - Visa",
-                    "status": "DECLINED",
-                    "error_code": "51",
-                    "error_message": "Saldo insuficiente",
-                    "action_recommended": "Solicitar outro cartão ou pagamento via Pix."
-                }
-            ]
-        }
+        """Fetch a merchant by id; None when the merchant does not exist (the mock never invents one)."""
+        return self.users.get(user_id)
 
 
 # Global singleton instance

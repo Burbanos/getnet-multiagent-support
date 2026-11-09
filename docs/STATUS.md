@@ -4,6 +4,95 @@
 
 ---
 
+### Fase 9D: Mock de Conta Sem Lojista Inventado
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9D (`python scripts/verify_phase9d.py`):
+```text
+INFO python 3.13.3
+PASS D0.py311_syntax
+PASS D6.no_builtin_hash
+PASS D7.deterministic_ids :: ["GET-883921", "TXN-902188", "TXN-902187"]
+PASS D8.tests
+PASS D9.readme_mock_paragraph
+PASS D10.claims_row
+PASS S1.status_9d
+PASS E2.scope
+PASS D1.unknown_is_none
+PASS D2.functions_not_found
+PASS D3.agent_tools_not_found
+PASS D4.known_merchant_unchanged
+PASS D5.support_prompt_rule
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 236 passed in 22.10s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 50/50 passed
+```
+
+#### Commit Base da Fase 9D (`git rev-parse HEAD`):
+```text
+308d38248ee40c3bafea95f63d3a40dbbd22224b
+```
+
+#### Não feito:
+- Nenhum. Todos os checks da Fase 9D passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. O mock de banco de dados (`MockDatabase`) agora devolve estritamente `None` para lojistas desconhecidos, e as ferramentas de conta devolvem `{"status": "not_found", "error": "merchant_not_found"}` sem inventar dados, registros ou identificadores.
+
+#### Alterações Realizadas na Fase 9D:
+- **Remoção de Fabricação Dinâmica de Lojistas (`src/core/mock_db.py`)**:
+  - Removido o bloco de fallback dinâmico que inventava lojistas, contas Santander e terminais com números aleatórios via `hash()`. O método `get_user(user_id)` agora realiza estritamente `self.users.get(user_id)`.
+  - Nenhuma chamada a `hash()` nativo resta no diretório `src/`.
+- **Padronização do Retorno Not Found nas Ferramentas de Conta (`src/tools/balance_tools.py`, `src/tools/terminal_tools.py`)**:
+  - Em `get_settlement_and_sales_status`, `get_declined_transaction_details` e `diagnose_terminal_connectivity`, quando o lojista não é encontrado, retorna-se uniformemente `{"status": "not_found", "error": "merchant_not_found"}`.
+- **Testes Automatizados para Lojista Inexistente (`tests/test_mock_not_found.py`)**:
+  - Criados 6 testes verificando que lojistas desconhecidos retornam `None` no banco mock, retornam `not_found` nas funções de balance/decline/terminal, retornam JSON com `not_found` nas tools do agente, e que o lojista conhecido `cliente1988` permanece intacto com seus valores e números de série oficiais.
+- **Documentação e Evidências (`README.md`)**:
+  - Adicionado parágrafo explicativo logo após a tabela de ferramentas na Seção 1 documentando a base simulada, o vínculo de `cliente1988` e o comportamento de `not_found`.
+  - Adicionada nova linha de evidência como última linha da tabela na Seção 9.
+
+---
+
 ### Fase 9C: Histórico Válido Depois de Falha no Turno
 
 #### Versão do Python (`python --version`):

@@ -210,6 +210,12 @@ not an independent review (the same candidate drives both tools); never describe
   HumanMessage, which needs no repair. Fix: `run_sync` writes error ToolMessages with
   `update_state(..., as_node="abstention_check")` (edge to END, so `next == ()`).
 
+- 9C (`308d382`; reviewer reran `verify_phase9c.py`: 48/48 on 3.11.18 and 3.13.18; reviewer files identical; CI run
+  #52 green, 230 tests on 3.11.18), no review issues.
+- 9D prompt change (reviewer file): `src/prompts/support_agent.md` gains one rule for `status: "not_found"` (say the
+  account was not found, give no values, suggest a human agent). The committed real-model runs predate it; it only fires
+  for unknown merchants, and every eval case uses `cliente1988`, so the reported numbers are unaffected.
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -243,8 +249,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9C** (no unanswered tool call after a failed turn), prompt `docs/phase-prompts/9C.md`,
-verifier `scripts/verify_phase9c.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+**Current phase: 9D** (the account mock never invents a merchant), prompt `docs/phase-prompts/9D.md`,
+verifier `scripts/verify_phase9d.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
 the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
