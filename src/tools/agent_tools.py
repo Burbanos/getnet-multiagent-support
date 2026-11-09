@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 import src.rag.retriever as rag_retriever
+from src.core.log_context import exc_brief
 from src.core.tickets_db import get_tickets_repository
 from src.tools.balance_tools import (
     get_declined_transaction_details,
@@ -47,7 +48,7 @@ def diagnose_declined_transaction(error_code: str | None = None, config: Runnabl
         error_code: Código numérico opcional da recusa (ex: '51').
     """
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: diagnose_declined_transaction] invoked for error_code={error_code}")
+    logger.info(f"[Tool: diagnose_declined_transaction] invoked (error_code_given={bool(error_code)})")
     result = get_declined_transaction_details(user_id=user_id, error_code=error_code)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -66,7 +67,7 @@ def diagnose_terminal(serial_number: str | None = None, config: RunnableConfig =
         serial_number: Número de série do terminal (opcional).
     """
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: diagnose_terminal] invoked for serial={serial_number}")
+    logger.info(f"[Tool: diagnose_terminal] invoked (serial_given={bool(serial_number)})")
     result = diagnose_terminal_connectivity(user_id=user_id, terminal_serial=serial_number)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -81,13 +82,13 @@ def search_knowledge_base(query: str) -> str:
     Args:
         query: Pergunta ou termos de busca sobre produtos, serviços e políticas Getnet.
     """
-    logger.info(f"[Tool: search_knowledge_base] query='{query}'")
+    logger.info(f"[Tool: search_knowledge_base] invoked (query_chars={len(query)})")
     try:
         retriever = rag_retriever.get_knowledge_retriever()
         result = retriever.search(query)
         return json.dumps(result, ensure_ascii=False, indent=2)
     except Exception as exc:  # noqa: BLE001
-        logger.warning(f"[Tool: search_knowledge_base] Error querying knowledge retriever: {exc}")
+        logger.warning(f"[Tool: search_knowledge_base] Error querying knowledge retriever: {exc_brief(exc)}")
         return json.dumps(
             {
                 "status": "unavailable",
@@ -112,7 +113,7 @@ def search_web(query: str) -> str:
     Args:
         query: Consulta a ser realizada na internet em tempo real.
     """
-    logger.info(f"[Tool: search_web] query='{query}'")
+    logger.info(f"[Tool: search_web] invoked (query_chars={len(query)})")
     result = web_search_tool(query=query, max_results=3)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -139,9 +140,7 @@ def escalate_to_human(
     session_id = cfg.get("session_id")
     transcript = cfg.get("transcript")
 
-    logger.info(
-        f"[Tool: escalate_to_human] priority={priority}, reason='{reason}'"
-    )
+    logger.info(f"[Tool: escalate_to_human] priority={priority}, reason_chars={len(reason)}")
     try:
         repo = get_tickets_repository()
         ticket = repo.create_ticket(
@@ -152,8 +151,8 @@ def escalate_to_human(
             transcript=transcript,
         )
         return json.dumps(ticket, ensure_ascii=False, indent=2)
-    except Exception:
-        logger.exception("Failed to persist escalation ticket")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Failed to persist escalation ticket: {exc_brief(exc)}")
         return json.dumps({"status": "error", "error": "ticket_persistence_failed"}, ensure_ascii=False)
 
 

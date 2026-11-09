@@ -25,6 +25,7 @@ from src.core.llm import (
     get_fallback_model,
     invoke_model_with_fallback,
 )
+from src.core.log_context import exc_brief
 from src.core.pii import sanitize_pii
 from src.core.state import AgentRole, AgentState, SupervisorState
 from src.core.tickets_db import get_tickets_repository, transcript_snapshot
@@ -353,7 +354,7 @@ class OrchestrationGraph:
                     if isinstance(parsed, dict) and parsed.get("ticket_id"):
                         ticket_obj = parsed
                 except Exception as exc:  # noqa: BLE001
-                    logger.error(f"Failed to auto-escalate on repeated abstention: {exc}")
+                    logger.error(f"Failed to auto-escalate on repeated abstention: {exc_brief(exc)}")
 
             if ticket_obj and ticket_obj.get("ticket_id"):
                 new_tid = ticket_obj["ticket_id"]
@@ -491,7 +492,7 @@ class OrchestrationGraph:
             if isinstance(parsed, dict) and parsed.get("ticket_id"):
                 ticket_obj = parsed
         except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to create escalation ticket in force_escalation [trace_id={trace_id}]: {exc}")
+            logger.error(f"Failed to create escalation ticket in force_escalation [trace_id={trace_id}]: {exc_brief(exc)}")
 
         if ticket_obj and ticket_obj.get("ticket_id"):
             ticket_id = ticket_obj["ticket_id"]
@@ -801,8 +802,8 @@ class OrchestrationGraph:
             except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError) as exc:
                 self._close_dangling_tool_calls(config, type(exc).__name__)
                 raise
-            except Exception:
-                logger.exception("Error in LangGraph execution")
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Error in LangGraph execution: {exc_brief(exc)}")
                 self._close_dangling_tool_calls(config, "internal_error")
                 result = initial_state
                 result["final_response"] = INSTABILITY_MESSAGE

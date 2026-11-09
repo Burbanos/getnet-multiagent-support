@@ -225,6 +225,15 @@ not an independent review (the same candidate drives both tools); never describe
   and the new CI steps are checked in Actions; `verify_phase9e.py` runs the CI curl step against uvicorn started with
   the Dockerfile's ENV when bash and curl exist.
 
+- 9E (`48af0a0`; reviewer reran `verify_phase9e.py`: 51/51 on 3.11.18 and 3.13.18, including the compose and CI-script
+  checks the user's Windows machine skips; reviewer files identical; CI run #54 green: the real image reports
+  `environment: production`, both public keys get 401, and Compose resolves production with the example `.env`).
+- Planning 9F (reproduced on `48af0a0` with a unique marker): the marker reaches the log in 7 of 8 scenarios
+  (knowledge and web search queries, support tool arguments, escalation reason, provider errors with and without
+  fallback, internal error, API 500); only a normal turn is clean. Errors will log `exc_brief(exc)` (class and the
+  innermost code locations, no message); `logger.exception` is gone from the service code. Two new
+  `except Exception as exc` need `# noqa: BLE001` (ruff flags a blind except that does not re-raise).
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -258,8 +267,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9E** (image and Compose default to production), prompt `docs/phase-prompts/9E.md`,
-verifier `scripts/verify_phase9e.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
+**Current phase: 9F** (no conversation text in the logs), prompt `docs/phase-prompts/9F.md`,
+verifier `scripts/verify_phase9f.py`. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
 the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 

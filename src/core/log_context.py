@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import hashlib
+import traceback
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from pathlib import Path
 
 _trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
 _session_id: ContextVar[str | None] = ContextVar("session_id", default=None)
@@ -57,3 +59,14 @@ def current() -> dict[str, str]:
     if u is not None:
         ctx["user_hash"] = u
     return ctx
+
+
+def exc_brief(exc: BaseException) -> str:
+    """
+    Exception class and innermost code locations, WITHOUT the exception message: provider, search
+    and database errors can repeat the user's text, so the message never goes to the log.
+    """
+    frames = traceback.extract_tb(exc.__traceback__)[-3:]
+    where = " <- ".join(f"{Path(f.filename).name}:{f.lineno}" for f in reversed(frames))
+    return f"{type(exc).__name__} at {where}" if where else type(exc).__name__
+

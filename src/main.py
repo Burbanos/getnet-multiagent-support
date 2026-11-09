@@ -20,7 +20,7 @@ from src.core.llm import (
     LLMNotConfiguredError,
     LLMUnavailableError,
 )
-from src.core.log_context import bind
+from src.core.log_context import bind, exc_brief
 from src.core.tickets_db import TicketTransitionError, get_tickets_repository
 from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
@@ -409,7 +409,7 @@ def chat_endpoint(
                 headers={"X-Trace-Id": trace_id},
             ) from exc
         except Exception as exc:
-            logger.exception("Unhandled error processing message")
+            logger.error(f"Unhandled error processing message: {exc_brief(exc)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Internal error. Reference: {trace_id}",

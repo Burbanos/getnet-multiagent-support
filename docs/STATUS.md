@@ -4,6 +4,149 @@
 
 ---
 
+### Fase 9F: Logs Sem Texto da Conversa
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 9F (`python scripts/verify_phase9f.py`):
+```text
+INFO python 3.13.3
+PASS H0.py311_syntax
+PASS H1.no_logger_exception
+PASS H2.no_text_fields_in_logs
+PASS H3.exc_brief_defined
+PASS H9.tests
+PASS H10.readme_bullet
+PASS H11.claims_row
+PASS S1.status_9f
+PASS E2.scope
+PASS H4.exc_brief :: RuntimeError at verify_phase9f.py:207
+{"timestamp": "2026-11-09T02:17:15.557658+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: search_knowledge_base] invoked (query_chars=14)"}
+{"timestamp": "2026-11-09T02:17:15.558679+00:00", "level": "WARNING", "logger": "multiagent.tools", "message": "[Tool: search_knowledge_base] Error querying knowledge retriever: RuntimeError at verify_phase9f.py:247 <- agent_tools.py:88"}
+{"timestamp": "2026-11-09T02:17:15.559530+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: search_knowledge_base] invoked (query_chars=14)"}
+{"timestamp": "2026-11-09T02:17:15.561163+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: search_web] invoked (query_chars=15)"}
+{"timestamp": "2026-11-09T02:17:15.561408+00:00", "level": "INFO", "logger": "multiagent.search", "message": "Executing web search (query_chars=15)"}
+{"timestamp": "2026-11-09T02:17:15.562539+00:00", "level": "WARNING", "logger": "multiagent.search", "message": "DuckDuckGo search error: RuntimeError at verify_phase9f.py:270 <- web_search.py:24. Returning unavailable status."}
+{"timestamp": "2026-11-09T02:17:15.563562+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: search_web] invoked (query_chars=15)"}
+{"timestamp": "2026-11-09T02:17:15.563749+00:00", "level": "INFO", "logger": "multiagent.search", "message": "Executing web search (query_chars=15)"}
+{"timestamp": "2026-11-09T02:17:15.563901+00:00", "level": "WARNING", "logger": "multiagent.search", "message": "DuckDuckGo returned no results"}
+{"timestamp": "2026-11-09T02:17:15.565234+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: diagnose_declined_transaction] invoked (error_code_given=True)"}
+{"timestamp": "2026-11-09T02:17:15.566522+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: diagnose_terminal] invoked (serial_given=True)"}
+{"timestamp": "2026-11-09T02:17:15.567836+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: escalate_to_human] priority=standard, reason_chars=23"}
+{"timestamp": "2026-11-09T02:17:15.580818+00:00", "level": "INFO", "logger": "multiagent.tickets_db", "message": "Tickets database initialized at: C:\\Users\\burba\\AppData\\Local\\Temp\\verify_p9f_5o9998kn\\tickets.db"}
+{"timestamp": "2026-11-09T02:17:15.589209+00:00", "level": "INFO", "logger": "multiagent.tickets_db", "message": "Persisted escalation ticket GET-TKT-20261109-CAD8C6AC27"}
+{"timestamp": "2026-11-09T02:17:15.589993+00:00", "level": "INFO", "logger": "multiagent.tools", "message": "[Tool: escalate_to_human] priority=high, reason_chars=23"}
+{"timestamp": "2026-11-09T02:17:15.590360+00:00", "level": "ERROR", "logger": "multiagent.tools", "message": "Failed to persist escalation ticket: RuntimeError at verify_phase9f.py:289 <- agent_tools.py:145"}
+{"timestamp": "2026-11-09T02:17:15.602600+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.606964+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 1.17}
+{"timestamp": "2026-11-09T02:17:15.608111+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T02:17:15.617182+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 7.22}
+{"timestamp": "2026-11-09T02:17:15.618740+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "tool finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "agent": "SupervisorAgent", "tool": "ask_knowledge_agent", "status": "ok", "latency_ms": 0.42}
+{"timestamp": "2026-11-09T02:17:15.618899+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "node": "tools", "latency_ms": 0.61}
+{"timestamp": "2026-11-09T02:17:15.621190+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 0.92}
+{"timestamp": "2026-11-09T02:17:15.622178+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495", "node": "abstention_check", "latency_ms": 0.01}
+{"timestamp": "2026-11-09T02:17:15.623647+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 21.12ms. Tools: []", "trace_id": "trc-9b402efbda51", "session_id": "g1", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.635034+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-4a14f4217094", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.637641+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-4a14f4217094", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.07}
+{"timestamp": "2026-11-09T02:17:15.638522+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-4a14f4217094", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T02:17:15.643661+00:00", "level": "ERROR", "logger": "multiagent.llm", "message": "Supervisor primary model invocation failed [trace_id=trc-4a14f4217094]: RuntimeError at verify_phase9f.py:222 <- chat_models.py:2065 <- chat_models.py:1727", "trace_id": "trc-4a14f4217094", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.643953+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-4a14f4217094", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 4.18}
+{"timestamp": "2026-11-09T02:17:15.654302+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-ac0a2d10b13e", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.657512+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-ac0a2d10b13e", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.06}
+{"timestamp": "2026-11-09T02:17:15.658430+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-ac0a2d10b13e", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T02:17:15.664325+00:00", "level": "WARNING", "logger": "multiagent.llm", "message": "Primary model 'scripted-fake' failed with RuntimeError at verify_phase9f.py:222 <- chat_models.py:2065 <- chat_models.py:1727. Failing over to fallback [trace_id=trc-ac0a2d10b13e].", "trace_id": "trc-ac0a2d10b13e", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.666562+00:00", "level": "ERROR", "logger": "multiagent.llm", "message": "Both primary ('scripted-fake') and fallback ('scripted-fake') models failed [trace_id=trc-ac0a2d10b13e]: RuntimeError at verify_phase9f.py:222 <- chat_models.py:2065 <- chat_models.py:1727", "trace_id": "trc-ac0a2d10b13e", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.666715+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-ac0a2d10b13e", "session_id": "g2", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 6.72}
+{"timestamp": "2026-11-09T02:17:15.675067+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-8be615a6ebd1", "session_id": "g3", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.680835+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-8be615a6ebd1", "session_id": "g3", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.12}
+{"timestamp": "2026-11-09T02:17:15.682295+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-8be615a6ebd1", "session_id": "g3", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T02:17:15.686724+00:00", "level": "ERROR", "logger": "multiagent.llm", "message": "Supervisor primary model configuration error [trace_id=trc-8be615a6ebd1]: ModelNotFoundError at verify_phase9f.py:222 <- chat_models.py:2065 <- chat_models.py:1727", "trace_id": "trc-8be615a6ebd1", "session_id": "g3", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.686873+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-8be615a6ebd1", "session_id": "g3", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 3.09}
+{"timestamp": "2026-11-09T02:17:15.698520+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "workflow started", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.701708+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495", "node": "guardrail", "latency_ms": 0.11}
+{"timestamp": "2026-11-09T02:17:15.702825+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495", "node": "handoff_gate", "latency_ms": 0.0}
+{"timestamp": "2026-11-09T02:17:15.706761+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495", "node": "supervisor", "latency_ms": 2.36}
+{"timestamp": "2026-11-09T02:17:15.708641+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "node finished", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495", "node": "tools", "latency_ms": 0.03}
+{"timestamp": "2026-11-09T02:17:15.717492+00:00", "level": "ERROR", "logger": "multiagent.orchestrator", "message": "Error in LangGraph execution: KeyError at verify_phase9f.py:317 <- graph.py:599 <- graph.py:144", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.719142+00:00", "level": "WARNING", "logger": "multiagent.orchestrator", "message": "Closed 1 dangling tool call(s) after a failed turn", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.719393+00:00", "level": "INFO", "logger": "multiagent.orchestrator", "message": "Workflow finished in 20.92ms. Tools: []", "trace_id": "trc-23217db6dc0b", "session_id": "g4", "user_hash": "u_a9f6bd311e2b2495"}
+{"timestamp": "2026-11-09T02:17:15.770795+00:00", "level": "ERROR", "logger": "multiagent", "message": "Unhandled error processing message: RuntimeError at verify_phase9f.py:326 <- main.py:340", "trace_id": "trc-819836716d49", "session_id": "f0ba660fadc2430fb1b6b0f9244b23e3", "user_hash": "u_a9f6bd311e2b2495"}
+PASS H5.scenarios_ran :: 50 log records captured
+PASS H6.no_marker_in_logs :: stages ['search_knowledge_base', 'search_web', 'support_tools', 'escalate_to_human', 'normal_turn', 'provider_errors', 'internal_error', 'api_500']
+PASS H7.lengths_logged
+PASS H8.error_classes_logged
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 243 passed in 19.22s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 53/53 passed
+```
+
+#### Commit Base da Fase 9F (`git rev-parse HEAD`):
+```text
+48af0a0698394223806098a3c696844e01c36ced
+```
+
+#### Não feito:
+- Nenhum. Todos os checks aplicáveis da Fase 9F passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. Logs em JSON sem texto de conversa, consulta ou mensagens de exceção em nenhum componente de serviço (`src/core/log_context.py`, `src/tools/`, `src/core/llm.py`, `src/core/graph.py`, `src/main.py`), com formatação breve de exceções via `exc_brief` e cobertura unitária completa em `tests/test_log_privacy.py`.
+
+#### Alterações Realizadas na Fase 9F:
+- **Formatação Resumida de Exceções (`src/core/log_context.py`)**:
+  - Implementada a função `exc_brief(exc: BaseException) -> str`, extraindo apenas a classe da exceção e até 3 frames mais internos da stack (`Arquivo.py:linha`), sem incluir a mensagem de erro que possa conter texto digitado pelo cliente ou retornado por provedores.
+- **Higienização dos Logs de Ferramentas (`src/tools/agent_tools.py`, `src/tools/web_search.py`)**:
+  - Substituída a interpolação direta de `query` e `reason` pelo tamanho em caracteres (`query_chars`, `reason_chars`), e de `error_code` e `serial_number` por flags booleanas (`error_code_given`, `serial_given`).
+  - Removido `logger.exception` e substituído por `logger.error`/`logger.warning` formatados com `exc_brief`.
+- **Higienização dos Logs de LLM, Grafo e API (`src/core/llm.py`, `src/core/graph.py`, `src/main.py`)**:
+  - Substituídas todas as chamadas `logger.exception` e interpolações brutas de exceções por `exc_brief(exc)`, garantindo que falhas de provedores, erros internos e erros 500 não vazem o conteúdo da requisição ou resposta nos logs.
+- **Testes Unitários de Privacidade de Logs (`tests/test_log_privacy.py`)**:
+  - Criados 5 testes offline validando que marcadores de dados do usuário nunca alcançam os registros de log em `exc_brief`, ferramentas, erros de provedor, erros internos e falhas 500 não tratadas da API.
+- **Documentação e Evidências (`README.md`)**:
+  - Acrescentado o item "Sem Texto da Conversa (Fase 9F)" na seção de logs estruturados e a linha correspondente na tabela de afirmações e evidências.
+
+---
+
 ### Fase 9E: Imagem e Compose em Produção por Padrão
 
 #### Versão do Python (`python --version`):

@@ -3,13 +3,14 @@ import logging
 from typing import Any
 
 from src.config import settings
+from src.core.log_context import exc_brief
 
 logger = logging.getLogger("multiagent.search")
 
 
 def web_search_tool(query: str, max_results: int = 3) -> dict[str, Any]:
     """Execute external search for real-time information with graceful fallback on failure."""
-    logger.info(f"Executing web search for query: '{query}'")
+    logger.info(f"Executing web search (query_chars={len(query)})")
     results_list: list[dict[str, str]] = []
 
     try:
@@ -33,7 +34,7 @@ def web_search_tool(query: str, max_results: int = 3) -> dict[str, Any]:
                     })
 
         if not results_list:
-            logger.warning(f"DuckDuckGo returned no results for query: '{query}'")
+            logger.warning("DuckDuckGo returned no results")
             return {
                 "status": "unavailable",
                 "query": query,
@@ -50,7 +51,7 @@ def web_search_tool(query: str, max_results: int = 3) -> dict[str, Any]:
         }
 
     except Exception as exc:  # noqa: BLE001 - Web search must catch all network/service exceptions
-        logger.warning(f"DuckDuckGo search error: {exc}. Returning unavailable status.")
+        logger.warning(f"DuckDuckGo search error: {exc_brief(exc)}. Returning unavailable status.")
         return {
             "status": "unavailable",
             "query": query,

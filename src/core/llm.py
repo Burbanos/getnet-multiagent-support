@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 from src.config import settings
+from src.core.log_context import exc_brief
 
 logger = logging.getLogger("multiagent.llm")
 
@@ -145,13 +146,13 @@ def invoke_model_with_fallback(
         ModelPermissionDeniedError,
         ModelInvalidRequestError,
     ) as exc:
-        logger.exception(f"{caller_name} primary model configuration error [trace_id={trace_id}]")
+        logger.error(f"{caller_name} primary model configuration error [trace_id={trace_id}]: {exc_brief(exc)}")
         raise LLMConfigurationError(str(exc)) from exc
     except Exception as exc:
         primary_name = extract_model_name(bound_model)
         if bound_fallback is not None:
             logger.warning(
-                f"Primary model '{primary_name}' failed with {type(exc).__name__}: {exc}. "
+                f"Primary model '{primary_name}' failed with {exc_brief(exc)}. "
                 f"Failing over to fallback [trace_id={trace_id}]."
             )
             try:
@@ -165,15 +166,15 @@ def invoke_model_with_fallback(
                 ModelPermissionDeniedError,
                 ModelInvalidRequestError,
             ) as fb_cfg_err:
-                logger.exception(f"{caller_name} fallback model configuration error [trace_id={trace_id}]")
+                logger.error(f"{caller_name} fallback model configuration error [trace_id={trace_id}]: {exc_brief(fb_cfg_err)}")
                 raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
             except Exception as fb_exc:
                 fb_name = extract_model_name(bound_fallback)
-                logger.exception(
+                logger.error(
                     f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
-                    f"[trace_id={trace_id}]"
+                    f"[trace_id={trace_id}]: {exc_brief(fb_exc)}"
                 )
                 raise LLMUnavailableError(str(fb_exc)) from fb_exc
         else:
-            logger.exception(f"{caller_name} primary model invocation failed [trace_id={trace_id}]")
+            logger.error(f"{caller_name} primary model invocation failed [trace_id={trace_id}]: {exc_brief(exc)}")
             raise LLMUnavailableError(str(exc)) from exc
