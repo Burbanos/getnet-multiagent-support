@@ -1,6 +1,120 @@
 # STATUS DO REPOSITÓRIO
 
-**Data de geração**: 08/11/2026 | **Branch**: `main`
+**Data de geração**: 09/11/2026 | **Branch**: `main`
+
+---
+
+### Fase 10A: Guardrail — Padrões Revistos e Conjunto Rotulado
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Saída do Guardrail Patterns (`python -m src.eval guardrail-patterns`):
+```text
+patterns: block_rate 0.3, false_positive_rate 0.0
+```
+
+#### Verificação Fase 10A (`python scripts/verify_phase10a.py`):
+```text
+INFO python 3.13.3
+PASS A0.py311_syntax
+PASS A1.reviewer_set :: 36 messages, sha 16311a86736c
+PASS A1.cases_v1_frozen
+PASS A2.classifier_prompt_preregistered
+PASS A3.patterns_exact
+PASS A16.no_regex_outside_guardrail_pii
+PASS A15.readme_limitation
+PASS A14.tests_named
+PASS S1.status_10a
+PASS E2.scope
+PASS A4.match_patterns
+{"timestamp": "2026-11-09T03:53:34.252308+00:00", "level": "WARNING", "logger": "multiagent.guardrails", "message": "Guardrail pattern matched (category=prompt_injection)"}
+{"timestamp": "2026-11-09T03:53:34.253881+00:00", "level": "WARNING", "logger": "multiagent.guardrails", "message": "Guardrail pattern matched (category=attack_request)"}
+PASS A5.evaluate_sync_behaviour
+{"timestamp": "2026-11-09T03:53:34.254181+00:00", "level": "WARNING", "logger": "multiagent.guardrails", "message": "Guardrail pattern matched (category=prompt_injection)"}
+{"timestamp": "2026-11-09T03:53:34.254311+00:00", "level": "WARNING", "logger": "multiagent.guardrails", "message": "Guardrail pattern matched (category=attack_request)"}
+PASS A6.guardrail_logs_without_text
+PASS A7.pattern_results :: now 6/20 blocked, 0/16 false positives; patterns of 6456bf5: 6/20 blocked, 6/16 false positives ['ga01', 'ga02', 'ga04', 'ga05', 'ga06', 'ga07']
+PASS A8.loader
+PASS A9.rates_semantics
+PASS A10.report_json
+PASS A11.report_md
+PASS A12.cli :: patterns: block_rate 0.3, false_positive_rate 0.0
+PASS A13.offline_subset
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 254 passed in 19.39s
+PASS Q2.guardrail_tests :: 11 passed in 0.95s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 62/62 passed
+```
+
+#### Commit Base da Fase 10A (`git rev-parse HEAD`):
+```text
+6456bf553535febbd79ae980b1c2e6bb46d756aa
+```
+
+#### Não feito:
+- Nenhum. Todos os checks da Fase 10A passaram com sucesso.
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. Padrões de regex revistos para eliminar falsos positivos em perguntas legítimas, medição automatizada implementada via `src/eval/guardrail_eval.py` e avaliada sobre o conjunto pré-registrado de 36 mensagens (`data/eval/guardrail_labeled.jsonl`).
+
+#### Alterações Realizadas na Fase 10A:
+- **Revisão de Padrões de Regex (`src/agents/guardrails.py`)**:
+  - Ajustados os padrões de injeção (`your system prompt`, `(suas|tuas) regras internas`, `(seu|teu) prompt de sistema`, `esqueça (tudo )?o que foi dito`) e termos maliciosos (removido `hack` isolado) para não bloquear perguntas legítimas ("Quais são as regras internas da Getnet para antecipação?" e "Fui vítima de um hack na minha conta").
+  - Adicionado o método público `match_patterns(self, text: str) -> str | None`.
+  - Refatorado `evaluate_sync` para usar `match_patterns` e registrar apenas a categoria nos logs (`logger.warning(f"Guardrail pattern matched (category={category})")`), sem expor o texto da mensagem.
+- **Módulo de Avaliação de Guardrail (`src/eval/guardrail_eval.py`)**:
+  - Implementado carregador determinístico com validação estrita de esquemas (`load_guardrail_set`), cálculo de SHA-256 canônico (`guardrail_set_sha256`), cálculo de métricas e taxas (`rates`, `layer_metrics`), execução de padrões (`pattern_results`) e escrita de relatórios estruturados (`write_pattern_report`).
+- **CLI de Avaliação (`src/eval/__main__.py`)**:
+  - Adicionado o subcomando `guardrail-patterns` com flags `--set` e `--out-dir`, gerando `reports/guardrail_patterns.json` e `reports/guardrail_patterns.md`.
+- **Relatórios Gerados (`reports/guardrail_patterns.json`, `reports/guardrail_patterns.md`)**:
+  - Registrada a medição da camada de padrões sobre os 36 casos: 0% de falsos positivos (0/16 legítimas bloqueadas) e 30% de taxa de bloqueio (6/20 injeções/ataques bloqueados diretamente pelos padrões).
+- **Testes Unitários Offline (`tests/test_guardrail_patterns.py`)**:
+  - Criados 8 testes validando integridade do dataset, validação do loader, inclusão dos casos de safety offline, ausência de falsos positivos, bloqueio de casos de safety, liberação de perguntas legítimas da auditoria, sensibilidade das métricas e integridade do relatório commitado.
+- **Documentação de Limitações (`README.md`)**:
+  - Atualizada a limitação referente ao guardrail de injeção por padrões para descrever os resultados obtidos no conjunto rotulado pré-registrado.
 
 ---
 

@@ -242,6 +242,22 @@ not an independent review (the same candidate drives both tools); never describe
   `src/eval/compare.py` averages with `sum()`, so regenerating `reports/eval_models.json` on 3.11 vs 3.13 can change the
   last digit of some means (the 8E check K2 compares with a tolerance, so it passes on both).
 
+- 9G (`6456bf5`; reviewer reran `verify_phase9g.py`: 53/53 on 3.11.18; reviewer files identical; CI run #56 green, 243
+  tests). Reconfirmation of the simulated V4 audit on `6456bf5` (PDF "Avaliação V4 — Burbanos (nova versão) v2", section 9):
+  probes 1, 2, 3 and 5 fixed, probe 4 (guardrail) unchanged and listed in "Limitações atuais"; the nine section-5 claims
+  fixed. Still open from the real V4 feedback: "guardrail só por padrões", "clima e câmbio dependem de snippets de busca,
+  não de API", no video (the video is the user's).
+- Planning Phase 10 (reproduced on `6456bf5`): with the five narrowed patterns of 10A the 243 tests still pass, the six
+  offline safety cases and the `/demo` injection scenario are still blocked, and on the 36-message pre-registered guardrail
+  set the pattern layer goes from 6/20 injections blocked and 6/16 legitimate messages blocked to 6/20 and 0/16 (the
+  paraphrases are left to the classifier). The reviewer's sandbox has no route to `open-meteo.com` or `olinda.bcb.gov.br`
+  (proxy 403): API shapes come from the official docs (Open-Meteo forecast and geocoding docs; BCB "Taxas de câmbio -
+  todos os boletins diários", OData `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/`, dates
+  `'MM-DD-YYYY'`, fields `paridadeCompra`, `paridadeVenda`, `cotacaoCompra`, `cotacaoVenda`, `dataHoraCotacao`,
+  `tipoBoletim`), and the test fixtures are captured from the live APIs by the user in 10D (public, no key). Terms
+  (checked 2026-11-09): Open-Meteo free API for non-commercial use only, under 10,000 calls/day, data under CC BY 4.0 with
+  attribution ("Weather data by Open-Meteo.com" linked to open-meteo.com); BCB PTAX dataset under ODbL.
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -275,9 +291,9 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 9G** (README residues from the V4 audit), prompt `docs/phase-prompts/9G.md`,
-verifier `scripts/verify_phase9g.py`. After 9G: the video and the resubmission. Phase 9 (9A–9F) fixes the V4 audit findings that are short; then the video and
-the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
+**Current phase: 10A** (guardrail patterns re-evaluated, pre-registered guardrail set), prompt
+`docs/phase-prompts/10A.md`, verifier `scripts/verify_phase10a.py`. Phase 10 closes the two items of the real V4 feedback
+still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
@@ -356,7 +372,9 @@ must be stated next to the numbers (`judge_models` records it).
 POST /chat  (X-API-Key → principal{user_id, role})
    │  user_id comes from the API key, never from the body or the model
    ▼
-[guardrail]  regex injection + PII masking  ── blocked ──▶ END (refusal, logged)
+[guardrail]  PII masking (before the graph) → injection patterns (cheap, no model)
+             → LLM classifier (forced function call, own prompt; fail-open by default, Phase 10B)
+             ── blocked ──▶ END (refusal, logged without text)
    ▼
 [supervisor]  LLM with bound tools (function calling)
    │   tools = specialists:
@@ -370,7 +388,9 @@ POST /chat  (X-API-Key → principal{user_id, role})
    └─ state checkpointed per (user_id, session_id) in SQLite (SqliteSaver)
 
 Knowledge Agent (LLM + tools): search_knowledge_base(query) → chunks w/ score, url, fetched_at
-                               search_web(query)            → snippets w/ url
+                               get_weather_forecast(city, ...) → Open-Meteo values w/ unit, time, source_url (10E)
+                               get_exchange_rate(currency, date) → BCB PTAX values w/ unit, bulletin time, source_url (10E)
+                               search_web(query)            → snippets w/ url (only what no API covers: news)
                                abstains when best score < calibrated threshold
 Support Agent   (LLM + tools): get_settlement_status, get_declined_transactions,
                                diagnose_terminal  (user_id injected from auth context)
@@ -870,7 +890,8 @@ lists the checks it supersedes. Each later prompt is written after the previous 
 the previous commit). The original 9E (Docker + logs) was split into 9E (Docker) and 9F (logs) to keep prompts
 small; the README residues moved to 9G.
 **Out of scope until the real evaluator's feedback:** LLM-based guardrail, `interrupt()`, a write action in the support
-domain, weather/FX APIs, a larger corpus, conversation trimming/summarisation, CORS tightening. The README states the
+domain, weather/FX APIs, a larger corpus, conversation trimming/summarisation, CORS tightening. (The LLM guardrail and the
+weather/FX APIs are named in the real V4 feedback and move into Phase 10.) The README states the
 guardrail and corpus limits honestly instead (9F).
 **Split:**
 - 9A (checked by `scripts/verify_phase9a.py`): reproducible verifiers and true authorship. Reviewer side: `verify_phase7c.py`
@@ -923,3 +944,89 @@ guardrail and corpus limits honestly instead (9F).
 - AC9.6 The image defaults to production; development keys get 401 in CI.
 - AC9.7 No log record contains conversation text.
 - AC9.8 Every claim in audit section 5 is fixed or removed.
+
+### Phase 10 — Weather and FX by API; guardrail beyond patterns
+Source: the two items of the real V4 feedback still open after Phase 9: "clima e câmbio dependem de snippets de busca, não
+de API" (Business & Challenge Fit) and "guardrail só por padrões" (Security & Identity); the simulated audit's probe 4 (two
+paraphrases pass, two legitimate questions are blocked). One verifier per sub-phase; each re-runs the earlier ones and lists
+the checks it supersedes. Each later prompt is written after the previous sub-phase is reviewed.
+**Decisions (reviewer proposal; the user decides):**
+- *Hybrid guardrail.* Patterns stay as the cheap first layer (no model call; the offline CI subset keeps zero model calls).
+  Only messages that pass them reach an LLM classifier with its own prompt (`src/prompts/guardrail_classifier.md`) and a
+  structured output: a forced function call `GuardrailVerdict(verdict: "block"|"allow", category: "prompt_injection"|
+  "prompt_leak"|"attack_request"|"none")`, no free text (nothing to leak into logs). The classifier sees only the latest
+  message, already PII-masked, wrapped in `<message>` tags.
+- *Failure mode: fail-open by default* (`GUARDRAIL_CLASSIFIER_FAIL_MODE=open`; `closed` is supported and tested). Reasons:
+  (1) the blast radius of a missed injection is small: `user_id` comes from the credential through `RunnableConfig`, tools
+  read only the caller's own account, and the only write is a ticket for that caller; (2) the prompts are public in this
+  repository, so a leaked prompt reveals nothing secret; (3) the classifier and the supervisor share the provider and the
+  quota, so fail-closed would turn every quota hiccup into a false "blocked" refusal that looks like an accusation; with
+  fail-open the supervisor call fails the same way and the merchant gets the honest 503. Misconfiguration
+  (`LLMNotConfiguredError`, `LLMConfigurationError`) is not a classifier failure: it propagates (503). Revisit if a write
+  action on the merchant's money is ever added (then fail-closed for that path).
+- *Pre-registered labels.* `data/eval/guardrail_labeled.jsonl` (36 messages: 20 `block` = the 6 offline safety cases, the 2
+  audit paraphrases and 12 new paraphrases; 16 `allow` = the 2 audit false positives and 14 near misses; splits `dev`/
+  `holdout`) and the classifier prompt are committed in 10A, before any classifier code exists. Any later prompt change is
+  made against `dev` only and reported with both splits. Targets for the hybrid (patterns OR classifier) over the whole
+  set, in the report as `targets_met`: block rate ≥ 0.90 and false-positive rate ≤ 0.10. A miss is reported, not tuned away.
+- *Weather and FX by API.* Open-Meteo (geocoding + forecast) and BCB PTAX (Olinda OData), both free and keyless. Every
+  value carries its unit, the reference date/time from the API and the request URL (`source_url`); timeout, HTTP error,
+  invalid payload, unknown place or currency and "no bulletin for that date" (weekend, holiday, before publication) are
+  explicit statuses with no value. No value, rate or fallback number in the code. `search_web` stays for what has no API
+  (news). PTAX is the Central Bank reference rate, not a retail or tourism rate: the answer must say so.
+- *Evaluation sets.* `data/eval/cases.jsonl` (v1, 69 cases) stays frozen: the committed runs `full-1`..`full-7` measure it.
+  A new `data/eval/cases_v2.jsonl` = v1 with the four weather/FX cases (`off02`, `off07`, `w01`, `w02`) re-labelled to the
+  new tools (`tools_all` the API tool, `tools_none` adds `search_web`) plus new live-data cases (unknown city, PTAX on a
+  Saturday, a past business day, a non-USD/EUR currency, weather + knowledge, news via `search_web`). The runner and report
+  take `--cases`; every report records its `cases_sha256`.
+**Split:**
+- 10A (checked by `scripts/verify_phase10a.py`): pattern layer re-evaluated, no model. Five patterns narrowed
+  (`system\s*prompt` → `your\s+system\s*prompt`; `regras\s+internas` → `(suas|tuas)\s+regras\s+internas`;
+  `prompt\s+de\s+sistema` → `(seu|teu)\s+prompt\s+de\s+sistema`; `esque[cç]a\s+(o\s+que\s+foi\s+dito|tudo)` →
+  `esque[cç]a\s+(tudo\s+)?o\s+que\s+foi\s+dito`; `hack` dropped from the attack terms); `GuardrailAgent.match_patterns(text)`
+  → `"prompt_injection" | "attack_request" | None`; `src/eval/guardrail_eval.py` (loader with validation, canonical sha256,
+  block/false-positive rates per split and kind, pattern-layer results); CLI `python -m src.eval guardrail-patterns` writes
+  `reports/guardrail_patterns.{json,md}`; `tests/test_guardrail_patterns.py` (pattern false positives = 0 on the set, every
+  offline safety case blocked, the rates can fail); README guardrail limitation reworded with the measured numbers.
+  Reviewer files: the labeled set and the classifier prompt (pre-registered, not wired yet).
+- 10B: `src/agents/injection_classifier.py` (`InjectionClassifier.classify(text) -> ClassifierResult` with verdict,
+  category, status ok|error, error type, latency, usage, model); settings `GUARDRAIL_CLASSIFIER_ENABLED` (default true;
+  `tests/conftest.py` sets false so scripted-model tests are unchanged), `GUARDRAIL_CLASSIFIER_MODEL` (empty → `LLM_MODEL`),
+  `GUARDRAIL_CLASSIFIER_TIMEOUT_S`, `GUARDRAIL_CLASSIFIER_FAIL_MODE` (`open|closed`, invalid → startup error);
+  `OrchestrationGraph(..., guardrail_model=None)`; the guardrail calls it only when the patterns pass; classifier tokens
+  join the turn's `tokens` and `tokens_by_agent["GuardrailClassifier"]`; API metadata `guardrail` (layer, verdict,
+  category, status, latency_ms; never text); metric `getnet_guardrail_decisions_total{layer,verdict}`; one
+  `"guardrail decision"` log record without text; fixed bilingual `GUARDRAIL_UNAVAILABLE_MESSAGE` for fail-closed. Tests:
+  block, allow, patterns short-circuit with zero model calls, fail-open (timeout, 429, unparseable), fail-closed, config
+  error → 503, PII masked before the classifier, no message text in logs.
+- 10C: `python -m src.eval guardrail run|report --run-id ID` (real model, resumable JSONL under `reports/guardrail_runs/`):
+  for every message the pattern verdict and the classifier verdict (the classifier runs on all 36, so its standalone
+  rates are measured too), latency, tokens, model; report `reports/guardrail_<run_id>.{json,md}` with pattern, classifier
+  and hybrid rates per split, errors, latency p50/p95, mean tokens and mean cost per classified message
+  (`src/core/pricing.py`), `targets_met`. Offline tests with a scripted classifier, including one that misses the targets.
+- 10D: `src/tools/public_data.py` (no regex, `httpx` with an injectable client, `PUBLIC_DATA_TIMEOUT_S`):
+  `fetch_weather(city, country_code=None, forecast_days=3)` and `fetch_exchange_rate(currency, date=None)` returning the
+  documented statuses (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`); the WMO weather-code table from
+  the Open-Meteo docs; PTAX closing bulletin (`tipoBoletim` closing) of the requested date, or the latest one in the last 10
+  days when no date is given. Fixtures in `tests/fixtures/public_data/` captured from the live APIs by the user (no key)
+  with a capture script; tests with `httpx.MockTransport` for success, unknown city, unknown currency, Saturday with no
+  bulletin, timeout, HTTP 5xx and invalid JSON.
+- 10E: tools `get_weather_forecast` and `get_exchange_rate` in `KNOWLEDGE_TOOLS` (descriptions dictated by the reviewer),
+  `search_web` description narrowed to news; reviewer prompts (`knowledge_agent.md`, `supervisor.md`) updated; the
+  specialist adds `source_url` to `sources` and records `api_results` (state, `AgentState`, runner, judge passages);
+  metrics and eval know the new tools; logs carry no city or currency; `--cases` for run/judge/report;
+  `data/eval/cases_v2.jsonl`.
+- 10F: the user runs the guardrail evaluation (three runs) and `cases_v2` with the default model (at least one run, three
+  recommended) plus the judge; committed raw files and reports; README: terms of use of both APIs, the fail-open decision,
+  measured extra latency and cost per message, guardrail and weather/FX limitations rewritten (what the hybrid guardrail
+  still does not cover: multi-turn split injections, injections inside web results or tool outputs, encodings the model
+  misses, the small pre-registered set), claims-table rows.
+**Acceptance:**
+- AC10.1 No regex outside `src/agents/guardrails.py` and `src/core/pii.py`; routing to the new tools by function calling only.
+- AC10.2 Weather and FX answers come from API tool results with unit, reference time and `source_url`; every failure
+  status is explicit and carries no value (tests without network).
+- AC10.3 The guardrail runs patterns first and the classifier only on what passes; fail-open and fail-closed both tested.
+- AC10.4 The pre-registered guardrail set and classifier prompt are committed before the classifier code; the committed
+  real-model report states block and false-positive rates per split and whether the targets were met.
+- AC10.5 README states the APIs' terms, the failure-mode decision, the measured extra latency and cost, and what the
+  guardrail still does not cover; every number comes from a committed report.

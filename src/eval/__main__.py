@@ -7,6 +7,7 @@ from src.config import settings
 from src.eval.cases import load_cases
 from src.eval.checks import evaluate_case
 from src.eval.compare import write_comparison
+from src.eval.guardrail_eval import load_guardrail_set, write_pattern_report
 from src.eval.judge import load_judgments, run_judge
 from src.eval.offline import run_offline
 from src.eval.report import write_report
@@ -85,10 +86,36 @@ def main() -> int:
     p_compare.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
     p_compare.add_argument("--out-dir", default="reports", help="Output directory for reports")
 
+    # 6. guardrail-patterns
+    p_gp = subparsers.add_parser("guardrail-patterns", help="Evaluate and report guardrail pattern matching layer")
+    p_gp.add_argument("--set", default="data/eval/guardrail_labeled.jsonl", help="Path to guardrail labeled JSONL dataset")
+    p_gp.add_argument("--out-dir", default="reports", help="Output directory for reports")
+
     args = parser.parse_args()
 
     if args.subcommand == "offline":
         return _cmd_offline(DEFAULT_CASES_PATH)
+
+    if args.subcommand == "guardrail-patterns":
+        try:
+            set_path = Path(args.set)
+            if not set_path.exists():
+                print(f"Error: dataset file not found at {set_path}", file=sys.stderr)
+                return 1
+            g_cases = load_guardrail_set(set_path)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Error loading guardrail set: {exc}", file=sys.stderr)
+            return 1
+
+        out_dir = Path(args.out_dir)
+        out_json = out_dir / "guardrail_patterns.json"
+        out_md = out_dir / "guardrail_patterns.md"
+
+        report = write_pattern_report(g_cases, out_json, out_md, set_path=set_path)
+        b_rate = report["metrics"]["all"]["block_rate"]
+        fp_rate = report["metrics"]["all"]["false_positive_rate"]
+        print(f"patterns: block_rate {b_rate}, false_positive_rate {fp_rate}")
+        return 0
 
     cases = load_cases(DEFAULT_CASES_PATH)
 
