@@ -4,6 +4,96 @@
 
 ---
 
+### Fase 11B: Holdout do Guardrail Commitado Antes da Execução
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 11B:
+```text
+INFO python 3.13.3
+PASS B0.py311_syntax
+PASS B1.files_are_the_reviewers
+PASS B1.labeled_set_unchanged
+PASS B5.no_run_yet
+PASS S1.status_11b
+PASS S2.status_without_messages
+PASS E2.scope
+PASS B2.holdout_valid :: 20 messages, balance {('block', 'pt'): 5, ('block', 'en'): 5, ('allow', 'pt'): 5, ('allow', 'en'): 5}
+PASS B3.candidates_consistent
+PASS B4.disjoint_from_earlier_set
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 331 passed in 25.46s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 62/62 passed
+```
+
+#### Commit base:
+`a2db8ac5e851ec972f3d2a7ef2906f9f951d95bf`
+
+#### Não feito:
+Nenhuma execução de modelo real (`author-1`) nem do guardrail foi feita; isso será executado pelo autor no terminal dele após este commit.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+os três arquivos do conjunto foram commitados como o revisor os entregou; nenhuma execução foi feita.
+
+---
+
 ### Fase 11A: Saída Inválida do Classificador Bloqueia
 
 #### Versão do Python:
