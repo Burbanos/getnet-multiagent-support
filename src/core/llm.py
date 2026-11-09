@@ -34,8 +34,15 @@ class LLMUnavailableError(Exception):
     """Raised when the external LLM service is unreachable, times out, or fails."""
 
 
-def _build_chat_model(model_name: str) -> BaseChatModel:
+def _build_chat_model(
+    model_name: str,
+    timeout_s: float | None = None,
+    max_retries: int | None = None,
+) -> BaseChatModel:
     """Build a chat model instance for the configured provider and model name."""
+    eff_timeout = settings.LLM_TIMEOUT_S if timeout_s is None else timeout_s
+    eff_retries = settings.LLM_MAX_RETRIES if max_retries is None else max_retries
+
     provider = settings.LLM_PROVIDER
     if provider == "google_genai":
         if not settings.GEMINI_API_KEY:
@@ -44,8 +51,8 @@ def _build_chat_model(model_name: str) -> BaseChatModel:
             model=model_name,
             google_api_key=settings.GEMINI_API_KEY,
             temperature=0,
-            timeout=settings.LLM_TIMEOUT_S,
-            max_retries=settings.LLM_MAX_RETRIES,
+            timeout=eff_timeout,
+            max_retries=eff_retries,
         )
     if provider in {"openai", "anthropic"}:
         if provider == "openai":
@@ -58,8 +65,8 @@ def _build_chat_model(model_name: str) -> BaseChatModel:
             return ChatOpenAI(
                 model=model_name,
                 temperature=0,
-                timeout=settings.LLM_TIMEOUT_S,
-                max_retries=settings.LLM_MAX_RETRIES,
+                timeout=eff_timeout,
+                max_retries=eff_retries,
             )
         try:
             from langchain_anthropic import ChatAnthropic
@@ -70,20 +77,24 @@ def _build_chat_model(model_name: str) -> BaseChatModel:
         return ChatAnthropic(
             model=model_name,
             temperature=0,
-            timeout=settings.LLM_TIMEOUT_S,
-            max_retries=settings.LLM_MAX_RETRIES,
+            timeout=eff_timeout,
+            max_retries=eff_retries,
         )
 
     raise LLMConfigurationError(f"unsupported LLM_PROVIDER '{provider}'")
 
 
-def get_chat_model(model_name: str | None = None) -> BaseChatModel:
+def get_chat_model(
+    model_name: str | None = None,
+    timeout_s: float | None = None,
+    max_retries: int | None = None,
+) -> BaseChatModel:
     """
     Return the configured BaseChatModel for the primary model.
     Uses model_name if provided, otherwise settings.LLM_MODEL.
     """
     name = model_name or settings.LLM_MODEL
-    return _build_chat_model(name)
+    return _build_chat_model(name, timeout_s=timeout_s, max_retries=max_retries)
 
 
 def get_fallback_model() -> BaseChatModel | None:

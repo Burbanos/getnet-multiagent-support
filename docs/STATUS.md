@@ -4,6 +4,119 @@
 
 ---
 
+### Fase 10B: Guardrail — Classificador por LLM
+
+#### Versão do Python (`python --version`):
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 10B (`python scripts/verify_phase10b.py`):
+```text
+INFO python 3.13.3
+PASS B0.py311_syntax
+PASS B1.env_example
+PASS B2.classifier_prompt_unchanged
+PASS B3.no_regex_outside_guardrail_pii
+PASS B8.readme_texts
+PASS B9.claims_row
+PASS B10.tests_named
+PASS B11.agents_test_one_line
+PASS S1.status_10b
+PASS E2.scope
+PASS B4.config_and_helpers
+PASS B5.factory_and_lazy_model
+PASS R1.classifier_block
+PASS R2.classifier_allow_tokens
+PASS R3.patterns_first
+PASS R4.fail_open
+PASS R5.fail_closed_503
+PASS R6.config_errors_propagate
+PASS R7.classifier_input
+PASS R8.handoff_skips_classifier
+PASS R9.switches
+PASS R10.logs_without_text
+PASS R11.metrics
+PASS R12.api_metadata_and_agents
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q1.ruff_clean
+PASS Q1.offline_subset
+PASS Q2.pytest_offline_no_key :: 270 passed in 25.74s
+PASS Q2.classifier_tests :: 16 passed in 1.45s
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 68/68 passed
+```
+
+#### Git Commit Base (`git rev-parse HEAD`):
+```text
+1eb36263d325d8064ad85fb728adbf1214e75e74
+```
+
+#### Perguntas / divergências com o SPEC:
+- Nenhuma. Classificador de injeção por LLM implementado com saída estruturada (`GuardrailVerdict`), integração resiliente em nó dedicado no LangGraph (`guardrail_classifier`), fail-open/fail-closed configurável e métricas em Prometheus (`getnet_guardrail_decisions_total`).
+
+#### Alterações Realizadas na Fase 10B:
+- **Configuração (`src/config.py`, `.env.example`)**:
+  - Adicionadas variáveis `GUARDRAIL_CLASSIFIER_ENABLED`, `GUARDRAIL_CLASSIFIER_MODEL`, `GUARDRAIL_CLASSIFIER_TIMEOUT_S` e `GUARDRAIL_CLASSIFIER_FAIL_MODE` (`Literal["open", "closed"]`).
+- **Fábrica de Modelos (`src/core/llm.py`)**:
+  - Suporte a `timeout_s` e `max_retries` em `get_chat_model` e `_build_chat_model`.
+- **Constantes de Recusa (`src/agents/guardrails.py`)**:
+  - Exportadas constantes de módulo `INJECTION_REFUSAL` e `ATTACK_REFUSAL`.
+- **Módulo do Classificador (`src/agents/injection_classifier.py`)**:
+  - Implementados `GuardrailVerdict`, `ClassifierResult`, `InjectionClassifier`, `format_classifier_input` e `load_classifier_prompt` com bind_tools estruturado.
+- **Estado e Grafo (`src/core/state.py`, `src/core/graph.py`)**:
+  - Campo `guardrail` adicionado a `SupervisorState` e `AgentState`.
+  - Nó `guardrail_classifier` inserido após `handoff_gate`, com contagem de tokens em `tokens_by_agent["GuardrailClassifier"]` e decisões auditadas sem vazamento de texto.
+- **Métricas Operacionais (`src/core/metrics.py`)**:
+  - Contador `getnet_guardrail_decisions_total{decision}` e função `inc_guardrail`.
+- **API e Introspecção (`src/main.py`, `tests/test_agents_endpoint.py`)**:
+  - `AgentMetadata` inclui campo `guardrail` e `/agents` expõe os metadados do classificador de `GuardrailAgent`.
+- **Testes Unitários Offline (`tests/test_guardrail_classifier.py`)**:
+  - Criados 16 testes offline cobrindo bloqueio, permissão, tokens, fail-open, fail-closed (503), propagação de erros de configuração, sanitização/escape de tags XML, skip em handoff e privacidade de logs.
+- **Documentação (`README.md`)**:
+  - Atualizadas as limitações, o fluxo ReAct, diagrama mermaid, métricas de tokens, lista de nós do grafo, variáveis de ambiente e tabela de afirmações e evidências.
+
+---
+
 ### Fase 10A: Guardrail — Padrões Revistos e Conjunto Rotulado
 
 #### Versão do Python (`python --version`):

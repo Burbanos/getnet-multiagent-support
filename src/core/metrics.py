@@ -19,6 +19,14 @@ KNOWN_TOOLS: frozenset[str] = frozenset({
     "diagnose_terminal",
 })
 
+GUARDRAIL_DECISIONS: frozenset[str] = frozenset({
+    "pattern_block",
+    "classifier_block",
+    "classifier_allow",
+    "classifier_error_open",
+    "classifier_error_closed",
+})
+
 # Cumulative histogram bucket thresholds
 LATENCY_BUCKETS: tuple[float, ...] = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
 LATENCY_BUCKET_STRS: tuple[str, ...] = ("0.5", "1.0", "2.0", "5.0", "10.0", "20.0", "30.0", "60.0", "+Inf")
@@ -32,6 +40,7 @@ _tool_calls: dict[tuple[str, str], int] = {}
 _escalations_total: int = 0
 _abstentions_total: int = 0
 _tokens: dict[str, int] = {"input": 0, "output": 0}
+_guardrail_decisions: dict[str, int] = {}
 
 
 def reset() -> None:
@@ -49,6 +58,7 @@ def reset() -> None:
         _abstentions_total = 0
         _tokens["input"] = 0
         _tokens["output"] = 0
+        _guardrail_decisions.clear()
 
 
 def inc_request(status_code: int | str, latency_s: float) -> None:
@@ -89,6 +99,13 @@ def inc_abstention() -> None:
         _abstentions_total += 1
 
 
+def inc_guardrail(decision: str) -> None:
+    """Increment the guardrail decision counter."""
+    norm = decision if decision in GUARDRAIL_DECISIONS else "unknown"
+    with _lock:
+        _guardrail_decisions[norm] = _guardrail_decisions.get(norm, 0) + 1
+
+
 def add_tokens(input_tokens: int | None, output_tokens: int | None) -> None:
     """Add LLM tokens to the direction counters (None counts as 0)."""
     inp = int(input_tokens or 0)
@@ -124,6 +141,14 @@ def render() -> str:
         ])
         for (tool, st), count in sorted(_tool_calls.items()):
             lines.append(f'getnet_tool_calls_total{{tool="{tool}",status="{st}"}} {count}')
+
+        if _guardrail_decisions:
+            lines.extend([
+                "# HELP getnet_guardrail_decisions_total Total number of guardrail decisions.",
+                "# TYPE getnet_guardrail_decisions_total counter",
+            ])
+            for dec, count in sorted(_guardrail_decisions.items()):
+                lines.append(f'getnet_guardrail_decisions_total{{decision="{dec}"}} {count}')
 
         lines.extend([
             "# HELP getnet_escalations_total Total number of tickets escalated to human.",

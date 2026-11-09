@@ -48,6 +48,7 @@ class SupervisorState(TypedDict):
     tokens: dict[str, int] | None
     tokens_by_agent: dict[str, dict[str, int]] | None
     estimated_cost_usd: float | None
+    guardrail: dict[str, Any] | None
 
 
 class AgentState(BaseModel):
@@ -89,6 +90,7 @@ class AgentState(BaseModel):
     tokens: dict[str, int] | None = None
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
+    guardrail: dict[str, Any] | None = None
     error: str | None = None
 
     model_config = {
@@ -125,6 +127,7 @@ class AgentMetadata(BaseModel):
     tokens: dict[str, int] | None = None
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
+    guardrail: dict[str, Any] | None = None
     error: str | None = None
     debug_details: dict[str, Any] = Field(default_factory=dict)
 

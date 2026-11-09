@@ -45,7 +45,7 @@ def test_agents_endpoint_tools_match_code_lists(client: TestClient) -> None:
     assert "GuardrailAgent" in agents_by_name
     assert agents_by_name["GuardrailAgent"]["tools"] == []
     assert agents_by_name["GuardrailAgent"]["runs_before"] == "supervisor"
-    assert agents_by_name["GuardrailAgent"]["uses_llm"] is False
+    assert agents_by_name["GuardrailAgent"]["uses_llm"] is settings.GUARDRAIL_CLASSIFIER_ENABLED
 
     all_tools = [*SUPERVISOR_TOOLS, *KNOWLEDGE_TOOLS, *SUPPORT_TOOLS]
     tools_rows = {t["name"]: t for t in data.get("tools", [])}

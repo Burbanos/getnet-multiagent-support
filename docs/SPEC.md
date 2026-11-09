@@ -258,6 +258,16 @@ not an independent review (the same candidate drives both tools); never describe
   (checked 2026-11-09): Open-Meteo free API for non-commercial use only, under 10,000 calls/day, data under CC BY 4.0 with
   attribution ("Weather data by Open-Meteo.com" linked to open-meteo.com); BCB PTAX dataset under ODbL.
 
+- 10A (`1eb3626`; reviewer reran `verify_phase10a.py`: 62/62 on 3.11.18 and 3.13.18; reviewer files identical; CI run #57
+  green, 254 tests). Minor, not fixed: `load_guardrail_set` does not type-check `text` (a number would raise
+  AttributeError, not ValueError); the CLI catches every exception when loading the set. Missed by the reviewer's 10A
+  prompt and fixed in 10B: the README security bullet "Proteção contra Injeção de Prompt" still listed the bare phrases
+  `"regras internas"`, `"prompt de sistema"` and `"esqueça o que foi dito"` as blocked, which the narrowed patterns no
+  longer block on their own. The push of 10A first hung waiting for the GitHub sign-in (the user had moved the remote off
+  a token stored in `.git/config`); the commit is unchanged.
+- Fail-open as the default failure mode: the user delegated the decision to the reviewer (2026-11-09); the reviewer kept
+  fail-open for the reasons in Phase 10 below.
+
 **3D results (48 reviewer-labeled queries, reviewer recomputed every number):** answerable hit@1 0.900, hit@3
 0.967 (PT 1.000, EN 0.889), MRR@10 0.933, answer_hit@3 0.900. At 0.61: all 30 answerable pass, all 8 off-topic
 abstain, **0 of 10 uncovered abstain** (top-1 0.636–0.849). Margin to the best off-topic query is only 0.04
@@ -291,8 +301,8 @@ needs the API key (index builds, smoke tests, real-model evals) is run by the us
 in the background on Windows: run tests and verifiers in the foreground. Local Python is 3.13, CI and Docker
 use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` image.
 
-**Current phase: 10A** (guardrail patterns re-evaluated, pre-registered guardrail set), prompt
-`docs/phase-prompts/10A.md`, verifier `scripts/verify_phase10a.py`. Phase 10 closes the two items of the real V4 feedback
+**Current phase: 10B** (LLM injection classifier behind the patterns), prompt `docs/phase-prompts/10B.md`, verifier
+`scripts/verify_phase10b.py`. Phase 10 closes the two items of the real V4 feedback
 still open (weather/FX by API; guardrail beyond patterns); then the video (the user's) and the resubmission. Open product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay
 documented; fixing them needs new held-out cases, not prompt tuning against these.
 
@@ -989,16 +999,25 @@ the checks it supersedes. Each later prompt is written after the previous sub-ph
   `reports/guardrail_patterns.{json,md}`; `tests/test_guardrail_patterns.py` (pattern false positives = 0 on the set, every
   offline safety case blocked, the rates can fail); README guardrail limitation reworded with the measured numbers.
   Reviewer files: the labeled set and the classifier prompt (pre-registered, not wired yet).
-- 10B: `src/agents/injection_classifier.py` (`InjectionClassifier.classify(text) -> ClassifierResult` with verdict,
-  category, status ok|error, error type, latency, usage, model); settings `GUARDRAIL_CLASSIFIER_ENABLED` (default true;
-  `tests/conftest.py` sets false so scripted-model tests are unchanged), `GUARDRAIL_CLASSIFIER_MODEL` (empty → `LLM_MODEL`),
-  `GUARDRAIL_CLASSIFIER_TIMEOUT_S`, `GUARDRAIL_CLASSIFIER_FAIL_MODE` (`open|closed`, invalid → startup error);
-  `OrchestrationGraph(..., guardrail_model=None)`; the guardrail calls it only when the patterns pass; classifier tokens
-  join the turn's `tokens` and `tokens_by_agent["GuardrailClassifier"]`; API metadata `guardrail` (layer, verdict,
-  category, status, latency_ms; never text); metric `getnet_guardrail_decisions_total{layer,verdict}`; one
-  `"guardrail decision"` log record without text; fixed bilingual `GUARDRAIL_UNAVAILABLE_MESSAGE` for fail-closed. Tests:
-  block, allow, patterns short-circuit with zero model calls, fail-open (timeout, 429, unparseable), fail-closed, config
-  error → 503, PII masked before the classifier, no message text in logs.
+- 10B (checked by `scripts/verify_phase10b.py`): `src/agents/injection_classifier.py` (`GuardrailVerdict` pydantic schema,
+  `ClassifierResult`, `format_classifier_input` wrapping the masked message in `<message>` tags with `<`/`>` escaped,
+  `InjectionClassifier(model=None).classify(text)`; the model is built lazily with `get_chat_model(GUARDRAIL_CLASSIFIER_MODEL
+  or LLM_MODEL, timeout_s=GUARDRAIL_CLASSIFIER_TIMEOUT_S, max_retries=0)` and bound with `tool_choice="GuardrailVerdict"`;
+  no fallback model). Settings `GUARDRAIL_CLASSIFIER_ENABLED=true`, `GUARDRAIL_CLASSIFIER_MODEL=""`,
+  `GUARDRAIL_CLASSIFIER_TIMEOUT_S=10`, `GUARDRAIL_CLASSIFIER_FAIL_MODE: Literal["open","closed"]="open"` (an invalid value
+  stops the app). New graph node `guardrail_classifier` AFTER `handoff_gate` (turns held by a pending ticket never reach a
+  model, so they need no classification and still work without a key). `OrchestrationGraph(..., guardrail_model=None)`: an
+  injected `chat_model` without `guardrail_model` means no classifier (keeps every scripted-model test and earlier
+  verifier unchanged; `tests/conftest.py` is not touched); production (`chat_model=None`) always has one. Fail-open:
+  error/timeout/unparseable → continue to the supervisor; fail-closed: `LLMUnavailableError` → the existing 503 path (no
+  new fixed message). `LLMNotConfiguredError`/`LLMConfigurationError` always propagate. A classifier block reuses the
+  pattern refusals (`INJECTION_REFUSAL`, `ATTACK_REFUSAL` constants). State/API field `guardrail` = `{patterns, blocked_by,
+  classifier{status, verdict, category, error_type, latency_ms, model}}`, never text; classifier tokens in
+  `tokens_by_agent["GuardrailClassifier"]`; metric `getnet_guardrail_decisions_total{decision}`; one log record per
+  classifier run without text; `/agents` describes the classifier. README: hybrid limitation (the classifier's real-model
+  rate is "not measured yet" until 10C), flow diagrams, injection bullet, env vars, claims row. Supersedes 9F
+  `H11.claims_row`, 9G `J9.limitations`, 10A `A15.readme_limitation` and `A2.classifier_prompt_preregistered` (re-checked
+  as B8, B9 and B2).
 - 10C: `python -m src.eval guardrail run|report --run-id ID` (real model, resumable JSONL under `reports/guardrail_runs/`):
   for every message the pattern verdict and the classifier verdict (the classifier runs on all 36, so its standalone
   rates are measured too), latency, tokens, model; report `reports/guardrail_<run_id>.{json,md}` with pattern, classifier

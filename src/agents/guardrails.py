@@ -9,6 +9,12 @@ from src.core.state import AgentRole, AgentState
 
 logger = logging.getLogger("multiagent.guardrails")
 
+INJECTION_REFUSAL = (
+    "Sua solicitação contém comandos não permitidos pelas nossas diretrizes de segurança. "
+    "Por favor, reformule sua dúvida sobre os produtos e serviços da Getnet."
+)
+ATTACK_REFUSAL = "Solicitação bloqueada devido a termos não permitidos."
+
 
 class GuardrailAgent:
     """Detects unsafe prompts, prompt injections, and masks sensitive PII (PAN/CPF)."""
@@ -77,10 +83,7 @@ class GuardrailAgent:
             logger.warning(f"Guardrail pattern matched (category={category})")
             state.is_safe = False
             state.safety_violations.append("Tentativa de injeção de prompt ou violação de segurança detectada.")
-            state.agent_response = (
-                "Sua solicitação contém comandos não permitidos pelas nossas diretrizes de segurança. "
-                "Por favor, reformule sua dúvida sobre os produtos e serviços da Getnet."
-            )
+            state.agent_response = INJECTION_REFUSAL
             state.final_agent = AgentRole.GUARDRAIL
             return state
 
@@ -88,7 +91,7 @@ class GuardrailAgent:
             logger.warning(f"Guardrail pattern matched (category={category})")
             state.is_safe = False
             state.safety_violations.append("Termo de segurança malicioso detectado.")
-            state.agent_response = "Solicitação bloqueada devido a termos não permitidos."
+            state.agent_response = ATTACK_REFUSAL
             state.final_agent = AgentRole.GUARDRAIL
             return state
 

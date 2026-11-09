@@ -11,7 +11,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from src.agents.guardrails import GuardrailAgent
+from src.agents.guardrails import ATTACK_REFUSAL, INJECTION_REFUSAL, GuardrailAgent
+from src.agents.injection_classifier import InjectionClassifier
 from src.agents.specialists import SpecialistAgent
 from src.config import settings
 from src.core import metrics
@@ -96,10 +97,18 @@ class OrchestrationGraph:
         chat_model: BaseChatModel | None = None,
         fallback_model: BaseChatModel | None = None,
         checkpointer: Any | None = None,
+        guardrail_model: BaseChatModel | None = None,
     ):
         self.guardrail_agent = GuardrailAgent()
         self.chat_model: BaseChatModel | None = chat_model
         self.fallback_model: BaseChatModel | None = fallback_model
+        self.guardrail_model: BaseChatModel | None = guardrail_model
+        if guardrail_model is not None:
+            self.injection_classifier: InjectionClassifier | None = InjectionClassifier(guardrail_model)
+        elif chat_model is None:
+            self.injection_classifier = InjectionClassifier()
+        else:
+            self.injection_classifier = None
         self._bound_model: Any = None
         self._bound_fallback: Any = None
 
@@ -154,6 +163,7 @@ class OrchestrationGraph:
         # 1. Register Graph Nodes
         builder.add_node("guardrail", self._wrap_node("guardrail", self._guardrail_node))
         builder.add_node("handoff_gate", self._wrap_node("handoff_gate", self._handoff_gate_node))
+        builder.add_node("guardrail_classifier", self._wrap_node("guardrail_classifier", self._guardrail_classifier_node))
         builder.add_node("supervisor", self._wrap_node("supervisor", self._supervisor_node))
         builder.add_node("tools", self._wrap_node("tools", self._tools_node))
         builder.add_node("force_escalation", self._wrap_node("force_escalation", self._force_escalation_node))
@@ -175,8 +185,17 @@ class OrchestrationGraph:
             "handoff_gate",
             self._handoff_gate_condition,
             {
-                "continue": "supervisor",
+                "continue": "guardrail_classifier",
                 "end": END,
+            },
+        )
+
+        builder.add_conditional_edges(
+            "guardrail_classifier",
+            self._guardrail_classifier_condition,
+            {
+                "continue": "supervisor",
+                "stop": END,
             },
         )
 
@@ -210,6 +229,32 @@ class OrchestrationGraph:
         agent_state = AgentState(user_id=state["user_id"], message=raw_msg)
         evaluated = self.guardrail_agent.evaluate_sync(agent_state)
 
+        patterns_cat = None
+        blocked_by = None
+        if settings.ENABLE_GUARDRAILS:
+            if not raw_msg.strip():
+                blocked_by = "empty_message"
+            else:
+                patterns_cat = self.guardrail_agent.match_patterns(evaluated.message)
+                if patterns_cat is not None:
+                    blocked_by = "patterns"
+
+        if blocked_by == "patterns":
+            metrics.inc_guardrail("pattern_block")
+
+        guardrail_meta: dict[str, Any] = {
+            "patterns": patterns_cat,
+            "blocked_by": blocked_by,
+            "classifier": {
+                "status": "not_run",
+                "verdict": None,
+                "category": None,
+                "error_type": None,
+                "latency_ms": None,
+                "model": None,
+            },
+        }
+
         if not evaluated.is_safe:
             refusal_content = evaluated.agent_response or "Instrução não permitida pelas políticas de segurança."
             refusal_msg = AIMessage(content=refusal_content)
@@ -218,6 +263,7 @@ class OrchestrationGraph:
                 "safety_violations": evaluated.safety_violations,
                 "final_response": refusal_content,
                 "messages": [refusal_msg],
+                "guardrail": guardrail_meta,
             }
 
         # Replace incoming HumanMessage with sanitized message having the same id
@@ -227,11 +273,116 @@ class OrchestrationGraph:
             "is_safe": True,
             "safety_violations": [],
             "messages": [human_msg],
+            "guardrail": guardrail_meta,
         }
 
     def _guardrail_condition(self, state: SupervisorState) -> str:
         """Route to handoff_gate if safe, else stop immediately."""
         return "continue" if state.get("is_safe", True) else "stop"
+
+    def _guardrail_classifier_condition(self, state: SupervisorState) -> str:
+        """Route to supervisor if safe, else stop immediately."""
+        return "continue" if state.get("is_safe", True) else "stop"
+
+    def _guardrail_classifier_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Classify incoming masked message with LLM guardrail classifier."""
+        if (
+            not settings.ENABLE_GUARDRAILS
+            or not settings.GUARDRAIL_CLASSIFIER_ENABLED
+            or self.injection_classifier is None
+        ):
+            return {}
+
+        user_msg = ""
+        if state.get("messages"):
+            for m in reversed(state["messages"]):
+                if isinstance(m, HumanMessage):
+                    user_msg = m.content if isinstance(m.content, str) else str(m.content)
+                    break
+
+        result = self.injection_classifier.classify(user_msg)
+
+        logger.info(
+            f"Guardrail classifier decision (status={result.status}, verdict={result.verdict}, category={result.category}, error_type={result.error_type})",
+            extra={"status": result.status, "latency_ms": result.latency_ms},
+        )
+
+        guardrail = dict(
+            state.get("guardrail")
+            or {
+                "patterns": None,
+                "blocked_by": None,
+                "classifier": {
+                    "status": "not_run",
+                    "verdict": None,
+                    "category": None,
+                    "error_type": None,
+                    "latency_ms": None,
+                    "model": None,
+                },
+            }
+        )
+        guardrail["classifier"] = result.as_metadata()
+
+        tba = state.get("tokens_by_agent")
+        tokens = state.get("tokens")
+        if result.usage:
+            inp = result.usage.get("input_tokens", 0)
+            out = result.usage.get("output_tokens", 0)
+            tot = result.usage.get("total_tokens", inp + out)
+            tba_dict = dict(tba) if tba is not None else {}
+            cur = tba_dict.get("GuardrailClassifier", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+            tba_dict["GuardrailClassifier"] = {
+                "input_tokens": cur["input_tokens"] + inp,
+                "output_tokens": cur["output_tokens"] + out,
+                "total_tokens": cur["total_tokens"] + tot,
+            }
+            tba = tba_dict
+            tokens = {
+                "input_tokens": sum(v["input_tokens"] for v in tba.values()),
+                "output_tokens": sum(v["output_tokens"] for v in tba.values()),
+                "total_tokens": sum(v["total_tokens"] for v in tba.values()),
+            }
+
+        if result.status == "error":
+            if settings.GUARDRAIL_CLASSIFIER_FAIL_MODE == "closed":
+                metrics.inc_guardrail("classifier_error_closed")
+                raise LLMUnavailableError("guardrail classifier unavailable")
+            metrics.inc_guardrail("classifier_error_open")
+            return {
+                "guardrail": guardrail,
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        if result.verdict == "block":
+            metrics.inc_guardrail("classifier_block")
+            guardrail["blocked_by"] = "classifier"
+            if result.category in ("prompt_injection", "prompt_leak"):
+                violations = ["Tentativa de injeção de prompt detectada pelo classificador."]
+                refusal_content = INJECTION_REFUSAL
+            else:
+                violations = ["Pedido de ataque detectado pelo classificador."]
+                refusal_content = ATTACK_REFUSAL
+
+            refusal_msg = AIMessage(content=refusal_content)
+            return {
+                "is_safe": False,
+                "safety_violations": violations,
+                "final_response": refusal_content,
+                "messages": [refusal_msg],
+                "guardrail": guardrail,
+                "llm_model": result.model,
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        metrics.inc_guardrail("classifier_allow")
+        return {
+            "guardrail": guardrail,
+            "tokens_by_agent": tba,
+            "tokens": tokens,
+        }
 
     def _handoff_gate_node(self, state: SupervisorState) -> dict[str, Any]:
         """
@@ -773,6 +924,7 @@ class OrchestrationGraph:
                 "trace_id": active_trace_id,
                 "is_safe": True,
                 "safety_violations": [],
+                "guardrail": None,
                 "agents_used": ["SupervisorAgent"],
                 "tools_used": [],
                 "tool_calls": [],
@@ -845,6 +997,7 @@ class OrchestrationGraph:
                 trace_id=active_trace_id,
                 is_safe=result.get("is_safe", True),
                 safety_violations=result.get("safety_violations", []),
+                guardrail=result.get("guardrail"),
                 agents_used=result.get("agents_used", ["SupervisorAgent"]),
                 tools_used=result.get("tools_used", []),
                 tool_calls=result.get("tool_calls", []),

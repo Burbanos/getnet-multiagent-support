@@ -55,6 +55,7 @@ class AgentMetadata(BaseModel):
     retrieved_docs: list[dict[str, Any]] = Field(default_factory=list, description="Vector retrieval results with cosine similarity")
     ticket: dict[str, Any] | None = Field(default=None, description="Persisted support ticket if escalation occurred")
     handoff: dict[str, Any] | None = Field(default=None, description="Human escalation handoff status")
+    guardrail: dict[str, Any] | None = Field(default=None, description="Guardrail layers and classifier verdict (no message text)")
     llm_model: str | None = Field(default=None, description="Model identifier that produced the final response")
     tokens: dict[str, int] | None = Field(default=None, description="Token usage estimation")
     tokens_by_agent: dict[str, dict[str, int]] | None = Field(default=None, description="Token usage broken down by agent")
@@ -198,8 +199,15 @@ async def list_agents():
             {
                 "name": "GuardrailAgent",
                 "runs_before": "supervisor",
-                "uses_llm": False,
+                "uses_llm": settings.GUARDRAIL_CLASSIFIER_ENABLED,
                 "tools": [],
+                "classifier": {
+                    "enabled": settings.GUARDRAIL_CLASSIFIER_ENABLED,
+                    "model": settings.GUARDRAIL_CLASSIFIER_MODEL or settings.LLM_MODEL,
+                    "prompt": "src/prompts/guardrail_classifier.md",
+                    "fail_mode": settings.GUARDRAIL_CLASSIFIER_FAIL_MODE,
+                    "structured_output": "GuardrailVerdict",
+                },
             },
             {
                 "name": "SupervisorAgent",
@@ -363,6 +371,7 @@ def chat_endpoint(
                 retrieved_docs=state.retrieved_docs,
                 ticket=state.ticket,
                 handoff=handoff_data,
+                guardrail=getattr(state, "guardrail", None),
                 tokens=getattr(state, "tokens", None),
                 tokens_by_agent=getattr(state, "tokens_by_agent", None),
                 estimated_cost_usd=getattr(state, "estimated_cost_usd", None),

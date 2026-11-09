@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,6 +44,10 @@ class Settings(BaseSettings):
     INDEX_DIR: str = "data/index"
 
     ENABLE_GUARDRAILS: bool = True
+    GUARDRAIL_CLASSIFIER_ENABLED: bool = True
+    GUARDRAIL_CLASSIFIER_MODEL: str = ""  # empty -> LLM_MODEL
+    GUARDRAIL_CLASSIFIER_TIMEOUT_S: float = 10.0
+    GUARDRAIL_CLASSIFIER_FAIL_MODE: Literal["open", "closed"] = "open"
     API_KEYS: str = ""
     RATE_LIMIT_PER_MINUTE: int = 30
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
