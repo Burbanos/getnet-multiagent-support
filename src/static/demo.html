@@ -436,7 +436,70 @@
       }
     };
 
+    let pollTimerId = null;
+    let pollKnownIds = new Set();
+    let pollInitialized = false;
+    let pollStartedAt = 0;
+    let pollInFlight = false;
+
+    function stopTicketPolling() {
+      if (pollTimerId !== null) {
+        clearInterval(pollTimerId);
+        pollTimerId = null;
+      }
+      pollKnownIds = new Set();
+      pollInitialized = false;
+      pollStartedAt = 0;
+      pollInFlight = false;
+    }
+
+    function startTicketPolling(sessionId, apiKey) {
+      stopTicketPolling();
+      pollStartedAt = Date.now();
+      const pollOnce = async () => {
+        if (pollInFlight) return;
+        if (Date.now() - pollStartedAt >= 10 * 60 * 1000) {
+          stopTicketPolling();
+          return;
+        }
+        pollInFlight = true;
+        try {
+          const resp = await fetch(`/sessions/${encodeURIComponent(sessionId)}/messages`, {
+            method: 'GET',
+            headers: {
+              'X-API-Key': apiKey
+            }
+          });
+          if (!resp.ok) return;
+          const payload = await resp.json();
+          const msgs = Array.isArray(payload.messages) ? payload.messages : [];
+          if (!pollInitialized) {
+            for (const m of msgs) {
+              if (m && m.id) pollKnownIds.add(m.id);
+            }
+            pollInitialized = true;
+            return;
+          }
+          for (const m of msgs) {
+            if (!m || !m.id || pollKnownIds.has(m.id)) continue;
+            pollKnownIds.add(m.id);
+            if (m.role === 'assistant') {
+              appendMessage('agent', m.content, 'SupervisorAgent');
+              stopTicketPolling();
+              return;
+            }
+          }
+        } catch (_) {
+        } finally {
+          pollInFlight = false;
+        }
+      };
+      pollOnce();
+      pollTimerId = setInterval(pollOnce, 5000);
+    }
+
     function resetSession() {
+      stopTicketPolling();
       const newSession = 'sess-' + Math.random().toString(36).substring(2, 9);
       document.getElementById('sessionIdInput').value = newSession;
       appendMessage('agent', `Sessão de atendimento reiniciada no SqliteSaver: <code>${newSession}</code>. O contexto de memória das mensagens anteriores foi resetado.`, 'SupervisorAgent');
@@ -496,6 +559,11 @@
         removeLoadingBubble(loadingId);
         appendMessage('agent', data.response, `${data.agent} (${data.user_id})`, data.metadata);
         updateTelemetry(data);
+        if (data?.metadata?.ticket?.ticket_id || data?.metadata?.handoff?.status === 'pending') {
+          startTicketPolling(sessionId, apiKey);
+        } else {
+          stopTicketPolling();
+        }
 
       } catch (err) {
         removeLoadingBubble(loadingId);
@@ -731,6 +799,7 @@
     }
 
     function clearChat() {
+      stopTicketPolling();
       const container = document.getElementById('chatContainer');
       // Keep only first 2 welcome elements
       while (container.children.length > 2) {

@@ -115,7 +115,9 @@ class TicketsRepository:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     answered_at TEXT,
-                    delivered_at TEXT
+                    delivered_at TEXT,
+                    notified_at TEXT,
+                    notification_status TEXT
                 )
             """)
             cursor = conn.cursor()
@@ -132,6 +134,10 @@ class TicketsRepository:
                 cursor.execute("ALTER TABLE tickets ADD COLUMN answered_at TEXT")
             if "delivered_at" not in existing_cols:
                 cursor.execute("ALTER TABLE tickets ADD COLUMN delivered_at TEXT")
+            if "notified_at" not in existing_cols:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN notified_at TEXT")
+            if "notification_status" not in existing_cols:
+                cursor.execute("ALTER TABLE tickets ADD COLUMN notification_status TEXT")
             conn.commit()
             logger.info(f"Tickets database initialized at: {self.db_path}")
 
@@ -307,6 +313,23 @@ class TicketsRepository:
                 "UPDATE tickets SET delivered_at = ? WHERE ticket_id = ? AND delivered_at IS NULL",
                 (now, ticket_id),
             )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def record_notification(self, ticket_id: str, status: str) -> bool:
+        """Record the operator webhook notification outcome; sets notified_at only when status == 'sent'."""
+        with self._get_connection() as conn:
+            if status == "sent":
+                now = datetime.now(UTC).isoformat()
+                cursor = conn.execute(
+                    "UPDATE tickets SET notified_at = ?, notification_status = ? WHERE ticket_id = ?",
+                    (now, status, ticket_id),
+                )
+            else:
+                cursor = conn.execute(
+                    "UPDATE tickets SET notification_status = ? WHERE ticket_id = ?",
+                    (status, ticket_id),
+                )
             conn.commit()
             return cursor.rowcount > 0
 

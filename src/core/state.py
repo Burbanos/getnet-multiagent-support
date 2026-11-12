@@ -40,6 +40,7 @@ class SupervisorState(TypedDict):
     ticket: dict[str, Any] | None
     pending_ticket_id: str | None
     handoff: dict[str, Any] | None
+    operator_event: dict[str, Any] | None
     consecutive_abstentions: int
     knowledge_outcomes: list[bool]
     final_response: str

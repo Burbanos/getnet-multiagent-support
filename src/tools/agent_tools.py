@@ -8,6 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 import src.rag.retriever as rag_retriever
+from src.core import notifier
 from src.core.log_context import exc_brief
 from src.core.tickets_db import get_tickets_repository
 from src.tools.balance_tools import (
@@ -198,6 +199,11 @@ def escalate_to_human(
             session_id=session_id,
             transcript=transcript,
         )
+        try:
+            notify_result = notifier.get_notifier().notify(ticket)
+            repo.record_notification(ticket["ticket_id"], notify_result.status)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Operator notification failed cleanly: {exc_brief(exc)}")
         return json.dumps(ticket, ensure_ascii=False, indent=2)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"Failed to persist escalation ticket: {exc_brief(exc)}")

@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    RemoveMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
@@ -29,7 +36,7 @@ from src.core.llm import (
 from src.core.log_context import exc_brief
 from src.core.pii import sanitize_pii
 from src.core.state import AgentRole, AgentState, SupervisorState
-from src.core.tickets_db import get_tickets_repository, transcript_snapshot
+from src.core.tickets_db import _get_message_text, get_tickets_repository, transcript_snapshot
 from src.tools.agent_tools import (
     TOOLS_BY_NAME,
     diagnose_declined_transaction,
@@ -52,6 +59,10 @@ HANDOFF_PENDING_MESSAGE = (
     "Your request {ticket_id} is with our human support team. The reply will appear in this conversation when it is recorded."
 )
 HANDOFF_REPLY_PREFIX = "Resposta da equipe de atendimento humano (chamado {ticket_id}) / Reply from our human support team (request {ticket_id}):\n\n"
+OPERATOR_MESSAGE_PREFIX = (
+    "[Resposta do atendente humano ao chamado {ticket_id}. Esta mensagem é do atendente, não do lojista. / "
+    "Reply from the human support agent for request {ticket_id}; this message is from the agent, not from the merchant.]\n\n"
+)
 
 AUTO_ESCALATION_NOTE = (
     "Como não encontrei essa informação nas fontes oficiais, registrei o chamado {ticket_id} para a equipe de atendimento humano; "
@@ -164,6 +175,7 @@ class OrchestrationGraph:
 
         # 1. Register Graph Nodes
         builder.add_node("guardrail", self._wrap_node("guardrail", self._guardrail_node))
+        builder.add_node("operator_resume", self._wrap_node("operator_resume", self._operator_resume_node))
         builder.add_node("handoff_gate", self._wrap_node("handoff_gate", self._handoff_gate_node))
         builder.add_node("guardrail_classifier", self._wrap_node("guardrail_classifier", self._guardrail_classifier_node))
         builder.add_node("supervisor", self._wrap_node("supervisor", self._supervisor_node))
@@ -172,7 +184,15 @@ class OrchestrationGraph:
         builder.add_node("abstention_check", self._wrap_node("abstention_check", self._abstention_check_node))
 
         # 2. Add Edges
-        builder.add_edge(START, "guardrail")
+        builder.add_conditional_edges(
+            START,
+            self._entry_condition,
+            {
+                "operator_resume": "operator_resume",
+                "guardrail": "guardrail",
+            },
+        )
+        builder.add_edge("operator_resume", "supervisor")
 
         builder.add_conditional_edges(
             "guardrail",
@@ -217,6 +237,22 @@ class OrchestrationGraph:
         builder.add_edge("abstention_check", END)
 
         return builder.compile(checkpointer=self.checkpointer)
+
+    def _entry_condition(self, state: SupervisorState) -> str:
+        """Route operator-resumed turns directly to operator_resume, bypassing guardrails."""
+        if state.get("operator_event"):
+            return "operator_resume"
+        return "guardrail"
+
+    def _operator_resume_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Clear pending handoff hold before the supervisor turns an operator reply into a response."""
+        event = state.get("operator_event") or {}
+        ticket_id = event.get("ticket_id")
+        return {
+            "pending_ticket_id": None,
+            "operator_event": None,
+            "handoff": {"ticket_id": ticket_id, "status": "resumed"} if ticket_id else None,
+        }
 
     def _guardrail_node(self, state: SupervisorState) -> dict[str, Any]:
         """Sanitize PII and validate safety of incoming message."""
@@ -414,7 +450,14 @@ class OrchestrationGraph:
         operator_reply = ticket.get("operator_reply")
         delivered_at = ticket.get("delivered_at")
 
-        # 2. Operator replied and reply not yet delivered in chat:
+        # 2. Operator reply already delivered (e.g. async operator resume): clear pending hold and resume
+        if operator_reply and delivered_at:
+            return {
+                "pending_ticket_id": None,
+                "handoff": {"ticket_id": pending_id, "status": "resumed"},
+            }
+
+        # 3. Operator replied and reply not yet delivered in chat:
         # (answered, or answered and subsequently closed before delivery)
         if operator_reply and not delivered_at:
             delivered = repo.mark_delivered(pending_id)
@@ -930,33 +973,12 @@ class OrchestrationGraph:
         from src.core.log_context import bind
 
         with bind(active_trace_id, active_session_id, user_id):
-            initial_state: SupervisorState = {
-                "messages": [HumanMessage(content=safe_message, id=msg_id)],
-                "user_id": user_id,
-                "session_id": active_session_id,
-                "trace_id": active_trace_id,
-                "is_safe": True,
-                "safety_violations": [],
-                "guardrail": None,
-                "agents_used": ["SupervisorAgent"],
-                "tools_used": [],
-                "tool_calls": [],
-                "tool_results": [],
-                "sources": [],
-                "retrieved_docs": [],
-                "web_results": [],
-                "api_results": [],
-                "ticket": None,
-                "handoff": None,
-                "knowledge_outcomes": [],
-                "final_response": "",
-                "supervisor_steps": 0,
-                "llm_model": None,
-                "execution_time_ms": 0.0,
-                "tokens": None,
-                "tokens_by_agent": None,
-                "estimated_cost_usd": None,
-            }
+            initial_state = self._build_turn_state(
+                HumanMessage(content=safe_message, id=msg_id),
+                user_id=user_id,
+                session_id=active_session_id,
+                trace_id=active_trace_id,
+            )
 
             # Checkpointer thread configuration
             config = {"configurable": {"thread_id": f"{user_id}:{active_session_id}"}}
@@ -965,6 +987,7 @@ class OrchestrationGraph:
 
             try:
                 result = self.graph.invoke(initial_state, config=config)
+                self._trim_history(config)
             except (LLMNotConfiguredError, LLMConfigurationError, LLMUnavailableError) as exc:
                 self._close_dangling_tool_calls(config, type(exc).__name__)
                 raise
@@ -978,12 +1001,7 @@ class OrchestrationGraph:
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
             # Extract final reply
-            final_text = result.get("final_response", "")
-            if not final_text and result.get("messages"):
-                for m in reversed(result["messages"]):
-                    if isinstance(m, AIMessage) and m.content:
-                        final_text = m.content if isinstance(m.content, str) else str(m.content)
-                        break
+            final_text = self._extract_final_text(result)
 
             tokens_dict = result.get("tokens")
             model_name = result.get("llm_model")
@@ -1040,6 +1058,195 @@ class OrchestrationGraph:
                 f"Workflow finished in {elapsed_ms}ms. Tools: {agent_state.tools_used}"
             )
             return agent_state
+
+    def _build_turn_state(
+        self,
+        message_obj: BaseMessage,
+        user_id: str,
+        session_id: str,
+        trace_id: str,
+        *,
+        operator_event: dict[str, Any] | None = None,
+    ) -> SupervisorState:
+        """Build per-turn SupervisorState leaving cross-turn hold/abstention keys untouched."""
+        return {
+            "messages": [message_obj],
+            "user_id": user_id,
+            "session_id": session_id,
+            "trace_id": trace_id,
+            "is_safe": True,
+            "safety_violations": [],
+            "guardrail": None,
+            "agents_used": ["SupervisorAgent"],
+            "tools_used": [],
+            "tool_calls": [],
+            "tool_results": [],
+            "sources": [],
+            "retrieved_docs": [],
+            "web_results": [],
+            "api_results": [],
+            "ticket": None,
+            "handoff": None,
+            "operator_event": operator_event,
+            "knowledge_outcomes": [],
+            "final_response": "",
+            "supervisor_steps": 0,
+            "llm_model": None,
+            "execution_time_ms": 0.0,
+            "tokens": None,
+            "tokens_by_agent": None,
+            "estimated_cost_usd": None,
+        }
+
+    def _extract_final_text(self, result: dict[str, Any]) -> str:
+        """Extract final response text from graph state or the latest AI message."""
+        final_text = result.get("final_response", "")
+        if not final_text and result.get("messages"):
+            for m in reversed(result["messages"]):
+                if isinstance(m, AIMessage) and m.content:
+                    extracted = _get_message_text(m)
+                    final_text = extracted if extracted else str(m.content)
+                    break
+        return final_text
+
+    def _trim_history(self, config: dict[str, Any]) -> int:
+        """Trim older complete turns with RemoveMessage to keep thread length bounded."""
+        limit = settings.MAX_HISTORY_MESSAGES
+        if limit <= 0:
+            return 0
+        snapshot = self.graph.get_state(config)
+        if not snapshot or not snapshot.values:
+            return 0
+        messages = list(snapshot.values.get("messages") or [])
+        if len(messages) <= limit:
+            return 0
+        cutoff = len(messages) - limit
+        cut_idx: int | None = None
+        for idx in range(cutoff, len(messages)):
+            if isinstance(messages[idx], HumanMessage) and idx > 0:
+                cut_idx = idx
+                break
+        if cut_idx is None:
+            return 0
+        removals = [
+            RemoveMessage(id=m.id)
+            for m in messages[:cut_idx]
+            if getattr(m, "id", None) is not None
+        ]
+        if not removals:
+            return 0
+        self.graph.update_state(config, {"messages": removals}, as_node="abstention_check")
+        return len(removals)
+
+    def resume_after_operator(self, ticket_id: str) -> dict[str, Any]:
+        """Resume a paused session turn immediately after an operator records a reply."""
+        from src.core.log_context import bind
+
+        try:
+            repo = get_tickets_repository()
+            ticket = repo.get_ticket(ticket_id)
+            if not ticket or not ticket.get("operator_reply") or not ticket.get("session_id"):
+                logger.info("operator resume", extra={"status": "skipped"})
+                return {"status": "skipped", "reason": "no_reply"}
+            if ticket.get("delivered_at"):
+                logger.info("operator resume", extra={"status": "skipped"})
+                return {"status": "skipped", "reason": "already_delivered"}
+
+            user_id = str(ticket["user_id"])
+            session_id = str(ticket["session_id"])
+            config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
+            snapshot = self.graph.get_state(config)
+            pending_id = snapshot.values.get("pending_ticket_id") if (snapshot and snapshot.values) else None
+            if pending_id != ticket_id:
+                logger.info("operator resume", extra={"status": "skipped"})
+                return {"status": "skipped", "reason": "not_pending"}
+
+            if not repo.mark_delivered(ticket_id):
+                logger.info("operator resume", extra={"status": "skipped"})
+                return {"status": "skipped", "reason": "already_delivered"}
+
+            safe_reply, _ = sanitize_pii(str(ticket["operator_reply"]))
+            op_content = OPERATOR_MESSAGE_PREFIX.format(ticket_id=ticket_id) + safe_reply
+            op_msg = HumanMessage(
+                content=op_content,
+                id=str(uuid.uuid4()),
+                additional_kwargs={"origin": "operator"},
+            )
+            trace_id = str(uuid.uuid4())
+            turn_state = self._build_turn_state(
+                op_msg,
+                user_id=user_id,
+                session_id=session_id,
+                trace_id=trace_id,
+                operator_event={"ticket_id": ticket_id},
+            )
+        except Exception as exc:  # noqa: BLE001
+            err_cls = type(exc).__name__
+            logger.error(f"Operator resume preparation failed: {exc_brief(exc)}")
+            logger.info("operator resume", extra={"status": "failed"})
+            return {"status": "failed", "error_type": err_cls}
+
+        with bind(trace_id, session_id, user_id):
+            try:
+                result = self.graph.invoke(turn_state, config=config)
+                final_text = self._extract_final_text(result)
+                self._trim_history(config)
+                logger.info("operator resume", extra={"status": "resumed"})
+                return {"status": "resumed", "final_response": final_text}
+            except Exception as exc:  # noqa: BLE001
+                err_cls = type(exc).__name__
+                logger.warning(f"Operator resume supervisor failed cleanly: {exc_brief(exc)}")
+                try:
+                    self._close_dangling_tool_calls(config, err_cls)
+                    verbatim_text = HANDOFF_REPLY_PREFIX.format(ticket_id=ticket_id) + safe_reply
+                    self.graph.update_state(
+                        config,
+                        {
+                            "messages": [AIMessage(content=verbatim_text, id=str(uuid.uuid4()))],
+                            "pending_ticket_id": None,
+                            "operator_event": None,
+                            "final_response": verbatim_text,
+                            "handoff": {"ticket_id": ticket_id, "status": "delivered"},
+                        },
+                        as_node="abstention_check",
+                    )
+                    logger.info("operator resume", extra={"status": "delivered_verbatim"})
+                    return {"status": "delivered_verbatim", "error_type": err_cls}
+                except Exception as fallback_exc:  # noqa: BLE001
+                    fb_cls = type(fallback_exc).__name__
+                    logger.error(f"Operator resume fallback failed: {exc_brief(fallback_exc)}")
+                    logger.info("operator resume", extra={"status": "failed"})
+                    return {"status": "failed", "error_type": fb_cls}
+
+    def session_messages(
+        self,
+        user_id: str,
+        session_id: str,
+        limit: int = 50,
+    ) -> list[dict[str, str | None]]:
+        """Return chronological customer and final assistant messages from a checkpointed session."""
+        clamped_limit = max(1, min(200, limit))
+        config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
+        snapshot = self.graph.get_state(config)
+        if not snapshot or not snapshot.values:
+            return []
+        messages = snapshot.values.get("messages") or []
+        out: list[dict[str, str | None]] = []
+        for m in messages:
+            if isinstance(m, HumanMessage):
+                extra = getattr(m, "additional_kwargs", None) or {}
+                if extra.get("origin") == "operator":
+                    continue
+                text = _get_message_text(m).strip()
+                if text:
+                    out.append({"id": getattr(m, "id", None), "role": "customer", "content": text})
+            elif isinstance(m, AIMessage):
+                if getattr(m, "tool_calls", None):
+                    continue
+                text = _get_message_text(m).strip()
+                if text:
+                    out.append({"id": getattr(m, "id", None), "role": "assistant", "content": text})
+        return out[-clamped_limit:]
 
     async def run(
         self,

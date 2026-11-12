@@ -30,6 +30,8 @@ GUARDRAIL_DECISIONS: frozenset[str] = frozenset({
     "classifier_invalid_block",
 })
 
+NOTIFICATION_STATUSES: frozenset[str] = frozenset({"sent", "failed", "disabled"})
+
 # Cumulative histogram bucket thresholds
 LATENCY_BUCKETS: tuple[float, ...] = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
 LATENCY_BUCKET_STRS: tuple[str, ...] = ("0.5", "1.0", "2.0", "5.0", "10.0", "20.0", "30.0", "60.0", "+Inf")
@@ -44,6 +46,7 @@ _escalations_total: int = 0
 _abstentions_total: int = 0
 _tokens: dict[str, int] = {"input": 0, "output": 0}
 _guardrail_decisions: dict[str, int] = {}
+_notifications: dict[str, int] = {}
 
 
 def reset() -> None:
@@ -62,6 +65,7 @@ def reset() -> None:
         _tokens["input"] = 0
         _tokens["output"] = 0
         _guardrail_decisions.clear()
+        _notifications.clear()
 
 
 def inc_request(status_code: int | str, latency_s: float) -> None:
@@ -109,6 +113,13 @@ def inc_guardrail(decision: str) -> None:
         _guardrail_decisions[norm] = _guardrail_decisions.get(norm, 0) + 1
 
 
+def inc_notification(status: str) -> None:
+    """Increment the operator webhook notification counter."""
+    norm = status if status in NOTIFICATION_STATUSES else "unknown"
+    with _lock:
+        _notifications[norm] = _notifications.get(norm, 0) + 1
+
+
 def add_tokens(input_tokens: int | None, output_tokens: int | None) -> None:
     """Add LLM tokens to the direction counters (None counts as 0)."""
     inp = int(input_tokens or 0)
@@ -152,6 +163,13 @@ def render() -> str:
             ])
             for dec, count in sorted(_guardrail_decisions.items()):
                 lines.append(f'getnet_guardrail_decisions_total{{decision="{dec}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_operator_notifications_total Total number of operator webhook notifications.",
+            "# TYPE getnet_operator_notifications_total counter",
+        ])
+        for st, count in sorted(_notifications.items()):
+            lines.append(f'getnet_operator_notifications_total{{status="{st}"}} {count}')
 
         lines.extend([
             "# HELP getnet_escalations_total Total number of tickets escalated to human.",

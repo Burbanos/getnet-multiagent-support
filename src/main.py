@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Path as FastAPIPath
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -238,7 +239,7 @@ async def list_agents():
 
 
 @app.patch("/tickets/{ticket_id}", tags=["Tickets"])
-async def patch_ticket_endpoint(
+def patch_ticket_endpoint(
     ticket_id: str,
     payload: TicketUpdate,
     principal: Annotated[Principal, Depends(authenticate)],
@@ -269,7 +270,6 @@ async def patch_ticket_endpoint(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
             )
-        return updated
     except TicketTransitionError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -280,6 +280,18 @@ async def patch_ticket_endpoint(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
+
+    resume_res: dict[str, Any] | None = None
+    if payload.reply is not None:
+        try:
+            resume_res = get_orchestrator().resume_after_operator(ticket_id)
+        except Exception as exc:  # noqa: BLE001
+            err_cls = type(exc).__name__
+            logger.error(f"Operator resume failed cleanly in PATCH /tickets: {exc_brief(exc)}")
+            resume_res = {"status": "failed", "error_type": err_cls}
+        updated = repo.get_ticket(ticket_id) or updated
+
+    return {**updated, "resume": resume_res}
 
 
 @app.get("/tickets/{ticket_id}", tags=["Tickets"])
@@ -324,6 +336,22 @@ async def list_tickets_endpoint(
     repo = get_tickets_repository()
     tickets = repo.list_tickets(user_id=filter_user, status=status_filter, limit=limit)
     return {"count": len(tickets), "tickets": tickets}
+
+
+@app.get("/sessions/{session_id}/messages", tags=["Chat"])
+def get_session_messages_endpoint(
+    session_id: Annotated[str, FastAPIPath(..., min_length=1, max_length=64)],
+    principal: Annotated[Principal, Depends(authenticate)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+):
+    """Return customer and final assistant messages for the authenticated customer's session."""
+    if principal.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can inspect session messages.",
+        )
+    msgs = get_orchestrator().session_messages(principal.user_id, session_id, limit=limit)
+    return {"session_id": session_id, "messages": msgs}
 
 
 @app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])

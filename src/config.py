@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
     TICKETS_DB_PATH: str = "data/tickets.db"
     ESCALATE_AFTER_ABSTENTIONS: int = 2
+    OPERATOR_WEBHOOK_URL: str = ""
+    OPERATOR_WEBHOOK_TIMEOUT_S: float = 3.0
+    PUBLIC_BASE_URL: str = ""
+    MAX_HISTORY_MESSAGES: int = 40
     EVAL_JUDGE_MODEL: str = "gemini-3.1-flash-lite"
     EVAL_SLEEP_S: float = 6.0
 

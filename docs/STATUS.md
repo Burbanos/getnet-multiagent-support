@@ -14,6 +14,110 @@
 
 ---
 
+### Fase 12C: Notificação do Operador, Retomada e Corte do Histórico
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 12C:
+```text
+INFO python 3.13.3
+PASS C0.py311_syntax
+PASS C1.supervisor_prompt
+PASS C2.env_example
+PASS C9.demo_polls
+PASS C10.tests_written :: 14 tests
+PASS C13.author_files_not_committed :: 3 author file(s) present, uncommitted
+PASS E2.scope
+PASS C12.decisions_untouched
+PASS C11.status
+PASS C2.settings
+PASS C3.notifier
+PASS C5.ticket_columns
+PASS C4.tool_notifies
+PASS C6.operator_resume
+PASS C6.gate_releases_delivered
+PASS C8.history_trim
+PASS C7.api
+PASS C7.api_end_to_end
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q0.verify_phase11b
+PASS Q0.verify_phase11c
+PASS Q0.verify_phase11d
+PASS Q0.verify_phase11e
+PASS Q0.verify_phase11f
+PASS Q0.verify_phase11g
+PASS Q0.verify_phase12a
+PASS Q0.verify_phase12b
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 375 passed in 35.63s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 78/78 passed
+```
+
+#### Commit base:
+`d1d92511d17eeaf082f1f6238d49647392908abb`
+
+#### Não feito:
+Nada pendente nesta subfase.
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+Adicionados `src/core/notifier.py` (`NotificationResult`, `build_payload`, `OperatorNotifier`, `get_notifier`, `reset_notifier`) e a suíte `tests/test_operator_hitl.py` (14 testes offline); adicionadas `OPERATOR_WEBHOOK_URL`, `OPERATOR_WEBHOOK_TIMEOUT_S`, `PUBLIC_BASE_URL` e `MAX_HISTORY_MESSAGES` em `src/config.py` e `.env.example`; adicionada a métrica `getnet_operator_notifications_total{status}` em `src/core/metrics.py`; adicionadas as colunas/migração `notified_at`/`notification_status` e `record_notification` em `src/core/tickets_db.py`; conectada notificação best-effort pós-persistência em `escalate_to_human` (`src/tools/agent_tools.py`); adicionados `operator_event` em `src/core/state.py`, entrada condicional `START` -> `operator_resume` -> `supervisor`, liberação no `handoff_gate` para tickets já entregues, `resume_after_operator` (com fallback verbatim e `_close_dangling_tool_calls`), `session_messages` e `_trim_history` com `RemoveMessage` em `src/core/graph.py`; atualizados `PATCH /tickets/{ticket_id}` e adicionado `GET /sessions/{session_id}/messages` em `src/main.py`; implementado polling em `/sessions/{id}/messages` no cliente `src/static/demo.html`.
+
 ### Fase 12B: Busca Híbrida com Reranker
 
 #### Versão do Python:
