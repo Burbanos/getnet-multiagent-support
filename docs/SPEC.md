@@ -424,8 +424,16 @@ retrieval). Sub-phases may be somewhat larger; the rules against shortcuts stay.
 (`gemini-3.5-flash-lite`: every published result was measured with it). `docs/DECISIONS.md` is not edited (already read by the
 evaluator).
 
-**Current phase: 12A** (human validation sample, routing holdout, provider branches removed), prompt
-`docs/phase-prompts/12A.md`, verifier `scripts/verify_phase12a.py`.
+- 12A (`70d4b1e`; reviewer reran `verify_phase12a.py`: 76/76 on 3.11.18; reviewer files identical; the three generated files
+  under `reports/human_validation/` are byte-identical to the reviewer's own reference implementation). Minor, accepted: the
+  agreement Markdown is in English (the other reports are pt-BR); `human-sample` catches every exception, not only
+  `FileExistsError`. The author can fill `answers.csv` from now on.
+- Planning 12B (offline, committed 3D embeddings and index): the hybrid pipeline is checked with an "oracle" reranker (3 for a
+  candidate that holds a gold snippet, 0 otherwise) only to test the plumbing; the real measurement is the user's
+  `rerank-1..3`. The evaluation lives in a new module `src/rag/hybrid_eval.py` so the 3D code and reports stay untouched.
+
+**Current phase: 12B** (hybrid retrieval with an LLM reranker), prompt `docs/phase-prompts/12B.md`, verifier
+`scripts/verify_phase12b.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -1364,9 +1372,13 @@ re-run or edited; new runs get new ids.
   `data/eval/cases_routing_holdout.jsonl`; `src/core/llm.py` without the `openai`/`anthropic` branches (any other provider →
   `LLMConfigurationError("unsupported LLM_PROVIDER '...'")`), its test and the README provider sentence. Supersedes 11G
   `G1.readme_from_prompt`, `G8.9g.J6`, `G10.status` and `E2.scope` (re-checked as A2, A10 and A11).
-- 12B (Extra): `src/rag/lexical.py`, `src/rag/reranker.py`, hybrid `Retriever.search`, settings, reranker tokens through the
-  Knowledge Agent, `hybrid-run` / `hybrid-report` in `src/rag/calibration.py`, tests. Reviewer file `src/prompts/reranker.md`.
-  Then the user runs `rerank-1`..`rerank-3`.
+- 12B (Extra; checked by `scripts/verify_phase12b.py`): `src/rag/lexical.py` (BM25), `src/rag/reranker.py` (`LLMReranker`,
+  forced `RerankVerdict` call, statuses `ok | invalid | error`), `VectorIndex.scores`, hybrid `Retriever.search` (only when a
+  reranker is given; `reranker=None` keeps the current dense behaviour, so every existing test and verifier is unchanged),
+  settings `RAG_RERANK_*`, `RAG_DENSE_CANDIDATES`, `RAG_LEXICAL_CANDIDATES`, `RAG_RRF_K`, reranker tokens added to the Knowledge
+  Agent's usage, `src/rag/hybrid_eval.py` (`run` over the 48 queries with the committed query embeddings, resumable records in
+  `reports/retrieval_runs/`, `report` → `reports/retrieval_hybrid.{json,md}` with the dense baseline), tests. Reviewer file
+  `src/prompts/reranker.md`, committed before any run. Then the user runs `rerank-1`..`rerank-3` once each.
 - 12C (Extra): notifier, ticket columns, operator resume turn, `GET /sessions/{session_id}/messages`, `/demo` polling, history
   trim, tests. Reviewer file: `src/prompts/supervisor.md` (operator replies section).
 - 12D (Extra): supervisor tool descriptions, answer check node, account fail-closed, web results classifier, runner fields

@@ -14,6 +14,111 @@
 
 ---
 
+### Fase 12B: Busca Híbrida com Reranker
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 12B:
+```text
+INFO python 3.13.3
+PASS B0.py311_syntax
+PASS B1.reranker_prompt_preregistered
+PASS B1.no_regex_new_code
+PASS B10.no_runs_yet
+PASS E2.scope
+PASS B12.decisions_untouched
+PASS B11.status
+PASS B6.env_example
+PASS B13.tests_written :: 13 tests
+PASS B6.settings
+PASS B2.bm25_matches_reference
+PASS B3.reranker_outcomes
+PASS B4.dense_path_unchanged
+PASS B5.hybrid_matches_reference :: 40 reranker calls, 8 gated
+PASS B5.fallback_to_dense
+PASS B7.rerank_log
+PASS B7.production_wiring
+PASS B8.rerank_tokens_in_knowledge_usage
+PASS B9.measurement_module
+PASS B9.cli
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q0.verify_phase11b
+PASS Q0.verify_phase11c
+PASS Q0.verify_phase11d
+PASS Q0.verify_phase11e
+PASS Q0.verify_phase11f
+PASS Q0.verify_phase11g
+PASS Q0.verify_phase12a
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 361 passed in 44.32s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 79/79 passed
+```
+
+#### Commit base:
+`70d4b1ea793aadffe4bf01ca3117186220036e9e`
+
+#### Não feito:
+Nada pendente nesta subfase (as execuções com modelo real `rerank-1` a `rerank-3` e a geração de `reports/retrieval_hybrid.*` ficam a cargo do autor após o commit).
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+Adicionados `src/rag/lexical.py` (`fold`, `tokenize`, `BM25Index`), `src/rag/reranker.py` (`LLMReranker`, `RerankVerdict`, `PassageRelevance`, `RerankResult`, `format_rerank_input`, `load_reranker_prompt`), `src/rag/hybrid_eval.py` (`load_inputs`, `build_retriever`, `run_hybrid`, `dense_baseline`, `metrics`, `hybrid_report` e CLI `run`/`report`) e a suíte `tests/test_hybrid_retrieval.py` (13 testes offline); adicionado `VectorIndex.scores` em `src/rag/index.py`; atualizado `src/rag/retriever.py` com busca híbrida (portão semântico + fusão RRF denso/BM25 + reranker por LLM + fallback denso) preservando o caminho `reranker=None` idêntico ao anterior e ligando `get_knowledge_retriever()`; adicionadas as 7 configurações `RAG_RERANK_*`/`RAG_*` em `src/config.py` e `.env.example`; somados os tokens de uso do reranker ao `specialist_usage` de `KnowledgeAgent` em `src/agents/specialists.py`.
+
 ### Fase 12A: Amostra para Validação Humana e Holdout de Roteamento
 
 #### Versão do Python:

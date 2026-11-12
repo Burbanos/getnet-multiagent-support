@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 4
     RAG_MIN_SCORE: float = 0.61
     RAG_MIN_CHUNK_CHARS: int = 120
+    RAG_RERANK_ENABLED: bool = True
+    RAG_RERANK_MODEL: str = ""
+    RAG_RERANK_TIMEOUT_S: float = 10.0
+    RAG_DENSE_CANDIDATES: int = 6
+    RAG_LEXICAL_CANDIDATES: int = 6
+    RAG_RERANK_MIN_RELEVANCE: int = 2
+    RAG_RRF_K: int = 60
     INDEX_DIR: str = "data/index"
 
     ENABLE_GUARDRAILS: bool = True

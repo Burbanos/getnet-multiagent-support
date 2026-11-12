@@ -176,6 +176,28 @@ class SpecialistAgent:
                                 retrieved_docs.append(d)
                                 if d.get("url"):
                                     sources.append(d.get("url"))
+                            retrieval_info = parsed.get("retrieval")
+                            rerank_usage = (
+                                retrieval_info.get("usage")
+                                if isinstance(retrieval_info, dict)
+                                else None
+                            )
+                            if isinstance(rerank_usage, dict):
+                                if specialist_usage is None:
+                                    specialist_usage = {
+                                        "input_tokens": 0,
+                                        "output_tokens": 0,
+                                        "total_tokens": 0,
+                                    }
+                                specialist_usage["input_tokens"] += int(
+                                    rerank_usage.get("input_tokens") or 0
+                                )
+                                specialist_usage["output_tokens"] += int(
+                                    rerank_usage.get("output_tokens") or 0
+                                )
+                                specialist_usage["total_tokens"] += int(
+                                    rerank_usage.get("total_tokens") or 0
+                                )
                         elif tool_name == "search_web":
                             results = parsed.get("results", [])
                             for r in results:

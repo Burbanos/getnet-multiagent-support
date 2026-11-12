@@ -131,6 +131,18 @@ class VectorIndex:
 
         return [(self.chunks[i], float(scores[i])) for i in top_indices]
 
+    def scores(self, vector: list[float] | np.ndarray) -> np.ndarray:
+        """Compute cosine similarity between a query vector and every indexed chunk."""
+        if not self.chunks or self.embeddings.shape[0] == 0:
+            return np.empty(0, dtype=np.float32)
+
+        q = np.array(vector, dtype=np.float32).flatten()
+        norm = np.linalg.norm(q)
+        if norm > 0.0:
+            q = q / norm
+
+        return self.embeddings @ q
+
 
 def main() -> None:
     """CLI to build embedding index from data/corpus/pages.jsonl."""
