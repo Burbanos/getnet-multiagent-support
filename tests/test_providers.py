@@ -80,16 +80,15 @@ def test_unknown_provider_raises_configuration_error():
         settings.LLM_PROVIDER = saved_provider
 
 
-def test_missing_optional_provider_packages_raise_configuration_error():
-    """Verify selecting openai or anthropic raises LLMConfigurationError with package install advice."""
+def test_removed_providers_raise_unsupported_configuration_error():
+    """openai and anthropic are no longer supported: they fail like any unknown provider."""
     saved_provider = settings.LLM_PROVIDER
     try:
         for prov in ("openai", "anthropic"):
             settings.LLM_PROVIDER = prov
             with pytest.raises(LLMConfigurationError) as exc_info:
                 get_chat_model()
-            err_msg = str(exc_info.value)
-            assert f"langchain_{prov}" in err_msg or f"langchain-{prov}" in err_msg
+            assert f"unsupported LLM_PROVIDER '{prov}'" in str(exc_info.value)
     finally:
         settings.LLM_PROVIDER = saved_provider
 

@@ -14,6 +14,108 @@
 
 ---
 
+### Fase 12A: Amostra para Validação Humana e Holdout de Roteamento
+
+#### Versão do Python:
+```text
+Python 3.13.3
+```
+
+#### Verificação Fase 12A:
+```text
+INFO python 3.13.3
+PASS A0.py311_syntax
+PASS A1.provider_branches_removed
+PASS A2.readme_one_sentence
+PASS A3.routing_holdout
+PASS E2.scope
+PASS A12.decisions_untouched
+PASS A11.status
+PASS A10.unsupported_providers
+PASS A4.module_api
+PASS A5.sample_recomputed :: eligible 72, allocation {'escalation': 2, 'knowledge': 9, 'multi_intent': 1, 'multi_turn': 3, 'off_topic': 2, 'pii': 1, 'public_data': 5, 'support': 4, 'uncovered': 3, 'web': 0}
+PASS A5.functions_match_reference
+PASS A6.generated_by_cli
+PASS A7.form_blind_and_complete :: 125940 chars
+PASS A8.answers_template
+PASS A8.no_answers_yet
+PASS A9.agreement_matches_reference
+PASS A9.cli_agreement
+PASS A13.tests_written :: 10 tests
+PASS Q0.verify_phase2a
+PASS Q0.verify_phase2b
+PASS Q0.verify_phase2c
+PASS Q0.verify_phase2d
+PASS Q0.verify_phase2e
+PASS Q0.verify_phase3a
+PASS Q0.verify_phase3b
+PASS Q0.verify_phase3c
+PASS Q0.verify_phase3d
+PASS Q0.verify_phase4a
+PASS Q0.verify_phase4b
+PASS Q0.verify_phase5a
+PASS Q0.verify_phase5b
+PASS Q0.verify_phase5c
+PASS Q0.verify_phase6a
+PASS Q0.verify_phase6b
+PASS Q0.verify_phase6c
+PASS Q0.verify_phase6d
+PASS Q0.verify_phase6e
+PASS Q0.verify_phase6f
+PASS Q0.verify_phase7a
+PASS Q0.verify_phase7b
+PASS Q0.verify_phase7c
+PASS Q0.verify_phase7d
+PASS Q0.verify_phase8a
+PASS Q0.verify_phase8b
+PASS Q0.verify_phase8c
+PASS Q0.verify_phase8d
+PASS Q0.verify_phase8e
+PASS Q0.verify_phase8f
+PASS Q0.verify_phase9a
+PASS Q0.verify_phase9b
+PASS Q0.verify_phase9c
+PASS Q0.verify_phase9d
+PASS Q0.verify_phase9e
+PASS Q0.verify_phase9f
+PASS Q0.verify_phase9g
+PASS Q0.verify_phase10a
+PASS Q0.verify_phase10b
+PASS Q0.verify_phase10c
+PASS Q0.verify_phase10d
+PASS Q0.verify_phase10e
+PASS Q0.verify_phase10f
+PASS Q0.verify_phase10g
+PASS Q0.verify_phase10h
+PASS Q0.verify_phase10i
+PASS Q0.verify_phase11a
+PASS Q0.verify_phase11b
+PASS Q0.verify_phase11c
+PASS Q0.verify_phase11d
+PASS Q0.verify_phase11e
+PASS Q0.verify_phase11f
+PASS Q0.verify_phase11g
+PASS Q1.ruff_clean
+PASS Q2.pytest_offline_no_key :: 348 passed in 29.19s
+PASS Q5.offline_eval
+PASS Q3.tree_unchanged
+PASS Q4.tests_do_not_touch_data_dbs
+
+SUMMARY: 76/76 passed
+```
+
+#### Commit base:
+`d2de4ffa84a1c9c0917ef1ba8dffa961a6132c75`
+
+#### Não feito:
+Nada pendente nesta subfase (preenchimento do `answers.csv` e execução de `human-agreement` ficam a cargo do autor após o commit).
+
+#### Perguntas / divergências com o SPEC:
+Nenhuma.
+
+#### Alterações:
+Ramos `openai` e `anthropic` removidos de `src/core/llm.py`, `tests/test_providers.py` e `README.md`; módulo `src/eval/human_validation.py`, subcomandos `human-sample` e `human-agreement` em `src/eval/__main__.py`, amostra cega gerada em `reports/human_validation/` (`sample.json`, `form.md`, `answers_template.csv`) e suíte `tests/test_human_validation.py` adicionada.
+
 ### Fase 11G: README Reorganizado
 
 #### Versão do Python:

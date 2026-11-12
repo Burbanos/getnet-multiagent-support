@@ -54,32 +54,6 @@ def _build_chat_model(
             timeout=eff_timeout,
             max_retries=eff_retries,
         )
-    if provider in {"openai", "anthropic"}:
-        if provider == "openai":
-            try:
-                from langchain_openai import ChatOpenAI
-            except ImportError as exc:
-                raise LLMConfigurationError(
-                    f"install langchain-{provider} to use LLM_PROVIDER={provider}"
-                ) from exc
-            return ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                timeout=eff_timeout,
-                max_retries=eff_retries,
-            )
-        try:
-            from langchain_anthropic import ChatAnthropic
-        except ImportError as exc:
-            raise LLMConfigurationError(
-                f"install langchain-{provider} to use LLM_PROVIDER={provider}"
-            ) from exc
-        return ChatAnthropic(
-            model=model_name,
-            temperature=0,
-            timeout=eff_timeout,
-            max_retries=eff_retries,
-        )
 
     raise LLMConfigurationError(f"unsupported LLM_PROVIDER '{provider}'")
 

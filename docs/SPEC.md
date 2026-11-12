@@ -404,9 +404,28 @@ use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` imag
 - 11F (`ba480df`; reviewer reran `verify_phase11f.py`: 63/63 on 3.11.18; reviewer files identical; CI run #71 green, test and
   docker). No review issues.
 
-**Current phase: 11G** (README reorganized), prompt `docs/phase-prompts/11G.md`, verifier `scripts/verify_phase11g.py`. Phase 11 is the last before the resubmission. Open
-product failures (`k16`, `o02`, `s04`, `s06` in every run; `off01` with 3.8-flash) stay documented; fixing them needs new
-held-out cases, not prompt tuning against these.
+- 11G (`d2de4ff`; reviewer reran `verify_phase11g.py`: 120/120 on 3.11.18), no review issues. Resubmitted as is.
+- Real feedback v2 (evaluator, HEAD `d2de4ff`, 2026-11-12): **8.0/10** ("Forte / competitivo"); it recalculated the 91.9% from
+  the raw records. Its "Caminho para 9,0": operator notification and resume (+0.10), hybrid retrieval with reranking and the
+  uncovered abstention measured (+0.15), human validation of labels and judge (+0.14), `s04`/`s06` fixed through tool
+  descriptions plus an answer check before sending (+0.08), fail-closed for account requests and a guardrail on web results
+  (+0.13); 9.0 also needs history trimming and state outside local SQLite. Also discounted: "volume de processo alto para o
+  problema" and the unused `openai`/`anthropic` branches. Phase 12 is one round on those items, in at most five sub-phases.
+- Found while planning Phase 12 (on `d2de4ff`): five recorded answers present the PTAX/weather reference date as the
+  collection date (`v2-1` `d04` "retrieved on November 6, 2026" and `d05` "coletado em 06/11/2026", `v2-2` `off07` and `w02`,
+  `v2-3` `d04`; every `retrieved_at` is 2026-11-09). Offline prototype on the committed 3D embeddings: BM25 alone hit@1 0.767;
+  reciprocal-rank fusion alone hit@1 0.800 (dense 0.900), but the Get Mini "12 hours" chunk moves from rank 16 to 4; the union
+  of dense top 6 and BM25 top 6 (mean 8.9 candidates) holds an answer chunk for all 30 answerable queries (dense top 8 alone
+  misses `e05` and `e07`). So fusion only widens the candidate pool; a reranker has to choose.
+
+**Environment from Phase 12:** Antigravity runs Gemini 4 Hydrogen (successor of Gemini 3.8 Flash), effort High by default;
+each prompt states the recommended effort at the top (Extra only for sub-phases that change the LangGraph graph/state or the
+retrieval). Sub-phases may be somewhat larger; the rules against shortcuts stay. The product model does not change
+(`gemini-3.5-flash-lite`: every published result was measured with it). `docs/DECISIONS.md` is not edited (already read by the
+evaluator).
+
+**Current phase: 12A** (human validation sample, routing holdout, provider branches removed), prompt
+`docs/phase-prompts/12A.md`, verifier `scripts/verify_phase12a.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -1288,3 +1307,81 @@ the previous sub-phase is reviewed. Old runs are never re-run; records written b
 - AC11.4 Every real-model report states the tier and the models used.
 - AC11.5 The README has at most ~350 lines, no "(Fase", no "candidato", no video text; nothing historical is lost (it moves
   to `docs/history.md` / `docs/status-history.md`).
+
+### Phase 12 — The evaluator's "Caminho para 9,0"
+Source: the real feedback v2 (8.0/10). One round, at most five sub-phases, small and direct changes; no new report except the
+ones that back a README claim. One verifier per sub-phase; each re-runs the earlier ones and lists the checks it supersedes.
+Each later prompt is written after the previous sub-phase is reviewed (12B-12E below are provisional). Old runs are never
+re-run or edited; new runs get new ids.
+**Decisions (reviewer proposal; the user decides):**
+- *Human validation of labels and judge.* A pre-registered sample of 30 of the 72 judged cases of `v2-1` (stratified by
+  category, largest-remainder allocation, order and pick by sha256 of a fixed seed, so anyone can recompute it), committed with
+  a blind form before the author fills it. The form shows exactly what the judge saw (merchant messages, final answer, passages,
+  API and agent outputs), with neutral ids `h01`..`h30` (case ids reveal the category), in two parts: part 1 only the messages
+  (the author gives the expected route), part 2 the answer and evidence (should it abstain, is it acceptable, did it abstain,
+  grounding 1-5 on the judge's scale). Blindness depends on the author not opening the sample map, the labels or the records
+  before finishing; the README says so. Agreement: author vs label (route, abstention), author vs deterministic checks (case
+  passed), author vs judge (acceptable = grounded >= 4 and answers >= 4, abstained, grounded exact and within 1), with n,
+  Wilson 95% interval, Cohen's kappa and the list of disagreements; published as it comes out. The headline: on the sample,
+  the share passed by the checks vs the share the author finds acceptable.
+- *Routing fix through tool descriptions, measured on held-out cases.* `data/eval/cases_routing_holdout.jsonl` (8 cases: five
+  decline-code questions, one with a code outside the catalogue, and three knowledge questions with account words such as
+  "recusaram", "minha conta", "venda") is written by the reviewer and committed in 12A, before the descriptions change in 12D.
+  The supervisor prompt is not changed for routing.
+- *Hybrid retrieval with an LLM reranker.* Candidates = dense top 6 ∪ BM25 top 6 (BM25 in plain Python over title + text,
+  accent-folded, no stopwords, no new dependency), fused by reciprocal rank (k = 60). The semantic gate stays: dense top-1 below
+  `RAG_MIN_SCORE` abstains without a model call (off-topic). Otherwise one reranker call (production model by default, own
+  prompt `src/prompts/reranker.md`, forced function call, relevance 0-3 per candidate) keeps candidates with relevance >= 2,
+  ordered by relevance then fusion order, top `RAG_TOP_K`; none kept → `abstain` (`no_passage_answers`). Reranker failure or
+  invalid output → the current dense behaviour, flagged. Tokens counted. The reranker prompt and the rule are committed before
+  the only measurement: three runs over the 48 queries of the 3D set with the committed query embeddings (no embedding call),
+  reported next to the dense baseline (hit@1/3, MRR, answer_hit@3, answer rate, off-topic and uncovered abstention).
+- *HITL.* Notification by an outgoing webhook (`OPERATOR_WEBHOOK_URL`, JSON with `text` so Slack, Google Chat or Teams incoming
+  webhooks accept it; ticket id, priority, link; no transcript or reason), best effort, recorded on the ticket, tested with an
+  `httpx.MockTransport`. When the operator replies (`PATCH /tickets/{id}`), the graph runs a resume turn on the ticket's thread:
+  the reply enters as an operator message, the supervisor writes the answer to the merchant (relaying the reply faithfully, in
+  the merchant's language), the ticket is marked delivered; on failure the reply is delivered verbatim, as today. The merchant
+  reads it without writing again through `GET /sessions/{session_id}/messages` (polled by `/demo`).
+- *History trim.* `MAX_HISTORY_MESSAGES` (default 40, 0 disables): at the end of a turn the oldest messages are removed from the
+  thread state (`RemoveMessage`), cut at a merchant message so no tool call is orphaned. Old checkpoints stay in the SQLite file
+  (no expiry): stated as a limitation, like state outside local SQLite.
+- *Security.* (1) Fail-closed for account data: when the classifier is unavailable and the mode is `open`, the turn is marked
+  `guardrail_degraded` and `ask_support_agent` returns `guardrail_unavailable` without running (knowledge and escalation still
+  work). (2) `search_web` results go through the classifier with a document prompt (`src/prompts/guardrail_web_classifier.md`)
+  before the Knowledge Agent sees them; `block` or classifier failure drops the results. Detection on real attacks is not
+  measured; false positives on real news results are counted in the new v2 runs.
+- *Answer check before sending.* After the supervisor's final answer: every `GET-TKT-` id must be a ticket of this thread, every
+  URL must appear in a tool result of the thread, and in turns that create or relay a ticket no time-promise phrase. A failure
+  gets one revision call; a second failure is replaced by a fixed bilingual message offering a human agent. Recorded per turn.
+  The checks are run first, offline, over the 234 committed v2 answers to estimate false failures.
+- *Housekeeping.* The `openai`/`anthropic` branches are removed (12A). The demo PTAX transcript becomes `v2-2` `d04`; the
+  invented collection dates go to "Limitações"; "Autoria e revisão" says phases up to 11 were implemented with Gemini 3.8 Flash
+  and from 12 with Gemini 4 Hydrogen (12E).
+**Split (12B-12E provisional):**
+- 12A (High; checked by `scripts/verify_phase12a.py`): `src/eval/human_validation.py` (sample, form, answer parsing, agreement,
+  report) and the CLI `human-sample` / `human-agreement`; `reports/human_validation/{sample.json, form.md,
+  answers_template.csv}` generated and committed (no answers, no agreement report yet); reviewer file
+  `data/eval/cases_routing_holdout.jsonl`; `src/core/llm.py` without the `openai`/`anthropic` branches (any other provider →
+  `LLMConfigurationError("unsupported LLM_PROVIDER '...'")`), its test and the README provider sentence. Supersedes 11G
+  `G1.readme_from_prompt`, `G8.9g.J6`, `G10.status` and `E2.scope` (re-checked as A2, A10 and A11).
+- 12B (Extra): `src/rag/lexical.py`, `src/rag/reranker.py`, hybrid `Retriever.search`, settings, reranker tokens through the
+  Knowledge Agent, `hybrid-run` / `hybrid-report` in `src/rag/calibration.py`, tests. Reviewer file `src/prompts/reranker.md`.
+  Then the user runs `rerank-1`..`rerank-3`.
+- 12C (Extra): notifier, ticket columns, operator resume turn, `GET /sessions/{session_id}/messages`, `/demo` polling, history
+  trim, tests. Reviewer file: `src/prompts/supervisor.md` (operator replies section).
+- 12D (Extra): supervisor tool descriptions, answer check node, account fail-closed, web results classifier, runner fields
+  (`answer_check`, web guardrail), tests. Reviewer file `src/prompts/guardrail_web_classifier.md`. Then the user runs `v2-4`..`v2-6`
+  (with judge), `rh-1`..`rh-3` on the routing holdout, and fills `answers.csv`.
+- 12E (High): records committed as written, reports generated (retrieval hybrid, v2 comparison before/after, routing holdout,
+  human agreement), README dictated by the reviewer (results, new sections, housekeeping above), STATUS. Outside the repository:
+  the reply to feedback v2 in first person, saved in the project as `claude/nota-resposta-feedback-v4-v2.md`.
+**Acceptance:**
+- AC12.1 The human sample, its form and the routing holdout are committed before the author's answers and before the routing
+  change; the agreement is reported as it came out, with intervals.
+- AC12.2 Retrieval is hybrid with a reranker; the reranker prompt is committed before its only measurement; the 3D metrics and
+  the uncovered abstention are reported next to the dense baseline.
+- AC12.3 A ticket notifies the operator (tested offline), and an operator reply produces an answer in the thread without a new
+  merchant message; failure falls back to verbatim delivery.
+- AC12.4 Account tools refuse to run when the classifier is unavailable; web results pass the classifier before the model.
+- AC12.5 Every final answer passes the answer check or is revised/replaced, and the outcome is recorded.
+- AC12.6 Every new README claim has evidence in the repository; no product model change; `docs/DECISIONS.md` unchanged.

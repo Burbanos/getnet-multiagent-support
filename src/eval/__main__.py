@@ -16,6 +16,22 @@ from src.eval.guardrail_eval import (
     write_guardrail_summary,
     write_pattern_report,
 )
+from src.eval.human_validation import (
+    CASES_FILE as HV_CASES_FILE,
+)
+from src.eval.human_validation import (
+    SAMPLE_DIR as HV_SAMPLE_DIR,
+)
+from src.eval.human_validation import (
+    SOURCE_RUN as HV_SOURCE_RUN,
+)
+from src.eval.human_validation import (
+    agreement,
+    file_sha256,
+    parse_answers,
+    write_agreement_report,
+    write_sample,
+)
 from src.eval.judge import load_judgments, run_judge
 from src.eval.offline import run_offline
 from src.eval.report import write_report
@@ -52,6 +68,92 @@ def _cmd_offline(cases_path: Path) -> int:
     if passed_count == total and zero_calls:
         return 0
     return 1
+
+
+def _cmd_human_sample(args: argparse.Namespace) -> int:
+    try:
+        sample = write_sample(
+            out_dir=args.out_dir,
+            cases_path=args.cases,
+            run_id=args.run_id,
+            runs_dir=args.runs_dir,
+        )
+        print(f"human-sample: {len(sample['items'])} items written to {args.out_dir}")
+        return 0
+    except FileExistsError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error creating human validation sample: {exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_human_agreement(args: argparse.Namespace) -> int:
+    try:
+        sample_path = Path(args.sample_dir) / "sample.json"
+        if not sample_path.exists():
+            print(f"Error: sample file not found at {sample_path}", file=sys.stderr)
+            return 1
+
+        answers_path = Path(args.answers)
+        if not answers_path.exists():
+            print(f"Error: answers file not found at {answers_path}", file=sys.stderr)
+            return 1
+
+        cases_path = Path(args.cases)
+        if not cases_path.exists():
+            print(f"Error: cases file not found at {cases_path}", file=sys.stderr)
+            return 1
+
+        sample = json.loads(sample_path.read_text(encoding="utf-8"))
+        run_id = sample["source_run"]
+        runs_dir = Path(args.runs_dir)
+        results_path = runs_dir / f"{run_id}.jsonl"
+        judgments_path = runs_dir / f"{run_id}.judge.jsonl"
+
+        if not results_path.exists():
+            print(f"Error: results file not found at {results_path}", file=sys.stderr)
+            return 1
+        if not judgments_path.exists():
+            print(f"Error: judgments file not found at {judgments_path}", file=sys.stderr)
+            return 1
+
+        if file_sha256(results_path) != sample["records_sha256"]:
+            print(f"Error: records file changed since sample ({results_path})", file=sys.stderr)
+            return 1
+        if file_sha256(judgments_path) != sample["judgments_sha256"]:
+            print(f"Error: judgments file changed since sample ({judgments_path})", file=sys.stderr)
+            return 1
+
+        cases_list = load_cases(cases_path)
+        cases_by_id = {c["id"]: c for c in cases_list}
+        hids = [it["hid"] for it in sample["items"]]
+        answers = parse_answers(answers_path, hids)
+        results = load_results(results_path)
+        judgments = load_judgments(judgments_path)
+
+        rep = agreement(
+            sample=sample,
+            answers=answers,
+            cases_by_id=cases_by_id,
+            results=results,
+            judgments=judgments,
+            sample_sha256=file_sha256(sample_path),
+            answers_sha256=file_sha256(answers_path),
+        )
+
+        out_dir = Path(args.out_dir)
+        out_json = out_dir / "human_validation.json"
+        out_md = out_dir / "human_validation.md"
+        write_agreement_report(rep, out_json, out_md)
+        print(
+            f"human-agreement: pass_rate_checks {rep['pass_rate_checks']:.4f}, "
+            f"acceptable_rate_human {rep['acceptable_rate_human']:.4f}"
+        )
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error computing human agreement: {exc}", file=sys.stderr)
+        return 1
 
 
 def main() -> int:
@@ -122,10 +224,31 @@ def main() -> int:
     p_gsum.add_argument("--run-ids", required=True, help="Comma-separated run IDs to summarize")
     p_gsum.add_argument("--out-dir", default="reports", help="Output directory for reports")
 
+    # 10. human-sample
+    p_hs = subparsers.add_parser("human-sample", help="Generate stratified blind sample for human validation")
+    p_hs.add_argument("--run-id", default=HV_SOURCE_RUN, help="Source run ID")
+    p_hs.add_argument("--cases", default=HV_CASES_FILE, help="Path to evaluation cases JSONL")
+    p_hs.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_hs.add_argument("--out-dir", default=HV_SAMPLE_DIR, help="Output directory for sample files")
+
+    # 11. human-agreement
+    p_ha = subparsers.add_parser("human-agreement", help="Compute human agreement metrics and report")
+    p_ha.add_argument("--answers", default=f"{HV_SAMPLE_DIR}/answers.csv", help="Path to filled answers CSV")
+    p_ha.add_argument("--sample-dir", default=HV_SAMPLE_DIR, help="Directory containing sample.json")
+    p_ha.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_ha.add_argument("--cases", default=HV_CASES_FILE, help="Path to evaluation cases JSONL")
+    p_ha.add_argument("--out-dir", default="reports", help="Output directory for agreement reports")
+
     args = parser.parse_args()
 
     if args.subcommand == "offline":
         return _cmd_offline(DEFAULT_CASES_PATH)
+
+    if args.subcommand == "human-sample":
+        return _cmd_human_sample(args)
+
+    if args.subcommand == "human-agreement":
+        return _cmd_human_agreement(args)
 
     if args.subcommand == "guardrail-patterns":
         try:

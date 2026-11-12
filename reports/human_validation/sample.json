@@ -1,0 +1,144 @@
+{
+  "seed": "getnet-human-validation-2026-11-12",
+  "source_run": "v2-1",
+  "cases_file": "data/eval/cases_v2.jsonl",
+  "cases_sha256": "e32b61a20c57fd3fb6c919b848339b56c6c57a7f7cf9b74959cb617f3b28bb10",
+  "records_sha256": "b5c935dd0507e4300f3460d53536a5358375a6ad9a488f430646e2327feb5ea1",
+  "judgments_sha256": "9ce4814828177176539e7abb91d83712532bf3eadf55db9f6a71f3ae73816815",
+  "size": 30,
+  "eligible": 72,
+  "allocation": {
+    "escalation": 2,
+    "knowledge": 9,
+    "multi_intent": 1,
+    "multi_turn": 3,
+    "off_topic": 2,
+    "pii": 1,
+    "public_data": 5,
+    "support": 4,
+    "uncovered": 3,
+    "web": 0
+  },
+  "items": [
+    {
+      "hid": "h01",
+      "case_id": "e02"
+    },
+    {
+      "hid": "h02",
+      "case_id": "e04"
+    },
+    {
+      "hid": "h03",
+      "case_id": "u03"
+    },
+    {
+      "hid": "h04",
+      "case_id": "k07"
+    },
+    {
+      "hid": "h05",
+      "case_id": "k06"
+    },
+    {
+      "hid": "h06",
+      "case_id": "m03"
+    },
+    {
+      "hid": "h07",
+      "case_id": "m01"
+    },
+    {
+      "hid": "h08",
+      "case_id": "o03"
+    },
+    {
+      "hid": "h09",
+      "case_id": "w02"
+    },
+    {
+      "hid": "h10",
+      "case_id": "off08"
+    },
+    {
+      "hid": "h11",
+      "case_id": "k16"
+    },
+    {
+      "hid": "h12",
+      "case_id": "s01"
+    },
+    {
+      "hid": "h13",
+      "case_id": "off05"
+    },
+    {
+      "hid": "h14",
+      "case_id": "w01"
+    },
+    {
+      "hid": "h15",
+      "case_id": "k08"
+    },
+    {
+      "hid": "h16",
+      "case_id": "d07"
+    },
+    {
+      "hid": "h17",
+      "case_id": "u01"
+    },
+    {
+      "hid": "h18",
+      "case_id": "k17"
+    },
+    {
+      "hid": "h19",
+      "case_id": "off07"
+    },
+    {
+      "hid": "h20",
+      "case_id": "k04"
+    },
+    {
+      "hid": "h21",
+      "case_id": "k01"
+    },
+    {
+      "hid": "h22",
+      "case_id": "o01"
+    },
+    {
+      "hid": "h23",
+      "case_id": "m05"
+    },
+    {
+      "hid": "h24",
+      "case_id": "x02"
+    },
+    {
+      "hid": "h25",
+      "case_id": "d04"
+    },
+    {
+      "hid": "h26",
+      "case_id": "k03"
+    },
+    {
+      "hid": "h27",
+      "case_id": "off04"
+    },
+    {
+      "hid": "h28",
+      "case_id": "s05"
+    },
+    {
+      "hid": "h29",
+      "case_id": "p01"
+    },
+    {
+      "hid": "h30",
+      "case_id": "u08"
+    }
+  ]
+}
