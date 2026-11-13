@@ -18,8 +18,9 @@ from langchain_core.messages import (
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from src.agents.answer_check import check_answer
 from src.agents.guardrails import ATTACK_REFUSAL, INJECTION_REFUSAL, GuardrailAgent
-from src.agents.injection_classifier import InjectionClassifier
+from src.agents.injection_classifier import WEB_PROMPT_PATH, InjectionClassifier
 from src.agents.specialists import SpecialistAgent
 from src.config import settings
 from src.core import metrics
@@ -84,6 +85,22 @@ FORCED_ESCALATION_FAILED_MESSAGE = (
     "novamente mais tarde. / I could not complete your request automatically and could not open a ticket right now. "
     "Please try again later."
 )
+ACCOUNT_GUARDRAIL_UNAVAILABLE = (
+    "Os dados da conta estão indisponíveis agora porque a verificação de segurança não pôde ser feita. "
+    "Peça ao lojista para tentar de novo mais tarde. / Account data is unavailable right now because the safety check "
+    "could not run. Ask the merchant to try again later."
+)
+ANSWER_CHECK_FALLBACK = (
+    "Não consegui confirmar esta resposta nas fontes consultadas, então prefiro não enviá-la. Posso encaminhar seu pedido "
+    "a um atendente humano, se quiser. / I could not confirm this answer against the sources I checked, so I would rather "
+    "not send it. I can forward your request to a human agent if you want."
+)
+ANSWER_REVISION_INSTRUCTION = (
+    "[Automatic check before sending] Your last answer failed these checks: {failures}. Write the final answer to the "
+    "merchant again, in the same language, keeping everything that passed and fixing only that: cite only URLs that "
+    "appear in tool results of this conversation, mention only ticket ids that a tool returned, and do not promise when "
+    "anyone will reply or act. Do not call tools. Reply with the answer text only."
+)
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
 
@@ -118,10 +135,15 @@ class OrchestrationGraph:
         self.guardrail_model: BaseChatModel | None = guardrail_model
         if guardrail_model is not None:
             self.injection_classifier: InjectionClassifier | None = InjectionClassifier(guardrail_model)
+            web_classifier: InjectionClassifier | None = InjectionClassifier(
+                guardrail_model, prompt_path=WEB_PROMPT_PATH
+            )
         elif chat_model is None:
             self.injection_classifier = InjectionClassifier()
+            web_classifier = InjectionClassifier(prompt_path=WEB_PROMPT_PATH)
         else:
             self.injection_classifier = None
+            web_classifier = None
         self._bound_model: Any = None
         self._bound_fallback: Any = None
 
@@ -131,6 +153,7 @@ class OrchestrationGraph:
             tools=KNOWLEDGE_TOOLS,
             chat_model=chat_model,
             fallback_model=fallback_model,
+            web_classifier=web_classifier,
         )
         self.support_agent = SpecialistAgent(
             name="SupportAgent",
@@ -181,6 +204,7 @@ class OrchestrationGraph:
         builder.add_node("supervisor", self._wrap_node("supervisor", self._supervisor_node))
         builder.add_node("tools", self._wrap_node("tools", self._tools_node))
         builder.add_node("force_escalation", self._wrap_node("force_escalation", self._force_escalation_node))
+        builder.add_node("answer_check", self._wrap_node("answer_check", self._answer_check_node))
         builder.add_node("abstention_check", self._wrap_node("abstention_check", self._abstention_check_node))
 
         # 2. Add Edges
@@ -227,13 +251,14 @@ class OrchestrationGraph:
             {
                 "tools": "tools",
                 "force_escalation": "force_escalation",
-                "end": "abstention_check",
+                "end": "answer_check",
             },
         )
 
         # ReAct observation loop: from tools back to supervisor
         builder.add_edge("tools", "supervisor")
         builder.add_edge("force_escalation", END)
+        builder.add_edge("answer_check", "abstention_check")
         builder.add_edge("abstention_check", END)
 
         return builder.compile(checkpointer=self.checkpointer)
@@ -389,6 +414,7 @@ class OrchestrationGraph:
             metrics.inc_guardrail("classifier_error_open")
             return {
                 "guardrail": guardrail,
+                "guardrail_degraded": True,
                 "tokens_by_agent": tba,
                 "tokens": tokens,
             }
@@ -653,6 +679,146 @@ class OrchestrationGraph:
                 return "tools"
         return "end"
 
+    def _answer_check_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Validate the supervisor's final reply against consulted evidence before abstention_check."""
+        messages = list(state.get("messages") or [])
+        last_msg = messages[-1] if messages else None
+        answer_text = ""
+        if isinstance(last_msg, AIMessage) and not getattr(last_msg, "tool_calls", None):
+            answer_text = _get_message_text(last_msg).strip()
+
+        if not answer_text or not settings.ANSWER_CHECK_ENABLED:
+            ac_meta: dict[str, Any] = {
+                "status": "skipped",
+                "failed": [],
+                "revision_failed": None,
+                "revision_error": None,
+            }
+            metrics.inc_answer_check("skipped")
+            logger.info("answer check", extra={"status": "skipped", "failed": []})
+            return {"answer_check": ac_meta}
+
+        ev_parts: list[str] = []
+        for m in messages:
+            if isinstance(m, ToolMessage):
+                ev_parts.append(_get_message_text(m))
+            elif isinstance(m, HumanMessage):
+                extra = getattr(m, "additional_kwargs", None) or {}
+                if extra.get("origin") == "operator":
+                    ev_parts.append(_get_message_text(m))
+        evidence = "\n".join(ev_parts)
+
+        ticket_ids: set[str] = set()
+        if isinstance(state.get("ticket"), dict) and state["ticket"].get("ticket_id"):
+            ticket_ids.add(str(state["ticket"]["ticket_id"]))
+        if state.get("pending_ticket_id"):
+            ticket_ids.add(str(state["pending_ticket_id"]))
+        ticket_turn = bool(state.get("ticket"))
+
+        first_failed = check_answer(answer_text, evidence, ticket_ids, ticket_turn)
+        if not first_failed:
+            ac_meta = {
+                "status": "passed",
+                "failed": [],
+                "revision_failed": None,
+                "revision_error": None,
+            }
+            metrics.inc_answer_check("passed")
+            logger.info("answer check", extra={"status": "passed", "failed": []})
+            return {"answer_check": ac_meta}
+
+        failed_keys = list(first_failed.keys())
+        failures_str = "; ".join(f"{k}: {', '.join(v)}" for k, v in first_failed.items())
+        revision_prompt = ANSWER_REVISION_INSTRUCTION.format(failures=failures_str)
+        revision_messages = (
+            [SystemMessage(content=load_supervisor_prompt())]
+            + messages
+            + [HumanMessage(content=revision_prompt)]
+        )
+        bound_model, bound_fallback = self._get_bound_models()
+
+        tba = state.get("tokens_by_agent")
+        tokens = state.get("tokens")
+        rev_msg = None
+        revision_error: str | None = None
+        revision_failed: list[str] | None = None
+
+        try:
+            rev_msg, _active = invoke_model_with_fallback(
+                bound_model,
+                bound_fallback,
+                revision_messages,
+                trace_id=state.get("trace_id", ""),
+                caller_name="Supervisor",
+            )
+            rev_usage = getattr(rev_msg, "usage_metadata", None)
+            if rev_usage:
+                inp = rev_usage.get("input_tokens", 0)
+                out = rev_usage.get("output_tokens", 0)
+                tot = rev_usage.get("total_tokens", inp + out)
+                tba_dict = dict(tba) if tba is not None else {}
+                cur = tba_dict.get(
+                    "SupervisorAgent",
+                    {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                )
+                tba_dict["SupervisorAgent"] = {
+                    "input_tokens": cur["input_tokens"] + inp,
+                    "output_tokens": cur["output_tokens"] + out,
+                    "total_tokens": cur["total_tokens"] + tot,
+                }
+                tba = tba_dict
+                tokens = {
+                    "input_tokens": sum(v["input_tokens"] for v in tba.values()),
+                    "output_tokens": sum(v["output_tokens"] for v in tba.values()),
+                    "total_tokens": sum(v["total_tokens"] for v in tba.values()),
+                }
+        except (LLMNotConfiguredError, LLMConfigurationError):
+            raise
+        except Exception as exc:  # noqa: BLE001
+            revision_error = type(exc).__name__
+
+        msg_id = getattr(last_msg, "id", None) or str(uuid.uuid4())
+        if revision_error is None and rev_msg is not None:
+            rev_tool_calls = getattr(rev_msg, "tool_calls", None) or []
+            rev_text = _get_message_text(rev_msg).strip()
+            if not rev_text or rev_tool_calls:
+                revision_failed = ["empty_or_tool_call"]
+            else:
+                second_failed = check_answer(rev_text, evidence, ticket_ids, ticket_turn)
+                if not second_failed:
+                    ac_meta = {
+                        "status": "revised",
+                        "failed": failed_keys,
+                        "revision_failed": None,
+                        "revision_error": None,
+                    }
+                    metrics.inc_answer_check("revised")
+                    logger.info("answer check", extra={"status": "revised", "failed": failed_keys})
+                    return {
+                        "messages": [AIMessage(content=rev_text, id=msg_id)],
+                        "final_response": rev_text,
+                        "answer_check": ac_meta,
+                        "tokens_by_agent": tba,
+                        "tokens": tokens,
+                    }
+                revision_failed = list(second_failed.keys())
+
+        ac_meta = {
+            "status": "fallback",
+            "failed": failed_keys,
+            "revision_failed": revision_failed,
+            "revision_error": revision_error,
+        }
+        metrics.inc_answer_check("fallback")
+        logger.info("answer check", extra={"status": "fallback", "failed": failed_keys})
+        return {
+            "messages": [AIMessage(content=ANSWER_CHECK_FALLBACK, id=msg_id)],
+            "final_response": ANSWER_CHECK_FALLBACK,
+            "answer_check": ac_meta,
+            "tokens_by_agent": tba,
+            "tokens": tokens,
+        }
+
     def _force_escalation_node(self, state: SupervisorState) -> dict[str, Any]:
         """
         Forced escalation node triggered when MAX_SUPERVISOR_STEPS is reached.
@@ -738,6 +904,7 @@ class OrchestrationGraph:
         retrieved_docs = list(state.get("retrieved_docs", []))
         web_results = list(state.get("web_results", []))
         api_results = list(state.get("api_results", []))
+        web_guardrail = list(state.get("web_guardrail", []))
         ticket = state.get("ticket")
         agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
 
@@ -795,48 +962,66 @@ class OrchestrationGraph:
                     web_results.extend(spec_res["web_results"])
                 if spec_res.get("api_results"):
                     api_results.extend(spec_res["api_results"])
+                if spec_res.get("web_guardrail"):
+                    web_guardrail.extend(spec_res["web_guardrail"])
 
             elif tool_name == "ask_support_agent":
-                if "SupportAgent" not in agents_used:
-                    agents_used.append("SupportAgent")
-                request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
-                spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
-                if spec_res.get("status") == "error":
+                if state.get("guardrail_degraded") and settings.GUARDRAIL_ACCOUNT_FAIL_CLOSED:
                     call_status = "error"
-
-                spec_usage = spec_res.get("usage")
-                if spec_usage:
-                    inp = spec_usage.get("input_tokens", 0)
-                    out = spec_usage.get("output_tokens", 0)
-                    tot = spec_usage.get("total_tokens", inp + out)
-                    tba_dict = dict(tba) if tba is not None else {}
-                    cur = tba_dict.get("SupportAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
-                    tba_dict["SupportAgent"] = {
-                        "input_tokens": cur["input_tokens"] + inp,
-                        "output_tokens": cur["output_tokens"] + out,
-                        "total_tokens": cur["total_tokens"] + tot,
+                    metrics.inc_guardrail("account_blocked_degraded")
+                    payload = {
+                        "agent": "SupportAgent",
+                        "status": "error",
+                        "error": "guardrail_unavailable",
+                        "answer": ACCOUNT_GUARDRAIL_UNAVAILABLE,
+                        "tools_used": [],
+                        "sources": [],
                     }
-                    tba = tba_dict
+                    payload_str = json.dumps(payload, ensure_ascii=False)
+                    t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
+                    tool_messages.append(t_msg)
+                    tool_results.append(payload)
+                else:
+                    if "SupportAgent" not in agents_used:
+                        agents_used.append("SupportAgent")
+                    request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
+                    spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
+                    if spec_res.get("status") == "error":
+                        call_status = "error"
 
-                payload = {
-                    "agent": spec_res["agent"],
-                    "status": spec_res["status"],
-                    "answer": spec_res["answer"],
-                    "tools_used": spec_res["tools_used"],
-                    "sources": spec_res["sources"],
-                }
-                payload_str = json.dumps(payload, ensure_ascii=False)
-                t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
-                tool_messages.append(t_msg)
-                tool_results.append(payload)
+                    spec_usage = spec_res.get("usage")
+                    if spec_usage:
+                        inp = spec_usage.get("input_tokens", 0)
+                        out = spec_usage.get("output_tokens", 0)
+                        tot = spec_usage.get("total_tokens", inp + out)
+                        tba_dict = dict(tba) if tba is not None else {}
+                        cur = tba_dict.get("SupportAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+                        tba_dict["SupportAgent"] = {
+                            "input_tokens": cur["input_tokens"] + inp,
+                            "output_tokens": cur["output_tokens"] + out,
+                            "total_tokens": cur["total_tokens"] + tot,
+                        }
+                        tba = tba_dict
 
-                tools_used.extend(spec_res["tools_used"])
-                sources.extend(spec_res["sources"])
-                retrieved_docs.extend(spec_res["retrieved_docs"])
-                if spec_res.get("web_results"):
-                    web_results.extend(spec_res["web_results"])
-                if spec_res.get("api_results"):
-                    api_results.extend(spec_res["api_results"])
+                    payload = {
+                        "agent": spec_res["agent"],
+                        "status": spec_res["status"],
+                        "answer": spec_res["answer"],
+                        "tools_used": spec_res["tools_used"],
+                        "sources": spec_res["sources"],
+                    }
+                    payload_str = json.dumps(payload, ensure_ascii=False)
+                    t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
+                    tool_messages.append(t_msg)
+                    tool_results.append(payload)
+
+                    tools_used.extend(spec_res["tools_used"])
+                    sources.extend(spec_res["sources"])
+                    retrieved_docs.extend(spec_res["retrieved_docs"])
+                    if spec_res.get("web_results"):
+                        web_results.extend(spec_res["web_results"])
+                    if spec_res.get("api_results"):
+                        api_results.extend(spec_res["api_results"])
 
             elif tool_name == "escalate_to_human":
                 escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
@@ -908,6 +1093,7 @@ class OrchestrationGraph:
             "retrieved_docs": retrieved_docs,
             "web_results": web_results,
             "api_results": api_results,
+            "web_guardrail": web_guardrail,
             "ticket": ticket,
             "tokens_by_agent": tba,
             "tokens": tokens,
@@ -1030,6 +1216,8 @@ class OrchestrationGraph:
                 is_safe=result.get("is_safe", True),
                 safety_violations=result.get("safety_violations", []),
                 guardrail=result.get("guardrail"),
+                answer_check=result.get("answer_check"),
+                web_guardrail=result.get("web_guardrail", []),
                 agents_used=result.get("agents_used", ["SupervisorAgent"]),
                 tools_used=result.get("tools_used", []),
                 tool_calls=result.get("tool_calls", []),
@@ -1077,6 +1265,9 @@ class OrchestrationGraph:
             "is_safe": True,
             "safety_violations": [],
             "guardrail": None,
+            "guardrail_degraded": False,
+            "answer_check": None,
+            "web_guardrail": [],
             "agents_used": ["SupervisorAgent"],
             "tools_used": [],
             "tool_calls": [],
@@ -1110,33 +1301,37 @@ class OrchestrationGraph:
         return final_text
 
     def _trim_history(self, config: dict[str, Any]) -> int:
-        """Trim older complete turns with RemoveMessage to keep thread length bounded."""
-        limit = settings.MAX_HISTORY_MESSAGES
-        if limit <= 0:
+        """Trim older complete turns with RemoveMessage to keep thread length bounded. Never raises."""
+        try:
+            limit = settings.MAX_HISTORY_MESSAGES
+            if limit <= 0:
+                return 0
+            snapshot = self.graph.get_state(config)
+            if not snapshot or not snapshot.values:
+                return 0
+            messages = list(snapshot.values.get("messages") or [])
+            if len(messages) <= limit:
+                return 0
+            cutoff = len(messages) - limit
+            cut_idx: int | None = None
+            for idx in range(cutoff, len(messages)):
+                if isinstance(messages[idx], HumanMessage) and idx > 0:
+                    cut_idx = idx
+                    break
+            if cut_idx is None:
+                return 0
+            removals = [
+                RemoveMessage(id=m.id)
+                for m in messages[:cut_idx]
+                if getattr(m, "id", None) is not None
+            ]
+            if not removals:
+                return 0
+            self.graph.update_state(config, {"messages": removals}, as_node="abstention_check")
+            return len(removals)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"History trim skipped due to error: {exc_brief(exc)}")
             return 0
-        snapshot = self.graph.get_state(config)
-        if not snapshot or not snapshot.values:
-            return 0
-        messages = list(snapshot.values.get("messages") or [])
-        if len(messages) <= limit:
-            return 0
-        cutoff = len(messages) - limit
-        cut_idx: int | None = None
-        for idx in range(cutoff, len(messages)):
-            if isinstance(messages[idx], HumanMessage) and idx > 0:
-                cut_idx = idx
-                break
-        if cut_idx is None:
-            return 0
-        removals = [
-            RemoveMessage(id=m.id)
-            for m in messages[:cut_idx]
-            if getattr(m, "id", None) is not None
-        ]
-        if not removals:
-            return 0
-        self.graph.update_state(config, {"messages": removals}, as_node="abstention_check")
-        return len(removals)
 
     def resume_after_operator(self, ticket_id: str) -> dict[str, Any]:
         """Resume a paused session turn immediately after an operator records a reply."""

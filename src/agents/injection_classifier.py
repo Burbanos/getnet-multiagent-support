@@ -32,6 +32,7 @@ CONFIG_EXCEPTIONS = (
 )
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "guardrail_classifier.md"
+WEB_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "guardrail_web_classifier.md"
 
 
 class GuardrailVerdict(BaseModel):
@@ -63,9 +64,10 @@ class ClassifierResult:
         }
 
 
-def load_classifier_prompt() -> str:
+def load_classifier_prompt(path: Path | None = None) -> str:
     """Load the guardrail classifier prompt from markdown template."""
-    return PROMPT_PATH.read_text(encoding="utf-8").strip()
+    target = path or PROMPT_PATH
+    return target.read_text(encoding="utf-8").strip()
 
 
 def format_classifier_input(text: str) -> str:
@@ -77,8 +79,9 @@ def format_classifier_input(text: str) -> str:
 class InjectionClassifier:
     """LLM classifier validating user messages against injection and attacks via GuardrailVerdict."""
 
-    def __init__(self, model: BaseChatModel | None = None) -> None:
+    def __init__(self, model: BaseChatModel | None = None, prompt_path: Path | None = None) -> None:
         self._model = model
+        self.prompt_path = prompt_path
         self._bound_model: Any = None
         self._model_name: str | None = None
 
@@ -104,7 +107,7 @@ class InjectionClassifier:
         self._ensure_bound_model()
 
         messages = [
-            SystemMessage(content=load_classifier_prompt()),
+            SystemMessage(content=load_classifier_prompt(self.prompt_path)),
             HumanMessage(content=format_classifier_input(text)),
         ]
 

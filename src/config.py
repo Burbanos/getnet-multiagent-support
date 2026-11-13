@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     GUARDRAIL_CLASSIFIER_MODEL: str = ""  # empty -> LLM_MODEL
     GUARDRAIL_CLASSIFIER_TIMEOUT_S: float = 10.0
     GUARDRAIL_CLASSIFIER_FAIL_MODE: Literal["open", "closed"] = "open"
+    GUARDRAIL_ACCOUNT_FAIL_CLOSED: bool = True
+    GUARDRAIL_WEB_RESULTS_ENABLED: bool = True
+    ANSWER_CHECK_ENABLED: bool = True
     API_KEYS: str = ""
     RATE_LIMIT_PER_MINUTE: int = 30
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
@@ -94,7 +97,7 @@ class JsonFormatter(logging.Formatter):
             pass
 
         # Add supported extras when present
-        for field in ("agent", "node", "tool", "status", "latency_ms", "execution_time_ms"):
+        for field in ("agent", "node", "tool", "status", "latency_ms", "execution_time_ms", "failed", "dropped"):
             if hasattr(record, field):
                 log_obj[field] = getattr(record, field)
 

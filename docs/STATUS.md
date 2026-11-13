@@ -14,6 +14,37 @@
 
 ---
 
+### Fase 12D: Roteamento, Verificação da Resposta e Guardas
+
+#### Ambiente e verificação
+- Ambiente: Python 3.13.3
+- `python -m ruff check .`: passou (`All checks passed!`)
+- `python -m pytest -q -p no:cacheprovider`: `387 passed`
+- `python scripts/verify_phase12d.py`: `SUMMARY: 79/79 passed` (`PASS D0`–`D14`, `PASS E2.scope`, `PASS Q0`–`Q5`, `PASS Q2.pytest_offline_no_key :: 387 passed`)
+
+#### Commit base
+- `541f467e6435487b3447a93a03bc37912e5a0590` (Fase 12C)
+
+#### Alterações
+- `src/config.py` e `.env.example`: adicionadas `GUARDRAIL_ACCOUNT_FAIL_CLOSED`, `GUARDRAIL_WEB_RESULTS_ENABLED` e `ANSWER_CHECK_ENABLED`; campos `"failed"` e `"dropped"` incluídos em `JsonFormatter`.
+- `src/core/state.py`, `src/eval/runner.py` e `src/main.py`: adicionados `guardrail_degraded`, `answer_check` e `web_guardrail` aos estados/metadados, copiados em `observe_turn` e expostos em `/chat`.
+- `src/core/metrics.py`: adicionadas decisões de guardrail (`account_blocked_degraded`, `web_allow`, `web_block`, `web_unavailable`) e o contador `getnet_answer_checks_total` (`ANSWER_CHECK_STATUSES`, `inc_answer_check`).
+- `src/tools/supervisor_tools.py`: atualizadas as descrições de `ask_knowledge_agent` e `ask_support_agent` conforme especificação da Fase 12D.
+- `src/agents/answer_check.py`: novo módulo determinístico pós-supervisor (`extract_urls`, `extract_ticket_ids`, `find_promises`, `check_answer`).
+- `src/agents/injection_classifier.py` e `src/agents/specialists.py`: suporte a `WEB_PROMPT_PATH` / `prompt_path` em `InjectionClassifier` e triagem de resultados de `search_web` com `web_classifier`, acumulação de tokens e `web_guardrail`.
+- `src/core/graph.py`: nó `answer_check` (`supervisor -> answer_check -> abstention_check`) com uma revisão e `ANSWER_CHECK_FALLBACK`, fail-closed de `ask_support_agent` quando `guardrail_degraded=True` (`ACCOUNT_GUARDRAIL_UNAVAILABLE`), passagem de `web_classifier` apenas ao `knowledge_agent` e proteção `try/except` em `_trim_history`.
+- `tests/test_eval_runner_judge.py`: atualização pontual da linha de chaves esperadas de `observe_turn`.
+- `tests/test_answer_check_and_guards.py`: 12 testes offline para verificação de respostas, fail-closed de conta, guarda web, roteamento por descrição e corte seguro de histórico.
+- Arquivos do revisor mantidos intactos: `docs/SPEC.md`, `docs/phase-prompts/12D.md`, `scripts/verify_phase12d.py`, `src/prompts/guardrail_web_classifier.md`.
+
+#### Não feito
+- Nenhuma pendência funcional da Fase 12D; execução com chaves de API ao vivo não executada nesta etapa (mantidos todos os testes e verificações offline).
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma divergência identificada com `docs/SPEC.md`.
+
+---
+
 ### Fase 12C: Notificação do Operador, Retomada e Corte do Histórico
 
 #### Versão do Python:

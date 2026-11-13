@@ -69,6 +69,10 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
     guard = copy.deepcopy(raw_guard) if isinstance(raw_guard, dict) else None
     raw_tba = _get_val(state, "tokens_by_agent")
     tba = copy.deepcopy(raw_tba) if isinstance(raw_tba, dict) else None
+    raw_ac = _get_val(state, "answer_check")
+    ac_copy = copy.deepcopy(raw_ac) if isinstance(raw_ac, dict) else None
+    raw_wg = _get_val(state, "web_guardrail", []) or []
+    wg_copy = copy.deepcopy(raw_wg) if isinstance(raw_wg, list) else []
 
     ticket_obj = _get_val(state, "ticket")
     ticket_dict = ticket_obj if isinstance(ticket_obj, dict) else {}
@@ -101,6 +105,8 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         "tokens_by_agent": tba,
         "guardrail": guard,
         "guardrail_layer": guardrail_layer(guard),
+        "answer_check": ac_copy,
+        "web_guardrail": wg_copy,
         "latency_ms": latency_ms,
     }
 

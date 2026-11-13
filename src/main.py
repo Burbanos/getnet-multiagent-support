@@ -63,6 +63,8 @@ class AgentMetadata(BaseModel):
     estimated_cost_usd: float | None = Field(default=None, description="Estimated execution cost in USD")
     web_results: list[dict[str, Any]] = Field(default_factory=list, description="Web search results if search_web was used")
     api_results: list[dict[str, Any]] = Field(default_factory=list, description="Results of the weather and exchange-rate APIs used in the turn")
+    answer_check: dict[str, Any] | None = Field(default=None, description="Post-supervisor answer validation outcome")
+    web_guardrail: list[dict[str, Any]] = Field(default_factory=list, description="Guardrail screening outcomes for web search results")
     error: str | None = Field(default=None, description="Internal error flag if execution failed")
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
@@ -406,6 +408,8 @@ def chat_endpoint(
                 estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
                 web_results=getattr(state, "web_results", []) or [],
                 api_results=getattr(state, "api_results", []) or [],
+                answer_check=getattr(state, "answer_check", None),
+                web_guardrail=getattr(state, "web_guardrail", []) or [],
                 error=getattr(state, "error", None),
                 debug_details={
                     "session_id": state.session_id or active_session,

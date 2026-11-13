@@ -22,6 +22,20 @@ logger = logging.getLogger("multiagent.specialists")
 API_TOOLS = frozenset({"get_weather_forecast", "get_exchange_rate"})
 
 
+def _accumulate_usage(current: dict[str, int] | None, usage: dict[str, Any] | None) -> dict[str, int] | None:
+    """Add token counts from usage into an existing accumulator dict, initializing on first non-empty usage."""
+    if not isinstance(usage, dict):
+        return current
+    inp = int(usage.get("input_tokens") or 0)
+    out = int(usage.get("output_tokens") or 0)
+    tot = int(usage.get("total_tokens") or (inp + out))
+    out_dict = dict(current) if current is not None else {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    out_dict["input_tokens"] += inp
+    out_dict["output_tokens"] += out
+    out_dict["total_tokens"] += tot
+    return out_dict
+
+
 class SpecialistAgent:
     """Specialist sub-agent delegating to a dedicated model loop with isolated tools."""
 
@@ -32,6 +46,7 @@ class SpecialistAgent:
         tools: list[Any],
         chat_model: BaseChatModel | None = None,
         fallback_model: BaseChatModel | None = None,
+        web_classifier: Any | None = None,
     ):
         self.name = name
         self.prompt_file = prompt_file
@@ -40,6 +55,7 @@ class SpecialistAgent:
         self.prompt = self._load_prompt(prompt_file)
         self.chat_model = chat_model
         self.fallback_model = fallback_model
+        self.web_classifier = web_classifier
         self._bound_model: Any = None
         self._bound_fallback: Any = None
 
@@ -78,6 +94,7 @@ class SpecialistAgent:
         retrieved_docs: list[dict[str, Any]] = []
         web_results: list[dict[str, Any]] = []
         api_results: list[dict[str, Any]] = []
+        web_guardrail: list[dict[str, Any]] = []
         specialist_usage: dict[str, int] | None = None
 
         steps = 0
@@ -94,16 +111,9 @@ class SpecialistAgent:
             )
             messages.append(ai_message)
 
-            u = getattr(ai_message, "usage_metadata", None)
-            if u:
-                inp = u.get("input_tokens", 0)
-                out = u.get("output_tokens", 0)
-                tot = u.get("total_tokens", inp + out)
-                if specialist_usage is None:
-                    specialist_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-                specialist_usage["input_tokens"] += inp
-                specialist_usage["output_tokens"] += out
-                specialist_usage["total_tokens"] += tot
+            specialist_usage = _accumulate_usage(
+                specialist_usage, getattr(ai_message, "usage_metadata", None)
+            )
 
             tool_calls = getattr(ai_message, "tool_calls", None) or []
             if not tool_calls:
@@ -119,6 +129,7 @@ class SpecialistAgent:
                     "retrieved_docs": retrieved_docs,
                     "web_results": web_results,
                     "api_results": api_results,
+                    "web_guardrail": web_guardrail,
                     "usage": specialist_usage,
                 }
 
@@ -161,6 +172,55 @@ class SpecialistAgent:
 
                 latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
+                if (
+                    tool_name == "search_web"
+                    and self.web_classifier is not None
+                    and settings.GUARDRAIL_WEB_RESULTS_ENABLED
+                ):
+                    try:
+                        parsed_web = json.loads(result_str) if isinstance(result_str, str) else result_str
+                    except (json.JSONDecodeError, TypeError):
+                        parsed_web = None
+                    if isinstance(parsed_web, dict) and parsed_web.get("status") == "success":
+                        raw_results = parsed_web.get("results") or []
+                        if raw_results:
+                            screen_lines: list[str] = []
+                            for idx, item in enumerate(raw_results, start=1):
+                                if isinstance(item, dict):
+                                    title = item.get("title") or ""
+                                    snippet = item.get("snippet") or ""
+                                    url = item.get("url") or ""
+                                else:
+                                    title, snippet, url = "", str(item), ""
+                                screen_lines.append(f"[{idx}] {title}\n{snippet}\n{url}")
+                            clf_res = self.web_classifier.classify("\n\n".join(screen_lines))
+                            specialist_usage = _accumulate_usage(specialist_usage, clf_res.usage)
+                            allowed = clf_res.status == "ok" and clf_res.verdict == "allow"
+                            dropped = not allowed
+                            if allowed:
+                                metrics.inc_guardrail("web_allow")
+                            else:
+                                metrics.inc_guardrail(
+                                    "web_unavailable" if clf_res.status == "error" else "web_block"
+                                )
+                                result_str = json.dumps(
+                                    {
+                                        "status": "blocked",
+                                        "error": "web_results_blocked",
+                                        "results": [],
+                                    },
+                                    ensure_ascii=False,
+                                )
+                            web_guardrail.append({
+                                **clf_res.as_metadata(),
+                                "results": len(raw_results),
+                                "dropped": dropped,
+                            })
+                            logger.info(
+                                "web results screened",
+                                extra={"status": clf_res.status, "dropped": dropped},
+                            )
+
                 tools_used.append(tool_name)
                 t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
                 messages.append(t_msg)
@@ -182,22 +242,7 @@ class SpecialistAgent:
                                 if isinstance(retrieval_info, dict)
                                 else None
                             )
-                            if isinstance(rerank_usage, dict):
-                                if specialist_usage is None:
-                                    specialist_usage = {
-                                        "input_tokens": 0,
-                                        "output_tokens": 0,
-                                        "total_tokens": 0,
-                                    }
-                                specialist_usage["input_tokens"] += int(
-                                    rerank_usage.get("input_tokens") or 0
-                                )
-                                specialist_usage["output_tokens"] += int(
-                                    rerank_usage.get("output_tokens") or 0
-                                )
-                                specialist_usage["total_tokens"] += int(
-                                    rerank_usage.get("total_tokens") or 0
-                                )
+                            specialist_usage = _accumulate_usage(specialist_usage, rerank_usage)
                         elif tool_name == "search_web":
                             results = parsed.get("results", [])
                             for r in results:
@@ -235,5 +280,6 @@ class SpecialistAgent:
             "retrieved_docs": retrieved_docs,
             "web_results": web_results,
             "api_results": api_results,
+            "web_guardrail": web_guardrail,
             "usage": specialist_usage,
         }

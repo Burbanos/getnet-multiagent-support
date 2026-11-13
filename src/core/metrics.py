@@ -28,9 +28,14 @@ GUARDRAIL_DECISIONS: frozenset[str] = frozenset({
     "classifier_error_open",
     "classifier_error_closed",
     "classifier_invalid_block",
+    "account_blocked_degraded",
+    "web_allow",
+    "web_block",
+    "web_unavailable",
 })
 
 NOTIFICATION_STATUSES: frozenset[str] = frozenset({"sent", "failed", "disabled"})
+ANSWER_CHECK_STATUSES: frozenset[str] = frozenset({"passed", "revised", "fallback", "skipped"})
 
 # Cumulative histogram bucket thresholds
 LATENCY_BUCKETS: tuple[float, ...] = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
@@ -47,6 +52,7 @@ _abstentions_total: int = 0
 _tokens: dict[str, int] = {"input": 0, "output": 0}
 _guardrail_decisions: dict[str, int] = {}
 _notifications: dict[str, int] = {}
+_answer_checks: dict[str, int] = {}
 
 
 def reset() -> None:
@@ -66,6 +72,7 @@ def reset() -> None:
         _tokens["output"] = 0
         _guardrail_decisions.clear()
         _notifications.clear()
+        _answer_checks.clear()
 
 
 def inc_request(status_code: int | str, latency_s: float) -> None:
@@ -120,6 +127,13 @@ def inc_notification(status: str) -> None:
         _notifications[norm] = _notifications.get(norm, 0) + 1
 
 
+def inc_answer_check(status: str) -> None:
+    """Increment the final answer verification outcome counter."""
+    norm = status if status in ANSWER_CHECK_STATUSES else "unknown"
+    with _lock:
+        _answer_checks[norm] = _answer_checks.get(norm, 0) + 1
+
+
 def add_tokens(input_tokens: int | None, output_tokens: int | None) -> None:
     """Add LLM tokens to the direction counters (None counts as 0)."""
     inp = int(input_tokens or 0)
@@ -170,6 +184,13 @@ def render() -> str:
         ])
         for st, count in sorted(_notifications.items()):
             lines.append(f'getnet_operator_notifications_total{{status="{st}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_answer_checks_total Total number of final answer verification outcomes.",
+            "# TYPE getnet_answer_checks_total counter",
+        ])
+        for st, count in sorted(_answer_checks.items()):
+            lines.append(f'getnet_answer_checks_total{{status="{st}"}} {count}')
 
         lines.extend([
             "# HELP getnet_escalations_total Total number of tickets escalated to human.",

@@ -453,8 +453,21 @@ evaluator).
   12A `A8.no_answers_yet` and 12B `B10.no_runs_yet` are superseded and re-checked as `C13` (none of them committed); the scope
   check ignores them while uncommitted.
 
-**Current phase: 12C** (operator webhook, supervisor resume on operator reply, history trim), prompt
-`docs/phase-prompts/12C.md`, verifier `scripts/verify_phase12c.py`.
+- 12C (`541f467`; reviewer reran `verify_phase12c.py`: 78/78 on 3.11.18; reviewer files identical). Review findings: (1)
+  `_trim_history` can raise and is called inside the turn's `try`, so a SQLite error during the trim would turn a successful turn
+  into an error, or a successful resume into a second, verbatim delivery (the prompt said it never raises) — fixed in 12D;
+  (2) minor: the `operator_resume` node reports `handoff.status = "resumed"` instead of `"operator_reply"` (internal, not
+  shown to the merchant; accepted).
+- Planning 12D: the answer check was run first over the 234 committed v2 answers with the reviewer's reference: 0 would fail
+  (the only candidate, `v2-1` `w02`, was a Markdown `[url](url)` parsing artifact, now handled). Time promises are checked only
+  in turns that create a ticket (an operator's reply may legitimately carry a deadline, and official pages carry "dentro de" /
+  "within" facts). 10F `F2.tools` (old descriptions) and 11D `D2.observe_turn` / `D7.tests` (exact record keys and the one-line
+  test change) are superseded and re-checked as 12D `D2`, `D10.observe_turn` and `D11`. The web classifier is wired like the
+  message classifier (production, or an explicit `guardrail_model`), so the existing scripted tests do not change.
+
+**Current phase: 12D** (tool descriptions, answer check, account fail-closed, web results guard), prompt
+`docs/phase-prompts/12D.md`, verifier `scripts/verify_phase12d.py`. After the 12D commit the author runs, once each:
+`v2-4`..`v2-6` on `cases_v2.jsonl` with the judge, and `rh-1`..`rh-3` on `cases_routing_holdout.jsonl` (no judge).
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -1407,9 +1420,12 @@ re-run or edited; new runs get new ids.
   `session_messages`, gate release of an already-delivered reply, `_trim_history`, sync `PATCH` with `resume`,
   `GET /sessions/{session_id}/messages`, `/demo` polling, tests. Reviewer file: `src/prompts/supervisor.md` ("Human agent
   replies" section).
-- 12D (Extra): supervisor tool descriptions, answer check node, account fail-closed, web results classifier, runner fields
-  (`answer_check`, web guardrail), tests. Reviewer file `src/prompts/guardrail_web_classifier.md`. Then the user runs `v2-4`..`v2-6`
-  (with judge), `rh-1`..`rh-3` on the routing holdout, and fills `answers.csv`.
+- 12D (Extra; checked by `scripts/verify_phase12d.py`): supervisor tool descriptions, `src/agents/answer_check.py` and the
+  `answer_check` node (`supervisor → answer_check → abstention_check`; one revision, then `ANSWER_CHECK_FALLBACK`), account
+  fail-closed (`guardrail_degraded`, `GUARDRAIL_ACCOUNT_FAIL_CLOSED`), web results classifier (`WEB_PROMPT_PATH`,
+  `GUARDRAIL_WEB_RESULTS_ENABLED`), metric `getnet_answer_checks_total`, record and `/chat` fields `answer_check` and
+  `web_guardrail`, `_trim_history` that never raises, tests. Reviewer file `src/prompts/guardrail_web_classifier.md`. Then the
+  user runs `v2-4`..`v2-6` (with judge), `rh-1`..`rh-3` on the routing holdout, and fills `answers.csv`.
 - 12E (High): records committed as written, reports generated (retrieval hybrid, v2 comparison before/after, routing holdout,
   human agreement), README dictated by the reviewer (results, new sections, housekeeping above), STATUS. Outside the repository:
   the reply to feedback v2 in first person, saved in the project as `claude/nota-resposta-feedback-v4-v2.md`.

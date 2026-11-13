@@ -8,13 +8,13 @@ from src.tools.agent_tools import escalate_to_human
 
 @tool
 def ask_knowledge_agent(question: str) -> str:
-    """Delega ao Knowledge Agent uma pergunta autocontida sobre produtos Getnet ou informação pública em tempo real."""
+    """Delega ao Knowledge Agent uma pergunta autocontida sobre produtos, taxas, prazos, regras e procedimentos da Getnet (páginas oficiais), clima, câmbio (PTAX) ou notícias. Não tem dados da conta do lojista nem o catálogo de códigos de recusa de transação."""
     return ""
 
 
 @tool
 def ask_support_agent(request: str) -> str:
-    """Delega ao Customer Support Agent um pedido autocontido sobre a conta do próprio lojista."""
+    """Delega ao Customer Support Agent um pedido autocontido que só as ferramentas de conta respondem: vendas e depósitos do próprio lojista, diagnóstico da maquininha e transações recusadas, incluindo o significado de um código de recusa (o catálogo de códigos fica nessa ferramenta, mesmo sem uma transação específica)."""
     return ""
 
 

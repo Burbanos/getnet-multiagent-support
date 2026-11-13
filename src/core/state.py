@@ -51,6 +51,9 @@ class SupervisorState(TypedDict):
     tokens_by_agent: dict[str, dict[str, int]] | None
     estimated_cost_usd: float | None
     guardrail: dict[str, Any] | None
+    guardrail_degraded: bool
+    answer_check: dict[str, Any] | None
+    web_guardrail: list[dict[str, Any]]
 
 
 class AgentState(BaseModel):
@@ -94,6 +97,8 @@ class AgentState(BaseModel):
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
     guardrail: dict[str, Any] | None = None
+    answer_check: dict[str, Any] | None = None
+    web_guardrail: list[dict[str, Any]] = Field(default_factory=list)
     error: str | None = None
 
     model_config = {
@@ -131,6 +136,8 @@ class AgentMetadata(BaseModel):
     tokens_by_agent: dict[str, dict[str, int]] | None = None
     estimated_cost_usd: float | None = None
     guardrail: dict[str, Any] | None = None
+    answer_check: dict[str, Any] | None = None
+    web_guardrail: list[dict[str, Any]] = Field(default_factory=list)
     error: str | None = None
     debug_details: dict[str, Any] = Field(default_factory=dict)
 
