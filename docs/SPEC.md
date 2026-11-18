@@ -501,10 +501,30 @@ evaluator).
   `diagnose_declined_transaction` gains a two-line exclusion (its examples stay). 12D `D2.tool_descriptions` is superseded and
   re-checked as 12E `E3`.
 
-**Current phase: 12E** (description boundaries for terminal functions and screen errors), model Orchestrator (Argon), prompt
-`docs/phase-prompts/12E.md`, verifier `scripts/verify_phase12e.py`. After the 12E commit the author runs, once each:
-`v2-7`..`v2-9` on `cases_v2.jsonl` with the judge, `rh-4`..`rh-6` on `cases_routing_holdout.jsonl` and `rh2-1`..`rh2-3` on
-`cases_routing_holdout2.jsonl` (no judge).
+- 12E (`a32b702`; reviewer reran `verify_phase12e.py`: 75/75 on 3.11.18; reviewer files identical; CI green, read from the
+  public check-runs API). Only the two delegation descriptions, the two-line exclusion and `tests/test_tool_descriptions.py`.
+- `v2-7`..`v2-9`, `rh-4`..`rh-6`, `rh2-1`..`rh2-3` (author, 2026-11-18 UTC, paid Tier 1): v2 pass 95.3% (93.6-96.2); official
+  83.3%; routing 100%; judge abstention precision 100.0%, recall 77.8%; p50 5.5 s, p95 11.6 s; US$ 0.288 per run. `k09` fixed
+  (3/3). **`u03` not fixed**: wrong answer in all six Phase 12 runs (five through `diagnose_declined_transaction`, `v2-9` from
+  the model's own knowledge despite the exclusion). `off08` answered in Portuguese 6/6 since 12D; English questions answered in
+  Portuguese 6 / 7 / 8 per group; unasked escalations 3 / 3 / 4. Answer check 234/234 `passed` per group, no revision. Holdout 1:
+  routing 24/24 in 12D and 12E (pass 95.8% / 87.5%, facts and language). Holdout 2: 30/36; terminal-function questions 12/12 to
+  the Knowledge Agent, decline codes in terminal words 9/9, connectivity 6/6; screen errors used the decline catalogue in 5/9
+  (the answers said the code is not in the catalogue; `u03` is wrong only because 05 is in it).
+- Answers with a "consulted on" date that differs from the tool's `retrieved_at`: 8 in `v2-1`..`v2-9` (`v2-1` d04/d05, `v2-2`
+  off07/w02, `v2-3` d04, `v2-4` w02, `v2-5` d04, `v2-8` d05); listed in the README limitations; nothing checks it.
+- Planning 12F: the README text is dictated as 25 exact edits in the prompt and applied by a script there (as in 11G); the
+  verifier checks README = 12E README + those edits, recomputes every new number from the raw records and reports, regenerates
+  the 12 reports, checks the 26 author files byte for byte (hashed from the author's folder) and the claims-table paths.
+  Superseded: 12E E2/E6/E7, 12D D13, 12C C13, 12B B9.cli, 12A A2, 11G G4, 11E E1/E5, each re-checked under the new rule. The
+  README keeps every sentence earlier verifiers pin (11A fail-open bullet, `pending_ticket_id`, the no-deadline wording, the old
+  retrieval margin, no "Fase N" wording).
+- The author's target is 9.5 and the latest submission counts. After 12F the author decides whether to submit or to plan a
+  Phase 13 from the per-criterion gaps of feedback v2 that Phase 12 does not cover (state outside local SQLite, a write action,
+  tracing, an independent annotator, language enforcement, `u03`).
+
+**Current phase: 12F** (closing: author records, reports, README, STATUS), model Orchestrator (Argon), prompt
+`docs/phase-prompts/12F.md`, verifier `scripts/verify_phase12f.py`.
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);

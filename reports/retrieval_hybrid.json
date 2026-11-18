@@ -1,0 +1,269 @@
+{
+  "dataset": "data/eval/retrieval_labeled.jsonl",
+  "dataset_sha256": "8178a22508daa0f3649de0d6f075d9f73886465b56c3fa0a08a071b96e562cc7",
+  "index_chunks": 92,
+  "settings": {
+    "min_score": 0.61,
+    "top_k": 4,
+    "dense_candidates": 6,
+    "lexical_candidates": 6,
+    "min_relevance": 2,
+    "rrf_k": 60
+  },
+  "dense": {
+    "metrics": {
+      "answer_rate": 1.0,
+      "hit@1": 0.9,
+      "hit@3": 0.9666666666666667,
+      "mrr": 0.9333333333333333,
+      "answer_hit@3": 0.9,
+      "off_topic_abstain_rate": 1.0,
+      "uncovered_abstain_rate": 0.0,
+      "answer_chunk_rank": {
+        "a01": 2,
+        "a02": 1,
+        "a03": 1,
+        "a04": 1,
+        "a05": 1,
+        "a06": 1,
+        "a07": 2,
+        "a08": 1,
+        "a09": 1,
+        "a10": 1,
+        "a11": 1,
+        "a12": 1,
+        "a13": 1,
+        "a14": 1,
+        "a15": 1,
+        "a16": 2,
+        "a17": 4,
+        "a18": 1,
+        "a19": 1,
+        "a20": 1,
+        "a21": 1,
+        "e01": 1,
+        "e02": 1,
+        "e03": 3,
+        "e04": 1,
+        "e05": null,
+        "e06": 2,
+        "e07": null,
+        "e08": 1,
+        "e09": 1
+      }
+    }
+  },
+  "runs": {
+    "rerank-1": {
+      "complete": true,
+      "counts": {
+        "ok": 38,
+        "invalid": 2,
+        "errors": 0,
+        "gated": 8
+      },
+      "model": "gemini-3.5-flash-lite",
+      "metrics": {
+        "answer_rate": 1.0,
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "answer_hit@3": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "answer_chunk_rank": {
+          "a01": 1,
+          "a02": 2,
+          "a03": 1,
+          "a04": 1,
+          "a05": 1,
+          "a06": 1,
+          "a07": 1,
+          "a08": 1,
+          "a09": 1,
+          "a10": 1,
+          "a11": 1,
+          "a12": 1,
+          "a13": 1,
+          "a14": 1,
+          "a15": 1,
+          "a16": 1,
+          "a17": 1,
+          "a18": 1,
+          "a19": 1,
+          "a20": 1,
+          "a21": 1,
+          "e01": 1,
+          "e02": 1,
+          "e03": 1,
+          "e04": 1,
+          "e05": 1,
+          "e06": 1,
+          "e07": null,
+          "e08": 1,
+          "e09": 1
+        }
+      },
+      "rerank_latency_p50_ms": 1008.83,
+      "rerank_latency_p95_ms": 1207.6,
+      "tokens_mean_per_call": {
+        "input_tokens": 2537.9,
+        "output_tokens": 97.125
+      },
+      "cost_usd_per_call": 0.00100418
+    },
+    "rerank-2": {
+      "complete": true,
+      "counts": {
+        "ok": 38,
+        "invalid": 2,
+        "errors": 0,
+        "gated": 8
+      },
+      "model": "gemini-3.5-flash-lite",
+      "metrics": {
+        "answer_rate": 1.0,
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "answer_hit@3": 0.9666666666666667,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "answer_chunk_rank": {
+          "a01": 1,
+          "a02": 2,
+          "a03": 1,
+          "a04": 1,
+          "a05": 1,
+          "a06": 1,
+          "a07": 1,
+          "a08": 1,
+          "a09": 1,
+          "a10": 1,
+          "a11": 1,
+          "a12": 1,
+          "a13": 1,
+          "a14": 1,
+          "a15": 1,
+          "a16": 1,
+          "a17": 1,
+          "a18": 1,
+          "a19": 1,
+          "a20": 1,
+          "a21": 1,
+          "e01": 1,
+          "e02": 1,
+          "e03": 1,
+          "e04": 1,
+          "e05": 1,
+          "e06": 1,
+          "e07": null,
+          "e08": 1,
+          "e09": 1
+        }
+      },
+      "rerank_latency_p50_ms": 1010.15,
+      "rerank_latency_p95_ms": 1402.93,
+      "tokens_mean_per_call": {
+        "input_tokens": 2537.9,
+        "output_tokens": 97.125
+      },
+      "cost_usd_per_call": 0.00100418
+    },
+    "rerank-3": {
+      "complete": true,
+      "counts": {
+        "ok": 39,
+        "invalid": 1,
+        "errors": 0,
+        "gated": 8
+      },
+      "model": "gemini-3.5-flash-lite",
+      "metrics": {
+        "answer_rate": 1.0,
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "answer_hit@3": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "answer_chunk_rank": {
+          "a01": 1,
+          "a02": 2,
+          "a03": 1,
+          "a04": 1,
+          "a05": 1,
+          "a06": 1,
+          "a07": 1,
+          "a08": 1,
+          "a09": 1,
+          "a10": 1,
+          "a11": 1,
+          "a12": 1,
+          "a13": 1,
+          "a14": 1,
+          "a15": 1,
+          "a16": 1,
+          "a17": 1,
+          "a18": 1,
+          "a19": 1,
+          "a20": 1,
+          "a21": 1,
+          "e01": 1,
+          "e02": 1,
+          "e03": 1,
+          "e04": 1,
+          "e05": 1,
+          "e06": 1,
+          "e07": 1,
+          "e08": 1,
+          "e09": 1
+        }
+      },
+      "rerank_latency_p50_ms": 1007.41,
+      "rerank_latency_p95_ms": 1261.86,
+      "tokens_mean_per_call": {
+        "input_tokens": 2537.9,
+        "output_tokens": 97.375
+      },
+      "cost_usd_per_call": 0.00100481
+    }
+  },
+  "summary": {
+    "answer_rate": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "hit@1": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "hit@3": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "mrr": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "answer_hit@3": {
+      "mean": 0.9777777777777779,
+      "min": 0.9666666666666667,
+      "max": 1.0
+    },
+    "off_topic_abstain_rate": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "uncovered_abstain_rate": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    }
+  }
+}

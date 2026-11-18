@@ -1,7 +1,7 @@
 {
   "declared_by": "author",
-  "declared_at": "2026-11-09",
-  "note": "Tier da conta do Gemini API usada em cada execução com modelo real, declarado pelo autor. A conta passou ao Tier 1 pago em 2026-11-08; a full-1 (2026-11-07) usou o nível gratuito.",
+  "declared_at": "2026-11-18",
+  "note": "Tier da conta do Gemini API usada em cada execução com modelo real, declarado pelo autor. A conta passou ao Tier 1 pago em 2026-11-08; a full-1 (2026-11-07) usou o nível gratuito. A partir da rerank-1, a data de cada execução está em UTC.",
   "runs": {
     "full-1": {"date": "2026-11-07", "tier": "free"},
     "full-2": {"date": "2026-11-08", "tier": "paid_tier_1"},
@@ -16,6 +16,24 @@
     "hybrid-1": {"date": "2026-11-09", "tier": "paid_tier_1"},
     "hybrid-2": {"date": "2026-11-09", "tier": "paid_tier_1"},
     "hybrid-3": {"date": "2026-11-09", "tier": "paid_tier_1"},
-    "author-1": {"date": "2026-11-09", "tier": "paid_tier_1"}
+    "author-1": {"date": "2026-11-09", "tier": "paid_tier_1"},
+    "rerank-1": {"date": "2026-11-12", "tier": "paid_tier_1"},
+    "rerank-2": {"date": "2026-11-12", "tier": "paid_tier_1"},
+    "rerank-3": {"date": "2026-11-12", "tier": "paid_tier_1"},
+    "v2-4": {"date": "2026-11-13", "tier": "paid_tier_1"},
+    "v2-5": {"date": "2026-11-13", "tier": "paid_tier_1"},
+    "v2-6": {"date": "2026-11-13", "tier": "paid_tier_1"},
+    "rh-1": {"date": "2026-11-13", "tier": "paid_tier_1"},
+    "rh-2": {"date": "2026-11-13", "tier": "paid_tier_1"},
+    "rh-3": {"date": "2026-11-13", "tier": "paid_tier_1"},
+    "v2-7": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "v2-8": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "v2-9": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "rh-4": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "rh-5": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "rh-6": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "rh2-1": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "rh2-2": {"date": "2026-11-18", "tier": "paid_tier_1"},
+    "rh2-3": {"date": "2026-11-18", "tier": "paid_tier_1"}
   }
 }

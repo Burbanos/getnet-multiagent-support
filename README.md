@@ -22,19 +22,25 @@ flowchart TD
     Knowledge --> Supervisor
     Support --> Supervisor
     Ticket --> Supervisor
-    Supervisor --> End([Resposta com fontes, tokens, custo e trace_id])
+    Supervisor --> Check[answer_check: URLs, protocolo e promessa de prazo]
+    Check -->|reprovada após uma revisão| Fallback([Texto fixo: não confirmei, posso encaminhar])
+    Check -->|aprovada| End([Resposta com fontes, tokens, custo e trace_id])
+    Operator([PATCH /tickets/id com a resposta do operador]) --> Resume[operator_resume]
+    Resume --> Supervisor
 ```
 
 - **Especialistas como ferramentas:** cada especialista roda num laço próprio, com as próprias ferramentas e no máximo `MAX_SPECIALIST_STEPS` (padrão 4) chamadas; o supervisor tem limite de `MAX_SUPERVISOR_STEPS` (padrão 6) e, no limite, abre um chamado. Duas abstenções seguidas da base (`ESCALATE_AFTER_ABSTENTIONS`, padrão 2, contadas em `consecutive_abstentions`) também abrem um chamado.
 - **Identidade:** o `user_id` vem da `X-API-Key` (hash SHA-256 em `API_KEYS`, papéis `customer` e `operator`) e chega às ferramentas pela configuração do grafo, fora do alcance do modelo. `user_id` divergente no corpo recebe 403; chamado de outro lojista, 404; excesso de requisições, 429 com `Retry-After`.
-- **Memória:** `SqliteSaver` do LangGraph, com `thread_id` igual a `user_id:session_id`; sobrevive a reinícios.
-- **Conhecimento:** 30 páginas oficiais (`getnet.net/en` e `site.getnet.com.br`) coletadas respeitando o robots.txt, com URL e data de coleta; 28 delas viraram 92 trechos indexados com `gemini-embedding-2` (`data/index/`), e as outras duas são páginas de índice cujo texto é só navegação. Abaixo de `RAG_MIN_SCORE = 0.61` o retriever se abstém.
+- **Memória:** `SqliteSaver` do LangGraph, com `thread_id` igual a `user_id:session_id`; sobrevive a reinícios. Ao fim de cada turno, o histórico passa por um corte em `MAX_HISTORY_MESSAGES` (padrão 40): as mensagens mais antigas saem com `RemoveMessage`, e o corte começa sempre numa mensagem do lojista ou do operador, para não separar uma chamada de ferramenta da resposta dela. Uma falha no corte é registrada e não derruba o turno.
+- **Conhecimento:** 30 páginas oficiais (`getnet.net/en` e `site.getnet.com.br`) coletadas respeitando o robots.txt, com URL e data de coleta; 28 delas viraram 92 trechos indexados com `gemini-embedding-2` (`data/index/`), e as outras duas são páginas de índice cujo texto é só navegação. A busca é híbrida: os `RAG_DENSE_CANDIDATES` (6) melhores por embedding e os `RAG_LEXICAL_CANDIDATES` (6) melhores por BM25 (`src/rag/lexical.py`, sem dependência nova) são unidos por reciprocal rank fusion (`RAG_RRF_K = 60`) e notados por um reranker por LLM (`src/prompts/reranker.md`, saída só pela função `RerankVerdict`, relevância de 0 a 3); só ficam os trechos com relevância de pelo menos `RAG_RERANK_MIN_RELEVANCE` (2), e sem nenhum o retriever se abstém. O limiar `RAG_MIN_SCORE = 0.61` continua valendo antes do reranker. Se o reranker falhar ou responder fora do formato, vale a regra antiga, só por embedding (`RAG_RERANK_ENABLED=false` também volta a ela).
 - **Clima e câmbio:** PTAX (oficial, Banco Central, API Olinda) e Open-Meteo, com status explícitos (`success`, `not_found`, `no_data`, `unavailable`, `invalid_request`); fora de `success` não há valor. `search_web` (DuckDuckGo) fica para o que não tem API, como notícias.
-- **Transbordo:** `escalate_to_human` grava o chamado (`GET-TKT-YYYYMMDD-<10 hexadecimais>`, prioridade, transcrição mascarada) em `TICKETS_DB_PATH` (padrão `data/tickets.db`), com o ciclo `open` → `in_progress` → `answered` → `closed`; o operador responde por `PATCH /tickets/{id}`. O estado guarda `pending_ticket_id`, e o nó `handoff_gate` entrega a resposta no próximo turno do cliente, uma vez (`delivered_at`). O prompt proíbe prometer prazo ou fila; é uma instrução ao modelo, medida na avaliação, não uma garantia. Não usamos `interrupt()` do LangGraph porque o lojista continua escrevendo enquanto espera; as mensagens dele passam pelo guardrail e são anexadas ao chamado.
+- **Transbordo:** `escalate_to_human` grava o chamado (`GET-TKT-YYYYMMDD-<10 hexadecimais>`, prioridade, transcrição mascarada) em `TICKETS_DB_PATH` (padrão `data/tickets.db`), com o ciclo `open` → `in_progress` → `answered` → `closed`. Com `OPERATOR_WEBHOOK_URL` preenchido, cada chamado novo gera um POST com id, prioridade, data e o link `PUBLIC_BASE_URL/tickets/{id}`, sem motivo, transcrição nem `user_id` (`src/core/notifier.py`); a notificação é de melhor esforço, com timeout de `OPERATOR_WEBHOOK_TIMEOUT_S` (3 s), e uma falha não impede o chamado. O operador responde por `PATCH /tickets/{id}`, e na mesma requisição o supervisor retoma a conversa: a resposta entra no histórico como mensagem do operador, o supervisor escreve a mensagem final para o lojista e o chamado é marcado como entregue (`delivered_at`), uma vez. Se o supervisor falhar nessa retomada, a resposta do operador vai literal. O lojista lê a mensagem em `GET /sessions/{id}/messages`, que o `/demo` consulta a cada poucos segundos. Enquanto o chamado está pendente (`pending_ticket_id` no estado), o nó `handoff_gate` anexa as mensagens do lojista ao chamado sem chamar o modelo. O prompt proíbe prometer prazo ou fila, e a verificação da resposta confere isso nos turnos que abrem chamado. Não usamos `interrupt()` do LangGraph porque o lojista continua escrevendo enquanto espera.
+- **Verificação antes de enviar:** o nó `answer_check` (`src/agents/answer_check.py`) confere, sem modelo, que toda URL da resposta aparece numa saída de ferramenta ou numa mensagem do operador da conversa, que todo protocolo citado é o do chamado do turno, o do chamado pendente ou aparece nessas saídas, e que um turno que abre chamado não promete prazo (lista fixa de expressões, como "em breve" e "within"). Se reprovar, o supervisor reescreve a resposta uma vez com a lista do que falhou; se reprovar de novo, vai um texto fixo dizendo que a resposta não pôde ser confirmada e oferecendo um atendente. A checagem não confere datas, valores nem o idioma.
+- **Guardas do Support Agent e da busca web:** se o classificador de injeção ficar indisponível no turno, o Support Agent não roda e devolve ao supervisor que os dados da conta estão indisponíveis (`GUARDRAIL_ACCOUNT_FAIL_CLOSED`, padrão ligado); perguntas de conhecimento seguem. Os resultados de `search_web` passam por um classificador com prompt próprio (`src/prompts/guardrail_web_classifier.md`) antes de chegar ao modelo, e qualquer desfecho diferente de `allow` descarta os resultados (`GUARDRAIL_WEB_RESULTS_ENABLED`).
 - **Falhas:** erro do provedor vira 503 sem detalhe interno; falha inesperada no grafo marca `error: "internal_error"`. Uma falha no meio do turno não deixa chamada de ferramenta sem resposta: `run_sync` fecha cada uma com um `ToolMessage` de erro (`tests/test_dangling_tool_calls.py`).
 - **Logs:** JSON com `trace_id`, `session_id` e `user_hash` (SHA-256 do `user_id` com o sal `LOG_HASH_SALT`), eventos `node finished` e `tool finished` com latência. Nenhum registro traz texto da conversa nem a mensagem de uma exceção, só a classe e o local (`exc_brief`; `tests/test_log_privacy.py`).
 - **Tokens e custo:** cada resposta traz `input_tokens`, `output_tokens`, `tokens_by_agent` e `estimated_cost_usd`, calculado pela tabela de `src/core/pricing.py` (fonte: `ai.google.dev/gemini-api/docs/pricing`, página de 2026-10-30, coletada em 2026-11-07; preços do `gemini-3.6-flash` e do `gemini-3.8-flash` coletados em 2026-11-08). Modelo fora da tabela dá custo `null`, e os embeddings das consultas não entram. Os tokens de saída já incluem os de raciocínio: as três execuções do `gemini-3.8-flash` registraram 1.484.859 de entrada e 215.078 de saída, contra cerca de 1,5 milhão e 210 mil no painel do AI Studio no mesmo dia.
-- **Métricas:** `/metrics` no formato Prometheus, em memória por processo: `getnet_requests_total`, `getnet_request_latency_seconds`, `getnet_tool_calls_total`, `getnet_escalations_total`, `getnet_abstentions_total`, `getnet_llm_tokens_total` e `getnet_guardrail_decisions_total`.
+- **Métricas:** `/metrics` no formato Prometheus, em memória por processo: `getnet_requests_total`, `getnet_request_latency_seconds`, `getnet_tool_calls_total`, `getnet_escalations_total`, `getnet_abstentions_total`, `getnet_llm_tokens_total`, `getnet_guardrail_decisions_total` (com as decisões das guardas de conta e de busca web), `getnet_operator_notifications_total` e `getnet_answer_checks_total`.
 
 ## Como rodar
 
@@ -58,11 +64,11 @@ curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "
      -d '{"message": "When will the money from yesterday'\''s sales be deposited?", "session_id": "s1"}'
 ```
 
-Endpoints: `POST /chat`, `GET /tickets` e `GET /tickets/{id}`, `PATCH /tickets/{id}` (só `operator`), `GET /health`, `GET /agents`, `GET /metrics`, `GET /docs` e `GET /demo` (console no navegador com o chat e a telemetria de cada resposta). Sem `GEMINI_API_KEY`, o `/chat` responde 503.
+Endpoints: `POST /chat`, `GET /sessions/{id}/messages` (só `customer`, a própria sessão), `GET /tickets` e `GET /tickets/{id}`, `PATCH /tickets/{id}` (só `operator`), `GET /health`, `GET /agents`, `GET /metrics`, `GET /docs` e `GET /demo` (console no navegador com o chat e a telemetria de cada resposta). Sem `GEMINI_API_KEY`, o `/chat` responde 503.
 
-Testes e verificadores rodam sem chave e sem rede: `pytest`, `ruff check .`, `python -m src.eval offline` (os 6 casos de segurança, com um modelo que falha se for chamado) e, por exemplo, `python scripts/verify_phase11g.py`. O CI (`.github/workflows/ci.yml`) roda ruff, pytest, o build da imagem e um smoke test em `/health` a cada push.
+Testes e verificadores rodam sem chave e sem rede: `pytest`, `ruff check .`, `python -m src.eval offline` (os 6 casos de segurança, com um modelo que falha se for chamado) e, por exemplo, `python scripts/verify_phase12f.py`. O CI (`.github/workflows/ci.yml`) roda ruff, pytest, o build da imagem e um smoke test em `/health` a cada push.
 
-**Configuração principal:** `LLM_PROVIDER` (só `google_genai`; outro valor faz o `/chat` responder 503 por configuração inválida; os embeddings são sempre Gemini, e o `/health` informa `llm_configured` só pela `GEMINI_API_KEY`), `LLM_MODEL` (padrão `gemini-3.5-flash-lite`), `LLM_FALLBACK_MODEL` (`gemini-3.1-flash-lite`), `EVAL_JUDGE_MODEL` (`gemini-3.1-flash-lite`), `LLM_TIMEOUT_S` (30), `CHECKPOINT_DB_PATH`, `TICKETS_DB_PATH`, `RATE_LIMIT_PER_MINUTE` (30), `LOG_HASH_SALT`, `PUBLIC_DATA_TIMEOUT_S` (8), `WEB_SEARCH_ENABLED`, `ENABLE_GUARDRAILS` (não desativa o mascaramento de cartão e CPF, sempre aplicado) e `GUARDRAIL_CLASSIFIER_ENABLED`, `GUARDRAIL_CLASSIFIER_MODEL` (vazio = `LLM_MODEL`), `GUARDRAIL_CLASSIFIER_TIMEOUT_S` (10), `GUARDRAIL_CLASSIFIER_FAIL_MODE` (`open`). Com `open`, timeout ou erro da API do classificador deixa a mensagem seguir para o supervisor; com `closed`, o `/chat` responde 503. Uma resposta do classificador sem veredito válido bloqueia a mensagem nos dois modos.
+**Configuração principal:** `LLM_PROVIDER` (só `google_genai`; outro valor faz o `/chat` responder 503 por configuração inválida; os embeddings são sempre Gemini, e o `/health` informa `llm_configured` só pela `GEMINI_API_KEY`), `LLM_MODEL` (padrão `gemini-3.5-flash-lite`), `LLM_FALLBACK_MODEL` (`gemini-3.1-flash-lite`), `EVAL_JUDGE_MODEL` (`gemini-3.1-flash-lite`), `LLM_TIMEOUT_S` (30), `CHECKPOINT_DB_PATH`, `TICKETS_DB_PATH`, `RATE_LIMIT_PER_MINUTE` (30), `LOG_HASH_SALT`, `PUBLIC_DATA_TIMEOUT_S` (8), `WEB_SEARCH_ENABLED`, `ENABLE_GUARDRAILS` (não desativa o mascaramento de cartão e CPF, sempre aplicado) e `GUARDRAIL_CLASSIFIER_ENABLED`, `GUARDRAIL_CLASSIFIER_MODEL` (vazio = `LLM_MODEL`), `GUARDRAIL_CLASSIFIER_TIMEOUT_S` (10), `GUARDRAIL_CLASSIFIER_FAIL_MODE` (`open`). Com `open`, timeout ou erro da API do classificador deixa a mensagem seguir para o supervisor; com `closed`, o `/chat` responde 503. Uma resposta do classificador sem veredito válido bloqueia a mensagem nos dois modos. Variáveis da rodada mais recente: `RAG_RERANK_ENABLED` (`true`), `RAG_RERANK_MODEL` (vazio = `LLM_MODEL`), `RAG_RERANK_TIMEOUT_S` (10), `RAG_DENSE_CANDIDATES` e `RAG_LEXICAL_CANDIDATES` (6), `RAG_RERANK_MIN_RELEVANCE` (2), `RAG_RRF_K` (60), `GUARDRAIL_ACCOUNT_FAIL_CLOSED` e `GUARDRAIL_WEB_RESULTS_ENABLED` (`true`), `ANSWER_CHECK_ENABLED` (`true`), `OPERATOR_WEBHOOK_URL` (vazio = sem notificação), `OPERATOR_WEBHOOK_TIMEOUT_S` (3), `PUBLIC_BASE_URL` e `MAX_HISTORY_MESSAGES` (40).
 
 ### Avaliação com modelo real
 
@@ -70,9 +76,10 @@ A chave é digitada no terminal e nunca gravada em arquivo:
 
 ```powershell
 $env:GEMINI_API_KEY = Read-Host "Gemini key" -MaskInput
-python -m src.eval run --run-id v2-4 --cases data/eval/cases_v2.jsonl
-python -m src.eval judge --run-id v2-4 --cases data/eval/cases_v2.jsonl
-python -m src.eval report --run-id v2-4 --cases data/eval/cases_v2.jsonl
+$env:EVAL_JUDGE_MODEL = "gemini-3.6-flash"
+python -m src.eval run --run-id v2-10 --cases data/eval/cases_v2.jsonl
+python -m src.eval judge --run-id v2-10 --cases data/eval/cases_v2.jsonl
+python -m src.eval report --run-id v2-10 --cases data/eval/cases_v2.jsonl
 python -m src.eval guardrail-run --run-id hybrid-4
 Remove-Item Env:GEMINI_API_KEY
 ```
@@ -86,45 +93,56 @@ Remove-Item Env:GEMINI_API_KEY
 
 O padrão foi escolhido para quem roda com uma chave gratuita. Nas cotas que a página do AI Studio do autor mostrava em 2026-11-07, o Gemini Flash tinha 5 requisições por minuto e 20 por dia, e o `gemini-3.5-flash-lite` e o `gemini-3.1-flash-lite` tinham 15 por minuto e 500 por dia cada, com cotas separadas. Cada caso da avaliação faz de 3 a 6 chamadas, então o Flash não roda o conjunto num dia; por isso o padrão é o `gemini-3.5-flash-lite`, com o `gemini-3.1-flash-lite` como reserva.
 
-As execuções com modelo real publicadas desde 2026-11-08 usaram uma conta Tier 1 paga; só a `full-1` (2026-11-07) usou o nível gratuito. O tier de cada execução é uma declaração do autor em `reports/run_context.json`, e os relatórios `reports/eval_models.md`, `reports/eval_v2.md` e `reports/guardrail_summary.md` mostram, por execução, a data, o tier e os modelos lidos dos registros.
+As execuções com modelo real publicadas desde 2026-11-08 usaram uma conta Tier 1 paga; só a `full-1` (2026-11-07) usou o nível gratuito. O tier de cada execução é uma declaração do autor em `reports/run_context.json`, e os relatórios `reports/eval_models.md`, `reports/eval_v2.md`, `reports/eval_v2_phase12.md`, `reports/eval_routing_holdout.md`, `reports/eval_routing_holdout2.md` e `reports/guardrail_summary.md` mostram, por execução, a data, o tier e os modelos lidos dos registros. Todas as execuções a partir da `rerank-1` usaram a conta Tier 1 paga.
 
 ## Resultados atuais
 
 Avaliação com modelo real, rodada pelo autor no próprio terminal, com os registros brutos commitados. Resultados de versões anteriores (o conjunto v1, a `full-1` e a matriz de cenários dela) estão em `docs/history.md`.
 
-### Conjunto v2: 78 casos, 3 execuções (2026-11-09)
+### Conjunto v2: 78 casos, três grupos de 3 execuções
 
-`data/eval/cases_v2.jsonl` tem os 69 casos do v1 (com os 4 de clima e câmbio rotulados de novo para as APIs) e 9 casos novos de clima, câmbio e notícias. Modelo `gemini-3.5-flash-lite`, juiz `gemini-3.6-flash`, sem erros e sem uso do modelo reserva. Cada célula é a média das três execuções, com mínimo e máximo; a tabela vem de `reports/eval_v2.md`, e os registros, de `reports/eval_runs/v2-1.jsonl` a `v2-3.jsonl`.
+`data/eval/cases_v2.jsonl` tem os 69 casos do v1 (com os 4 de clima e câmbio rotulados de novo para as APIs) e 9 casos novos de clima, câmbio e notícias. Modelo `gemini-3.5-flash-lite`, juiz `gemini-3.6-flash`, sem erros e sem uso do modelo reserva. Os grupos são o código avaliado no feedback anterior (11G, 2026-11-09), o da 12D, depois das mudanças desta rodada (2026-11-13), e o da 12E, com as descrições de ferramenta corrigidas (2026-11-18). Cada célula é a média das três execuções, com mínimo e máximo; a tabela vem de `reports/eval_v2_phase12.md`, e os registros, de `reports/eval_runs/v2-1.jsonl` a `v2-9.jsonl`.
 
-| Métrica | flash-lite |
-| :--- | :--- |
-| Execuções | v2-1, v2-2, v2-3 |
-| Modelo das respostas | gemini-3.5-flash-lite |
-| Casos aprovados (checagens determinísticas) | 91,9% (91,0–92,3) |
-| Cenários oficiais aprovados | 96,7% (90,0–100,0) |
-| Roteamento correto | 95,4% (95,4–95,4) |
-| Ferramentas corretas | 95,7% (95,7–95,7) |
-| Escalonamento correto | 98,6% (98,6–98,6) |
-| Fatos esperados presentes | 94,9% (92,3–97,4) |
-| Fonte oficial recuperada | 96,0% (96,0–96,0) |
-| Idioma da resposta | 97,2% (97,2–97,2) |
-| Juiz: fundamentação (1 a 5) | 4,99 (4,97–5,00) |
-| Juiz: responde à pergunta (1 a 5) | 4,71 (4,69–4,74) |
-| Juiz: precisão da abstenção | 80,0% (80,0–80,0) |
-| Juiz: cobertura da abstenção | 80,0% (80,0–80,0) |
-| Latência por caso, mediana | 5,1 s (4,9–5,1) |
-| Latência por caso, p95 | 9,3 s (9,0–9,5) |
-| Tokens por execução | 652.585 (646.665–662.717) |
-| Custo estimado por execução (USD, plano pago) | US$ 0,253 (0,251–0,256) |
+| Métrica | 11G | 12D | 12E |
+| :--- | :--- | :--- | :--- |
+| Execuções | v2-1, v2-2, v2-3 | v2-4, v2-5, v2-6 | v2-7, v2-8, v2-9 |
+| Modelo das respostas | gemini-3.5-flash-lite | gemini-3.5-flash-lite | gemini-3.5-flash-lite |
+| Casos aprovados (checagens determinísticas) | 91,9% (91,0–92,3) | 94,4% (93,6–96,2) | 95,3% (93,6–96,2) |
+| Cenários oficiais aprovados | 96,7% (90,0–100,0) | 80,0% (70,0–90,0) | 83,3% (80,0–90,0) |
+| Roteamento correto | 95,4% (95,4–95,4) | 98,5% (98,5–98,5) | 100,0% (100,0–100,0) |
+| Ferramentas corretas | 95,7% (95,7–95,7) | 98,1% (97,1–98,6) | 99,0% (98,6–100,0) |
+| Escalonamento correto | 98,6% (98,6–98,6) | 98,6% (97,1–100,0) | 98,1% (97,1–100,0) |
+| Fatos esperados presentes | 94,9% (92,3–97,4) | 96,6% (94,9–97,4) | 99,1% (97,4–100,0) |
+| Fonte oficial recuperada | 96,0% (96,0–96,0) | 96,0% (96,0–96,0) | 100,0% (100,0–100,0) |
+| Idioma da resposta | 97,2% (97,2–97,2) | 96,8% (95,8–97,2) | 96,3% (94,4–97,2) |
+| Juiz: fundamentação (1 a 5) | 4,99 (4,97–5,00) | 4,99 (4,97–5,00) | 4,98 (4,94–5,00) |
+| Juiz: responde à pergunta (1 a 5) | 4,71 (4,69–4,74) | 4,70 (4,67–4,75) | 4,74 (4,68–4,83) |
+| Juiz: precisão da abstenção | 80,0% (80,0–80,0) | 97,4% (92,3–100,0) | 100,0% (100,0–100,0) |
+| Juiz: cobertura da abstenção | 80,0% (80,0–80,0) | 80,0% (73,3–86,7) | 77,8% (73,3–80,0) |
+| Latência por caso, mediana | 5,1 s (4,9–5,1) | 6,1 s (6,0–6,3) | 5,5 s (5,4–5,7) |
+| Latência por caso, p95 | 9,3 s (9,0–9,5) | 13,8 s (12,0–16,8) | 11,6 s (10,9–12,1) |
+| Tokens por execução | 652.585 (646.665–662.717) | 717.626 (709.497–733.851) | 738.505 (723.549–749.771) |
+| Custo estimado por execução (USD, plano pago) | US$ 0,253 (0,251–0,256) | US$ 0,281 (0,279–0,284) | US$ 0,288 (0,283–0,292) |
 
 > A linha "Fonte oficial recuperada" confere se a URL oficial esperada está entre as fontes recuperadas no turno; não confere se a resposta cita essa fonte no texto.
 
-- **Clima e câmbio:** os 11 casos `public_data` passaram nas três execuções, inclusive cidade inexistente, sábado sem PTAX e moeda fora da lista; os valores da PTAX de dias passados são conferidos, os da previsão do tempo não.
-- **Nenhuma pergunta legítima bloqueada:** nos 72 casos que não são de segurança, `is_safe` é verdadeiro nas três execuções. Esses registros não guardam qual camada do guardrail decidiu nem os tokens do classificador; o runner passou a registrar os dois depois, e os relatórios dessas execuções dizem "Não registrado".
-- **Falharam nas três execuções:** `k16` (a bateria da Get Mini está num trecho mal ranqueado), `o02` (pedido fora do tema atendido), `s04` e `s06` (pergunta sobre código de recusa roteada para a base em vez de `diagnose_declined_transaction`). Também falharam em todas as execuções do v1 e não foram corrigidos ajustando prompts contra os casos.
-- **Variaram entre execuções:** seis respostas em português para perguntas em inglês, `k17` sem o fato esperado numa execução, o poema do `o04` na `v2-3` e a busca web fora do ar no `u08` da `v2-1`.
-- **Custo e latência:** US$ 0,253 por execução e 5,1 s de mediana por caso, contra US$ 0,167 e 4,3 s do mesmo modelo nos 69 casos do v1.
-- **Limites:** os rótulos foram escritos pelo Claude, que também planejou o sistema; o juiz é um modelo, e a nota de fundamentação perto de 5 discrimina pouco.
+- **Clima e câmbio:** os 11 casos `public_data` passaram nas nove execuções, inclusive cidade inexistente, sábado sem PTAX e moeda fora da lista; os valores da PTAX de dias passados são conferidos, os da previsão do tempo não.
+- **Nenhuma pergunta legítima bloqueada:** nos 72 casos que não são de segurança, `is_safe` é verdadeiro nas nove execuções. Os registros das `v2-1` a `v2-3` não guardam qual camada do guardrail decidiu nem os tokens do classificador; o runner passou a registrar os dois depois, e as execuções seguintes já os têm.
+- **Corrigidos:** `k16`, `o02`, `s04` e `s06` falhavam nas três execuções do 11G e passaram nas seis seguintes (12D e 12E). O `k16` (bateria da Get Mini) melhorou pela busca híbrida; `s04` e `s06` (significado de código de recusa), pela descrição das ferramentas de delegação (`src/tools/supervisor_tools.py`), sem ajustar o prompt do supervisor contra esses casos.
+- **Regressão corrigida:** a descrição da 12D levou o `k09` ("A opção de Pix por aproximação não aparece na maquininha") ao Support Agent nas três execuções da 12D; a 12E delimitou as descrições e ele passou nas três da 12E.
+- **Erro que as checagens não pegam:** o `u03` pergunta sobre o "erro 05 na tela de configuração de rede". No 11G o sistema se absteve; nas seis execuções da 12D e da 12E respondeu com o significado do código de recusa 05 ("Não Autorizada / Contate o Emissor"), que é uma resposta errada. Em cinco delas chamou `diagnose_declined_transaction`; na `v2-9`, sem ferramenta, disse que o 05 "geralmente refere-se a uma transação não autorizada pelo banco emissor", apesar da exclusão que a 12E pôs na descrição. O caso não tem rota nem ferramenta rotulada, então as checagens determinísticas passam; só a métrica de abstenção do juiz registra o erro.
+- **Cenários oficiais:** caíram de 96,7% para 80,0% e 83,3%. O `off08` ("My card machine is showing a transaction decline error.") foi respondido em português nas seis execuções da 12D e da 12E, contra uma das três do 11G; o `off04` (conta bancária para receber Pix) abriu chamado sem pedido em três das seis e foi respondido em português numa; o `off10` abriu chamado sem pedido numa.
+- **Variaram entre execuções:** respostas em português para perguntas em inglês (6 no 11G, 7 na 12D, 8 na 12E, somando as três execuções de cada grupo); chamados abertos sem pedido (3 no 11G, todos do `s06`; 3 na 12D; 4 na 12E, dois do `off04` e dois do poema do `o04`).
+- **Verificação da resposta:** aprovou as 234 respostas da 12D e as 234 da 12E sem pedir nenhuma revisão; o efeito dela só está coberto pelos testes (`tests/test_answer_check_and_guards.py`). O classificador dos resultados da busca web rodou 6 vezes nas seis execuções e liberou todas.
+- **Custo e latência:** US$ 0,288 por execução e 5,5 s de mediana por caso na 12E, contra US$ 0,253 e 5,1 s no 11G; a diferença vem do reranker e da verificação da resposta.
+- **Limites:** os rótulos foram escritos pelo Claude, que também planejou o sistema; o juiz é um modelo, e a nota de fundamentação perto de 5 discrimina pouco (a validação humana abaixo deu 5 nos 30 casos da amostra, para o autor e para o juiz).
+
+### Roteamento: dois holdouts
+
+Os dois conjuntos foram escritos pelo revisor antes das execuções, mas o mesmo revisor escreveu as descrições das ferramentas, já sabendo quais casos do v2 falhavam; não são medições independentes.
+
+- **`data/eval/cases_routing_holdout.jsonl`** (8 casos, commitado na 12A, antes da mudança das descrições): cinco perguntas sobre códigos de recusa que não estão no v2 e três perguntas de conhecimento parecidas. Roteamento correto em 24 de 24 nas execuções da 12D e da 12E; casos aprovados 95,8% e 87,5% (`reports/eval_routing_holdout.md`), com as falhas em fato esperado e idioma.
+- **`data/eval/cases_routing_holdout2.jsonl`** (12 casos, escrito antes das descrições da 12E): 83,3% aprovados em três execuções (`reports/eval_routing_holdout2.md`). As quatro perguntas sobre funções da maquininha foram ao Knowledge Agent nas 12 vezes; os três códigos de recusa ditos com palavras da maquininha foram ao catálogo nas 9; os dois problemas de conexão foram ao diagnóstico do terminal nas 6. Os três erros de tela falharam em 5 de 9: o Support Agent consultou o catálogo de recusas para o "erro 12" e o "error 41"; as respostas disseram que o código não está no catálogo, e algumas misturaram a última transação recusada da conta. É o mesmo comportamento do `u03`, que só vira resposta errada quando o número coincide com um código do catálogo.
 
 ### Guardrail híbrido
 
@@ -151,11 +169,40 @@ Com 10 mensagens de cada lado, o intervalo de Wilson de 95% ainda é largo: bloq
 
 - **Custo do classificador:** mediana de 0,80 s e p95 de 0,98 s por mensagem no conjunto de 36; cerca de 694 tokens de entrada e 24 de saída, ou US$ 0,00027 por mensagem pela tabela de `src/core/pricing.py` (plano pago). Só paga quem passa pelos padrões.
 - **Fail-open só para indisponibilidade do provedor:** se a chamada ao classificador falhar por timeout (`GUARDRAIL_CLASSIFIER_TIMEOUT_S`, padrão de 10 segundos) ou por erro da API, a mensagem segue para o supervisor sem classificação. Se o classificador responder sem um veredito válido (sem chamar `GuardrailVerdict`, com argumentos inválidos ou com veredito e categoria incoerentes, como `block` com `none`), a mensagem é bloqueada nos dois modos: só `allow` com categoria `none` libera. O fail-open tem um custo: se só a chamada do classificador falhar (por exemplo, um timeout isolado), o supervisor responde a uma mensagem que não foi classificada; o 503 só acontece quando a queda do provedor também derruba a chamada do supervisor. Esse risco foi aceito porque uma injeção que passe tem alcance pequeno: o `user_id` vem da credencial, as ferramentas só leem a conta de quem chama, e a única escrita é um chamado para essa mesma conta; e os prompts são públicos neste repositório, então vazá-los não revela segredo. Com `GUARDRAIL_CLASSIFIER_FAIL_MODE=closed`, a indisponibilidade do classificador vira 503. Cada caso (timeout, erro da API e cada tipo de resposta inválida) tem teste nos dois modos (`tests/test_guardrail_classifier.py`). Nas três execuções com modelo real, as 108 chamadas ao classificador terminaram com um veredito válido. A decisão deve ser revista se o sistema ganhar uma ação de escrita sobre o dinheiro do lojista.
-- **O que não cobre:** injeção dividida em várias mensagens (o classificador vê só a mensagem atual), injeção que chega por resultados da busca web ou de ferramentas, e codificações ou idiomas que o modelo não reconheça como ataque.
+- **Pedidos de conta em fail-closed:** desde a 12D, com o classificador indisponível no turno, o Support Agent não roda e o supervisor recebe que os dados da conta estão indisponíveis; perguntas de conhecimento seguem em fail-open (`GUARDRAIL_ACCOUNT_FAIL_CLOSED`, testado em `tests/test_answer_check_and_guards.py`).
+- **Resultados da busca web:** passam por um classificador com prompt próprio antes de chegar ao modelo; `block`, resposta inválida ou erro descartam os resultados. Nas execuções com modelo real, as poucas chamadas de `search_web` foram todas liberadas; não há conjunto rotulado de injeção indireta, então a taxa de bloqueio dessa camada não foi medida.
+- **O que não cobre:** injeção dividida em várias mensagens (o classificador vê só a mensagem atual), injeção que chega por outras ferramentas, e codificações ou idiomas que o modelo não reconheça como ataque.
 
 ### Retrieval
 
-Em 48 consultas rotuladas (`data/eval/retrieval_labeled.jsonl`: 30 respondíveis, 10 sem cobertura no corpus e 8 fora do domínio), hit@1 0.900, hit@3 0.967 e MRR 0.933 (`reports/retrieval_calibration.md`). O limiar 0.61 deixa passar as 30 respondíveis e barra as 8 fora do domínio, com margem de apenas 0.04; nenhuma das 10 sem cobertura é barrada pelo limiar (abstenção 0.000), e a abstenção delas depende do Knowledge Agent.
+Nas 48 consultas rotuladas de `data/eval/retrieval_labeled.jsonl` (30 respondíveis, 10 sem cobertura no corpus e 8 fora do domínio), três execuções da busca híbrida com o reranker (`rerank-1` a `rerank-3`, 2026-11-12; `reports/retrieval_hybrid.md`) contra a regra antiga, só por embedding (`reports/retrieval_calibration.md`):
+
+| Métrica | Só embedding | Híbrida com reranker (média de 3) |
+| :--- | :--- | :--- |
+| hit@1 / MRR | 0.900 / 0.933 | 1.000 / 1.000 |
+| Trecho com a resposta entre os 3 primeiros (`answer_hit@3`) | 0.900 | 0.978 |
+| Abstenção nas 10 sem cobertura | 0.000 | 1.000 |
+| Abstenção nas 8 fora do domínio | 1.000 | 1.000 |
+
+Na regra antiga, o limiar 0.61 barrava as 8 fora do domínio com margem de apenas 0.04, e nenhuma das 10 sem cobertura (abstenção 0.000). Nas três execuções, as 8 consultas fora do domínio foram barradas pelo limiar antes do reranker; nas outras 120 chamadas, o reranker respondeu fora do formato em 5 (sempre em `e02` ou `e07`), e nelas valeu a regra antiga. As 48 consultas e o prompt do reranker foram escritos pelo revisor; o prompt não foi ajustado depois das execuções.
+
+### Validação humana dos rótulos e do juiz
+
+O autor anotou às cegas 30 casos da `v2-1` (amostra estratificada por categoria, com semente fixa; `reports/human_validation/sample.json`), lendo só o formulário (`reports/human_validation/form.md`): primeiro a rota de todos, depois, caso a caso, se a resposta era aceitável, se devia e se de fato se absteve e a fundamentação de 1 a 5. As respostas estão em `reports/human_validation/answers.csv`, e a concordância em `reports/human_validation.md`:
+
+| Comparação | Concordância | IC de Wilson 95% | Kappa |
+| :--- | :--- | :--- | :--- |
+| Rota: autor × rótulo | 25/27 | 76,6–97,9% | 0,87 |
+| Devia se abster: autor × rótulo | 24/26 | 75,9–97,9% | 0,75 |
+| Aceitável (autor) × aprovado nas checagens | 28/30 | 78,7–98,2% | 0,47 |
+| Aceitável: autor × juiz | 28/30 | 78,7–98,2% | −0,03 |
+| Se absteve: autor × juiz | 29/30 | 83,3–99,4% | 0,91 |
+
+- **As checagens não inflaram a taxa de aprovação nesta amostra:** elas aprovaram 90,0% dos 30 casos e o autor achou 96,7% aceitáveis; nenhuma resposta aprovada pelas checagens foi recusada pelo autor. As duas discordâncias são no outro sentido: `k16` (o autor aceitou a abstenção, já que o trecho com a resposta não estava nas evidências do turno) e `u08` (resposta em português a uma pergunta em inglês, que o autor aceitou).
+- **Juiz:** o kappa de −0,03 vem de quase todos os casos serem aceitáveis para os dois (28 concordâncias em 30), não de discordância; as duas discordâncias são o `e04` (o juiz aprovou uma resposta no idioma errado) e o `m01` (o juiz cobrou o preço perguntado no turno anterior). A fundamentação deu 5 nos 30 casos para os dois, então esta amostra não mede se o juiz percebe uma resposta sem apoio. No `m01`, a resposta diz que a informação "vem do site global da Getnet", mas as duas fontes são do `site.getnet.com.br`; nem o autor nem o juiz apontaram.
+- **Rótulos:** no `u01`, o autor e o juiz consideraram que as evidências respondiam à pergunta, e o rótulo diz "sem cobertura"; o rótulo provavelmente está errado e foi mantido para não quebrar a comparação entre execuções.
+- **Revisão depois de ver as discordâncias:** o autor mudou três das próprias respostas (`h24` rota `ambos`, `h30` não aceitável, `h07` fundamentação 3), em `reports/human_validation/answers_revisado.csv` e `reports/human_validation_revisado/human_validation.md`. Com elas, o autor acha 93,3% aceitáveis, a rota concorda em 26/27 e "aceitável × checagens" em 29/30. Só os casos com discordância foram relidos, então a versão revisada puxa na direção do rótulo e do juiz; a versão cega é a principal.
+- **Limites:** um anotador, que é o autor do projeto; 30 casos de uma execução.
 
 ### Escolha do modelo padrão
 
@@ -163,7 +210,7 @@ Em 2026-11-08, seis execuções dos 69 casos do v1 (`reports/eval_models.md`) co
 
 ## Demonstração
 
-Transcrições copiadas, sem edição, de execuções com modelo real já commitadas (modelo `gemini-3.5-flash-lite`). Dois fluxos pedidos não têm registro com modelo real: lojista inexistente (todos os casos da avaliação usam `cliente1988`; o comportamento está em `tests/test_mock_not_found.py`) e resposta do operador entregue no chat (o runner não responde chamados; o fluxo está em `tests/test_handoff.py`).
+Transcrições copiadas, sem edição, de execuções com modelo real já commitadas (modelo `gemini-3.5-flash-lite`). Dois fluxos pedidos não têm registro com modelo real: lojista inexistente (todos os casos da avaliação usam `cliente1988`; o comportamento está em `tests/test_mock_not_found.py`) e resposta do operador retomando a conversa (o runner não responde chamados; o fluxo, com a notificação e a retomada, está em `tests/test_operator_hitl.py` e `tests/test_handoff.py`).
 
 **Produto, com fonte e data de coleta** — registro `reports/eval_runs/v2-1.jsonl`, caso `k01`; ferramentas: `search_knowledge_base`.
 
@@ -204,14 +251,16 @@ Assistente: Por padrão, a senha do lojista para realizar um estorno na maquinin
 Fonte: [Getnet - Como estornar uma venda na maquininha Getnet?](https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/) (coletado em 07/11/2026).
 ```
 
-**Câmbio pela PTAX** — registro `reports/eval_runs/v2-1.jsonl`, caso `d04`; ferramentas: `get_exchange_rate`.
+**Câmbio pela PTAX** — registro `reports/eval_runs/v2-2.jsonl`, caso `d04`; ferramentas: `get_exchange_rate`.
 
 ```text
 Lojista: What was the PTAX closing rate for the US dollar on November 6, 2026?
-Assistente: The PTAX closing rate published by the Central Bank of Brazil for the US dollar on November 6, 2026, was 5.5007 BRL for buying and 5.5013 BRL for selling per 1 USD (reference date: 2026-11-06). Please note that this is the Central Bank's PTAX reference rate, not the rate a bank or exchange office will charge.
+Assistente: The PTAX closing reference rate for the US dollar (USD) on November 6, 2026, was R$ 5.5007 for purchase and R$ 5.5013 for sale, as published by the Central Bank of Brazil. Please note that this is the Central Bank's PTAX reference rate and not the rate a bank or exchange office will charge.
 
-Source: Banco Central do Brasil (PTAX) (https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='USD'&@dataInicial='11-06-2026'&@dataFinalCotacao='11-06-2026'&$format=json) (retrieved on November 6, 2026).
+Source: Banco Central do Brasil (PTAX) (https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='USD'&@dataInicial='11-06-2026'&@dataFinalCotacao='11-06-2026'&$format=json).
 ```
+
+A versão anterior desta seção usava o `d04` da `v2-1`, cuja resposta dizia "retrieved on November 6, 2026"; a consulta foi feita em 2026-11-09 (campo `retrieved_at` da ferramenta). Os casos desse tipo estão em "Limitações".
 
 **Transbordo humano** — registro `reports/eval_runs/v2-1.jsonl`, caso `e01`; ferramentas: `escalate_to_human`.
 
@@ -223,17 +272,18 @@ Assistente: Seu atendimento foi registrado com o protocolo **GET-TKT-20261109-CA
 
 ## Limitações
 
-- **Guardrail:** a meta de falso positivo foi perdida no conjunto de 36 (10,4% contra 10%), que foi escrito junto com o prompt do classificador; o holdout independente acertou as 20 mensagens, mas é pequeno, veio de candidatas geradas por modelo e foi rodado uma vez. O classificador vê só a mensagem atual. Se o provedor do classificador não responder (timeout ou erro da API), a mensagem segue para o supervisor (fail-open); se o classificador responder sem um veredito válido, a mensagem é bloqueada nos dois modos. O motivo está na seção do guardrail híbrido.
+- **Guardrail:** a meta de falso positivo foi perdida no conjunto de 36 (10,4% contra 10%), que foi escrito junto com o prompt do classificador; o holdout independente acertou as 20 mensagens, mas é pequeno, veio de candidatas geradas por modelo e foi rodado uma vez. O classificador vê só a mensagem atual. Se o provedor do classificador não responder (timeout ou erro da API), a mensagem segue para o supervisor (fail-open); se o classificador responder sem um veredito válido, a mensagem é bloqueada nos dois modos. O motivo está na seção do guardrail híbrido. Nesse caso, pedidos de conta não são atendidos (fail-closed). A camada sobre os resultados da busca web não tem medição de bloqueio.
 - **Clima:** a API gratuita da Open-Meteo é só para uso não comercial (menos de 10.000 chamadas por dia, dados CC BY 4.0, atribuição "Weather data by Open-Meteo.com"); um uso pela Getnet exigiria o plano pago. Os valores da previsão não são conferidos na avaliação. A PTAX é taxa de referência, não a de varejo, e não existe em fins de semana e feriados (dados sob ODbL).
-- **Base de conhecimento:** 92 trechos, 16 deles de um único post de blog; as páginas brasileiras de Link de Pagamento e de pagamentos pelo WhatsApp vieram sem conteúdo na coleta (`data/corpus/manifest.json`), e essas perguntas são respondidas pela página global. Não há busca híbrida nem reranking.
-- **Avaliação:** quatro casos falham em todas as execuções (`k16`, `o02`, `s04`, `s06`); os registros do v2 não guardam a camada do guardrail. Os testes automatizados usam modelos roteirizados e não medem a qualidade do roteamento; a qualidade com modelo real é medida pela avaliação (`reports/eval_v2.md`, `reports/eval_models.md`).
-- **Estado:** o histórico da conversa cresce sem corte e sem expiração; cada réplica tem seu SQLite e o rate limit fica em memória. Bancos de conversa criados antes de a máscara passar a ser aplicada fora do grafo podem ter cartão ou CPF crus e devem ser apagados (no Docker, `docker compose down -v`).
-- **Transbordo:** o operador só vê o chamado pela API, e a resposta dele chega no próximo turno do cliente.
+- **Base de conhecimento:** 92 trechos, 16 deles de um único post de blog; as páginas brasileiras de Link de Pagamento e de pagamentos pelo WhatsApp vieram sem conteúdo na coleta (`data/corpus/manifest.json`), e essas perguntas são respondidas pela página global. O reranker custa uma chamada de modelo por busca, e o conjunto em que ele foi medido foi escrito pelo mesmo revisor que escreveu o prompt dele.
+- **Avaliação:** o `u03` recebe uma resposta errada em todas as execuções da 12D e da 12E sem que as checagens determinísticas reprovem; o `off08` sai em português nas seis; respostas em português a perguntas em inglês e chamados abertos sem pedido continuam aparecendo em toda execução. Os registros das `v2-1` a `v2-3` não guardam a camada do guardrail. Os testes automatizados usam modelos roteirizados e não medem a qualidade do roteamento; a qualidade com modelo real é medida pela avaliação (`reports/eval_v2_phase12.md`, `reports/eval_models.md`) e pelos dois holdouts. A validação humana tem um anotador, que é o autor.
+- **Datas nas respostas de clima e câmbio:** a saída das ferramentas traz `retrieved_at`, mas o modelo às vezes cita outra data como data de consulta. Nos registros do v2, oito respostas fazem isso: `d04` e `d05` da `v2-1`, `off07` e `w02` da `v2-2`, `d04` da `v2-3`, `w02` da `v2-4`, `d04` da `v2-5` e `d05` da `v2-8` (quase sempre a data de referência da PTAX, 06/11, apresentada como data de consulta). Nenhuma checagem confere essa data, nem a verificação da resposta.
+- **Estado:** o histórico tem corte, mas as conversas não expiram; cada réplica tem seu SQLite e o rate limit fica em memória. Bancos de conversa criados antes de a máscara passar a ser aplicada fora do grafo podem ter cartão ou CPF crus e devem ser apagados (no Docker, `docker compose down -v`).
+- **Transbordo:** o operador é avisado por webhook (melhor esforço, sem nova tentativa) e responde pela API; não há console do operador. O lojista recebe a resposta por consulta periódica a `GET /sessions/{id}/messages`, não por push.
 - **Fora do escopo:** ação de escrita no domínio de suporte. As ferramentas de conta só leem uma base simulada com um lojista, `cliente1988`; para qualquer outro, devolvem `{"status": "not_found", "error": "merchant_not_found"}` e o mock não inventa conta, terminal nem transação (`tests/test_mock_not_found.py`).
 
 ## Autoria e revisão
 
-O código, os testes, este README e o `docs/STATUS.md` foram escritos pelo Google Antigravity (modelo Gemini 3.8 Flash), uma fase por vez, a partir dos prompts em `docs/phase-prompts/`. O plano (`docs/SPEC.md`), os prompts de fase, os verificadores (`scripts/verify_*.py`), os casos rotulados (`data/eval/cases.jsonl`, `data/eval/cases_v2.jsonl` e `data/eval/guardrail_labeled.jsonl`) e os prompts dos agentes e do juiz (`src/prompts/`) foram escritos ou revisados pelo Claude (Anthropic), em sessões separadas, que também conferiu cada fase rodando os verificadores numa cópia própria. Isto não é uma revisão independente: o mesmo autor conduz as duas ferramentas, e o Claude escreveu tanto os critérios de aceite quanto os rótulos. Os commits saem da conta do autor.
+O código, os testes e o `docs/STATUS.md` foram escritos pelo Google Antigravity, uma fase por vez, a partir dos prompts em `docs/phase-prompts/`: com o Gemini 3.8 Flash até a 11G, com o Gemini 4 Hydrogen nas fases 12A a 12D e no modo Orchestrator (Argon) nas 12E e 12F, em que o Gemini 4 Argon pode passar etapas de rotina ao Hydrogen. Este README foi escrito pelo Antigravity a partir do que cada prompt de fase pedia; na 11G e na 12F, o texto das seções novas e das alterações foi ditado palavra por palavra pelo revisor no prompt da fase. O plano (`docs/SPEC.md`), os prompts de fase, os verificadores (`scripts/verify_*.py`), os casos rotulados (`data/eval/cases.jsonl`, `data/eval/cases_v2.jsonl`, `data/eval/guardrail_labeled.jsonl` e os dois holdouts de roteamento) e os prompts dos agentes, do juiz e do reranker (`src/prompts/`) foram escritos ou revisados pelo Claude (Anthropic), em sessões separadas, que também conferiu cada fase rodando os verificadores numa cópia própria. Isto não é uma revisão independente: o mesmo autor conduz as duas ferramentas, e o Claude escreveu tanto os critérios de aceite quanto os rótulos. Os commits saem da conta do autor.
 
 Decisões do autor:
 
@@ -243,6 +293,7 @@ Decisões do autor:
 - **Prioridades:** uma rodada de correções depois de uma auditoria simulada, antes do reenvio, com prioridade para os itens abertos do feedback anterior (guardrail e clima e câmbio).
 - **Holdout do guardrail:** montado pelo autor, sem ler o prompt do classificador: escolheu, reescreveu e rotulou as 20 mensagens a partir de candidatas geradas por outro modelo.
 - **Propostas do revisor aprovadas pelo autor:** troca da fonte do Santander (que bloqueia o robô de coleta) pelo `site.getnet.com.br`, guardrail híbrido e remoção da base escrita à mão.
+- **Rodada 12:** a rodada seguiu o "Caminho para 9,0" do feedback anterior; o autor preencheu a validação humana sem ver os rótulos e decidiu publicar a versão cega como principal; delegou ao revisor a decisão de abrir a 12E para corrigir o `k09` e o `u03` antes de fechar a rodada (a 12E corrigiu o `k09`; o `u03` continua errado).
 
 ## Mapa do repositório
 
@@ -279,6 +330,14 @@ Processo:
 | O holdout do guardrail foi commitado antes da única execução, que bloqueou 10 de 10 ataques e nenhuma das 10 perguntas legítimas | `data/eval/guardrail_author_holdout.jsonl`, `reports/guardrail_runs/author-1.jsonl`, `reports/guardrail_author-1.md`, `scripts/verify_phase11b.py`, `scripts/verify_phase11c.py` |
 | Clima e câmbio vêm da PTAX (oficial, Banco Central) e da Open-Meteo, com unidade, data e URL da fonte; falha e dia sem cotação viram status explícito, sem valor | `src/tools/public_data.py`, `tests/test_public_data.py`, `tests/fixtures/public_data/manifest.json`, `scripts/verify_phase10f.py` |
 | No v2, 91,9% dos casos passaram nas checagens determinísticas (média de 3 execuções), e os 11 casos de clima e câmbio passaram nas três | `reports/eval_v2.md`, `reports/eval_runs/`, `data/eval/cases_v2.jsonl`, `scripts/verify_phase10h.py` |
+| Entre o 11G e a 12E, o v2 passou de 91,9% para 95,3% dos casos (média de 3 execuções), com os cenários oficiais caindo de 96,7% para 83,3% | `reports/eval_v2_phase12.md`, `reports/eval_runs/v2-1.jsonl` a `v2-9.jsonl`, `scripts/verify_phase12f.py` |
+| A busca é híbrida (embedding e BM25, com reranker por LLM) e se absteve nas 10 consultas sem cobertura, contra 0 da regra antiga | `src/rag/lexical.py`, `src/rag/reranker.py`, `src/rag/retriever.py`, `reports/retrieval_hybrid.md`, `reports/retrieval_runs/`, `tests/test_hybrid_retrieval.py`, `scripts/verify_phase12b.py` |
+| O operador é avisado por webhook sem dados da conversa, e a resposta dele retoma o turno do supervisor | `src/core/notifier.py`, `src/core/graph.py` (`resume_after_operator`), `src/main.py`, `tests/test_operator_hitl.py`, `scripts/verify_phase12c.py` |
+| A resposta final passa por uma verificação sem modelo (URLs, protocolo, promessa de prazo), com uma revisão e um texto fixo | `src/agents/answer_check.py`, `src/core/graph.py`, `tests/test_answer_check_and_guards.py`, `scripts/verify_phase12d.py` |
+| Pedidos de conta não rodam com o classificador indisponível, e os resultados da busca web passam por um classificador | `src/core/graph.py`, `src/agents/specialists.py`, `src/prompts/guardrail_web_classifier.md`, `tests/test_answer_check_and_guards.py`, `scripts/verify_phase12d.py` |
+| O histórico tem corte que não separa chamada de ferramenta e resposta | `src/core/graph.py` (`_trim_history`), `tests/test_operator_hitl.py`, `scripts/verify_phase12c.py` |
+| O roteamento foi medido em dois holdouts escritos antes das execuções | `data/eval/cases_routing_holdout.jsonl`, `data/eval/cases_routing_holdout2.jsonl`, `reports/eval_routing_holdout.md`, `reports/eval_routing_holdout2.md`, `tests/test_tool_descriptions.py` |
+| A validação humana às cegas de 30 casos não encontrou resposta aprovada pelas checagens e recusada pelo autor | `reports/human_validation/`, `reports/human_validation.md`, `reports/human_validation_revisado/`, `src/eval/human_validation.py`, `tests/test_human_validation.py`, `scripts/verify_phase12a.py` |
 | O `gemini-3.5-flash-lite` aprovou 86,0% dos 69 casos do v1 contra 88,9% do `gemini-3.8-flash`, com mediana de 4,3 s contra 15,4 s por caso | `reports/eval_models.md`, `reports/eval_runs/`, `scripts/verify_phase8f.py` |
 | O juiz da avaliação não vê o resultado esperado | `src/prompts/judge.md`, `src/eval/judge.py`, `scripts/verify_phase6b.py` |
 | As execuções novas da avaliação registram, em cada turno, a camada do guardrail que decidiu e os tokens do classificador | `src/eval/runner.py`, `src/eval/metrics.py`, `tests/test_eval_guardrail_fields.py`, `scripts/verify_phase11d.py` |

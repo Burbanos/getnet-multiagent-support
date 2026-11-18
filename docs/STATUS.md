@@ -14,6 +14,31 @@
 
 ---
 
+### Fase 12F: Fechamento da Fase 12
+
+#### Ambiente e verificação
+- Ambiente: Python 3.13.3
+- `python -m ruff check .`: passou (`All checks passed!`)
+- `python -m pytest -q -p no:cacheprovider`: `390 passed`
+- `python scripts/verify_phase12f.py`: `SUMMARY: 75/75 passed` (`PASS E0`, `PASS F1`–`F9`, `PASS Q0`–`Q5`, `PASS Q2.pytest_offline_no_key :: 390 passed`)
+
+#### Commit base
+- `a32b702e034f9ce1b897755e3d12f733a2bb98af` (Fase 12E)
+
+#### Alterações
+- `reports/retrieval_runs/`, `reports/eval_runs/` e `reports/human_validation/`: adicionados os 26 arquivos de registros e respostas do autor sem modificação (`rerank-1..3`, `v2-4..9` e `.judge`, `rh-1..6`, `rh2-1..3`, `answers.csv` e `answers_revisado.csv`).
+- `README.md` e `reports/run_context.json`: aplicadas as 25 edições do `README.md` e as 3 edições de `reports/run_context.json` pelo script do prompt da Fase 12F.
+- `reports/`: gerados os 12 arquivos de relatórios (`retrieval_hybrid.{json,md}`, `eval_v2_phase12.{json,md}`, `eval_routing_holdout.{json,md}`, `eval_routing_holdout2.{json,md}`, `human_validation.{json,md}` e `human_validation_revisado/human_validation.{json,md}`).
+- Arquivos do revisor mantidos intactos: `docs/SPEC.md`, `docs/phase-prompts/12F.md`, `scripts/verify_phase12f.py`.
+
+#### Não feito
+- Nenhuma pendência na Fase 12F.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma divergência identificada com `docs/SPEC.md`.
+
+---
+
 ### Fase 12E: Limites das Descrições das Ferramentas
 
 #### Ambiente e verificação
