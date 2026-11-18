@@ -1,9 +1,13 @@
 """Database engine construction, schema management, and health checks (PostgreSQL & SQLite)."""
 from __future__ import annotations
 
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
+import psycopg
 from sqlalchemy import (
     Column,
     Engine,
@@ -82,29 +86,68 @@ def make_engine(target: str, pool_size: int = 5) -> Engine:
     )
 
 
+SCHEMA_LOCK_KEY = 918273645
+
+
+def _raw_postgres_conninfo(target: str) -> str:
+    clean = str(target).strip()
+    if clean.startswith("postgresql+psycopg://"):
+        return "postgresql://" + clean.removeprefix("postgresql+psycopg://")
+    return clean
+
+
+@contextmanager
+def schema_lock(target: str, timeout_seconds: float = 60.0) -> Iterator[None]:
+    """Serialize DDL and checkpointer setup across concurrent PostgreSQL workers."""
+    if not is_postgres_url(target):
+        yield
+        return
+
+    conninfo = _raw_postgres_conninfo(target)
+    deadline = time.monotonic() + timeout_seconds
+    with psycopg.connect(conninfo, autocommit=True) as conn:
+        acquired = False
+        while True:
+            row = conn.execute("SELECT pg_try_advisory_lock(%s)", (SCHEMA_LOCK_KEY,)).fetchone()
+            if row and bool(row[0]):
+                acquired = True
+                break
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out waiting {timeout_seconds}s for Postgres schema lock")
+            time.sleep(0.1)
+        try:
+            yield
+        finally:
+            if acquired:
+                with suppress(Exception):
+                    conn.execute("SELECT pg_advisory_unlock(%s)", (SCHEMA_LOCK_KEY,))
+
+
 def ensure_schema(engine: Engine) -> None:
     """Create missing tables and add any missing columns to existing tables."""
-    metadata.create_all(engine)
-    inspector = inspect(engine)
-    dialect = engine.dialect
+    target_url = engine.url.render_as_string(hide_password=False)
+    with schema_lock(target_url):
+        metadata.create_all(engine)
+        inspector = inspect(engine)
+        dialect = engine.dialect
 
-    for table in metadata.sorted_tables:
-        existing_cols = {col["name"] for col in inspector.get_columns(table.name)}
-        missing_cols = [col for col in table.columns if col.name not in existing_cols]
-        if not missing_cols:
-            continue
+        for table in metadata.sorted_tables:
+            existing_cols = {col["name"] for col in inspector.get_columns(table.name)}
+            missing_cols = [col for col in table.columns if col.name not in existing_cols]
+            if not missing_cols:
+                continue
 
-        with engine.begin() as conn:
-            for col in missing_cols:
-                col_type = col.type.compile(dialect=dialect)
-                default_clause = ""
-                if col.server_default is not None and getattr(col.server_default, "arg", None) is not None:
-                    arg = col.server_default.arg
-                    compiled_default = arg.compile(dialect=dialect) if hasattr(arg, "compile") else str(arg)
-                    default_clause = f" DEFAULT {compiled_default}"
-                null_clause = " NOT NULL" if not col.nullable else ""
-                stmt = text(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{null_clause}{default_clause}")
-                conn.execute(stmt)
+            with engine.begin() as conn:
+                for col in missing_cols:
+                    col_type = col.type.compile(dialect=dialect)
+                    default_clause = ""
+                    if col.server_default is not None and getattr(col.server_default, "arg", None) is not None:
+                        arg = col.server_default.arg
+                        compiled_default = arg.compile(dialect=dialect) if hasattr(arg, "compile") else str(arg)
+                        default_clause = f" DEFAULT {compiled_default}"
+                    null_clause = " NOT NULL" if not col.nullable else ""
+                    stmt = text(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{null_clause}{default_clause}")
+                    conn.execute(stmt)
 
 
 def ping(engine: Any) -> bool:

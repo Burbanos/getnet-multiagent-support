@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import os
+import threading
 import uuid
 
 import psycopg
@@ -289,3 +290,54 @@ def test_postgres_ensure_schema_adds_missing_column(pg_test_url: str) -> None:
             } <= cols
     finally:
         engine.dispose()
+
+
+def test_concurrent_startup_setup_is_serialized(pg_test_url: str) -> None:
+    temp_db = f"getnet_conc_{uuid.uuid4().hex[:8]}"
+    temp_url = make_url(db.normalize_postgres_psycopg_url(pg_test_url)).set(database=temp_db).render_as_string(
+        hide_password=False
+    )
+    admin_conninfo = _psycopg_url(pg_test_url)
+    with psycopg.connect(admin_conninfo, autocommit=True) as admin:
+        admin.execute(f'CREATE DATABASE "{temp_db}"')
+
+    barrier = threading.Barrier(4)
+
+    def _worker() -> None:
+        barrier.wait(timeout=15)
+        engine = db.make_engine(temp_url, pool_size=1)
+        saver = None
+        try:
+            db.ensure_schema(engine)
+            saver = build_postgres_checkpointer(temp_url, pool_size=1)
+        finally:
+            if saver is not None and hasattr(saver, "conn") and hasattr(saver.conn, "close"):
+                saver.conn.close()
+            engine.dispose()
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(_worker) for _ in range(4)]
+            for future in futures:
+                future.result()
+
+        verify_engine = db.make_engine(temp_url, pool_size=1)
+        try:
+            with verify_engine.connect() as conn:
+                tables = {
+                    row[0]
+                    for row in conn.execute(
+                        text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+                    ).all()
+                }
+                assert {"tickets", "checkpoints"} <= tables
+        finally:
+            verify_engine.dispose()
+    finally:
+        with psycopg.connect(admin_conninfo, autocommit=True) as admin:
+            admin.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = %s AND pid <> pg_backend_pid()",
+                (temp_db,),
+            )
+            admin.execute(f'DROP DATABASE IF EXISTS "{temp_db}"')

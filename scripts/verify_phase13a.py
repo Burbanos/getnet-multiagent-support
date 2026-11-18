@@ -1,4 +1,5 @@
-"""Phase 13A acceptance checks (docs/SPEC.md, Phase 13: Postgres/Redis state, OpenTelemetry tracing, dashboard).
+"""Phase 13A acceptance checks (docs/SPEC.md, Phase 13: Postgres/Redis state, OpenTelemetry tracing, dashboard),
+updated for 13A-fix (pool size, serialized schema setup, single Compose env definition, CI ticket id).
 
 Usage (from the repository root):  python scripts/verify_phase13a.py
 Requires the dev environment. Never calls a real LLM or the network: Redis is fakeredis, the graph runs on scripted chat models.
@@ -26,10 +27,13 @@ sys.path.insert(0, str(ROOT))
 RESULTS: list[tuple[str, bool]] = []
 BASE = "431eb1f"  # phase 12F
 PROMPT = "docs/phase-prompts/13A.md"
-REVIEWER = {"docs/SPEC.md", "docs/process.md", PROMPT, "scripts/verify_phase13a.py"}
+FIX_PROMPT = "docs/phase-prompts/13A-fix.md"
+REVIEWER = {"docs/SPEC.md", "docs/process.md", PROMPT, FIX_PROMPT, "scripts/verify_phase13a.py"}
+DOCKER_TEST = "tests/test_docker_defaults.py"
 PINNED = {
     "docs/SPEC.md": "1ccffdb7aebe76d973e77bd88cf9bea6a38ab00a317c3888d0200cebc7885de8",
     "docs/process.md": "3f9d3cb1651b3ffee3882572b695000987c9859f99ff5047734f7657a862c5c9",
+    FIX_PROMPT: "37a47d772373d5c147d466c43928a01cf743f9ccf2f6ba6849c3961fb13f54d6",
     PROMPT: "2c3dfa64f2b560de2dddbbe1964beef6e630d0d76fcce6301aab2151d8f95ae4",
 }
 ALLOWED_CODE = {
@@ -126,7 +130,7 @@ def static_checks() -> None:
 
     verifiers = sorted(p.name for p in (ROOT / "scripts").glob("verify_*.py"))
     prompts = sorted(p.name for p in (ROOT / "docs" / "phase-prompts").glob("*.md"))
-    check("A2.retired_process_files", verifiers == ["verify_phase13a.py"] and prompts == ["13A.md"]
+    check("A2.retired_process_files", verifiers == ["verify_phase13a.py"] and prompts == ["13A-fix.md", "13A.md"]
           and not (ROOT / "docs" / "status-history.md").exists() and (ROOT / "docs" / "process.md").exists(),
           f"only verify_phase13a.py and 13A.md may remain; status-history.md must be gone: {verifiers[:4]} {prompts[:4]}")
 
@@ -155,8 +159,15 @@ def static_checks() -> None:
         if names_old - names_new:
             problems.append(f"{rel}: tests removed {sorted(names_old - names_new)[:3]}")
         if rel != "tests/conftest.py":
-            ops = difflib.SequenceMatcher(None, old.split("\n"), new.split("\n"), autojunk=False).get_opcodes()
-            if any(tag in ("replace", "delete") for tag, *_ in ops):
+            old_lines, new_lines = old.split("\n"), new.split("\n")
+            ops = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False).get_opcodes()
+            removed = [ln for tag, i1, i2, _j1, _j2 in ops if tag in ("replace", "delete") for ln in old_lines[i1:i2]]
+            if rel == DOCKER_TEST:  # 13A-fix (F): only the literal list-form APP_ENV assert may go, replaced by a YAML check
+                ok_swap = (all(ln.strip() == 'assert "- APP_ENV=production" in compose_content' for ln in removed)
+                           and "safe_load" in new and '"app-"' in new.replace("'", '"'))
+                if removed and not ok_swap:
+                    problems.append(f"{rel}: only the list-form APP_ENV assert may be replaced, by a yaml.safe_load check")
+            elif removed:
                 problems.append(f"{rel}: lines changed or removed")
     check("A5.existing_tests_only_grow", not problems, "; ".join(problems[:6]))
 
@@ -212,8 +223,16 @@ def compose_checks() -> None:
               and "8000:8000" in ports["app-a"] and "8001:8000" in ports["app-b"])
     images = {s: str((v or {}).get("image", "")) for s, v in services.items() if (v or {}).get("image")}
     tags_ok = all(":" in img and not img.endswith(":latest") for img in images.values())
+    same_env = {k: v for k, v in envs["app-a"].items() if k != "REPLICA_NAME"} == \
+        {k: v for k, v in envs["app-b"].items() if k != "REPLICA_NAME"}
+    single_def = all(len(re.findall(rf"^\s*-?\s*{v}\s*[:=]", raw, re.M)) == 1
+                     for v in ("GEMINI_API_KEY", "LLM_MODEL", "DATABASE_URL", "REDIS_URL", "APP_ENV"))
+    jaeger_v2 = str((services.get("jaeger") or {}).get("image", "")).startswith("jaegertracing/jaeger:2.")
+    check("B7.compose_single_env_definition", same_env and single_def and jaeger_v2 and len(raw.splitlines()) <= 160,
+          f"app-a/app-b env equal except REPLICA_NAME={same_env}; each app variable written once={single_def}; "
+          f"jaeger v2={jaeger_v2}; {len(raw.splitlines())} lines (≤ 160)")
     check("B7.compose", need <= set(services) and obs_ok and core_ok and app_ok and deps_ok and tags_ok
-          and "- APP_ENV=production" in raw and "${APP_ENV" not in raw and "${POSTGRES_PASSWORD:?" in raw
+          and "${APP_ENV" not in raw and "${POSTGRES_PASSWORD:?" in raw
           and "app_state" not in raw,
           f"services {sorted(services)}; profiles obs={obs_ok} core={core_ok}; apps={app_ok}; depends_on={deps_ok}; "
           f"fixed tags={tags_ok} {images}")
@@ -264,8 +283,39 @@ def compose_checks() -> None:
     check("B8.ci", {"test", "integration", "docker"} <= set(jobs) and "postgres:16" in svc_images and "redis:7" in svc_images
           and "pytest -m integration" in integ_txt and "TEST_DATABASE_URL" in integ_txt and "TEST_REDIS_URL" in integ_txt
           and all(s in docker_txt for s in ("docker compose", "--wait", "8001", "429", "Retry-After", "restart app-a",
-                                             "DATABASE_URL", "down -v", "state_backend", "rate_limit_backend")),
+                                             "DATABASE_URL", "down -v", "state_backend", "rate_limit_backend",
+                                             "tail -n 1", "GET-TKT-")),
           "ci.yml must have the integration job (Postgres/Redis services, pytest -m integration) and the two-replica docker job")
+
+
+def lock_checks() -> None:
+    import ast
+    cp_src, db_src = read("src/core/checkpointer.py"), read("src/core/db.py")
+    pool_kw: set[str] = set()
+    for node in ast.walk(ast.parse(cp_src)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "ConnectionPool":
+            pool_kw |= {k.arg for k in node.keywords if k.arg}
+    min_ok = re.search(r"min_size\s*=\s*1\b", cp_src) is not None
+    check("B9.pool_min_size", {"min_size", "max_size"} <= pool_kw and min_ok,
+          f"ConnectionPool keywords {sorted(pool_kw)}; min_size=1 present={min_ok}")
+    blocking = re.findall(r"pg_advisory_lock\s*\(", cp_src + db_src)
+    tree = ast.parse(db_src)
+    fns = {n.name: ast.get_source_segment(db_src, n) or "" for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    cp_fns = {n.name: ast.get_source_segment(cp_src, n) or "" for n in ast.walk(ast.parse(cp_src))
+              if isinstance(n, ast.FunctionDef)}
+    ok = ("schema_lock" in fns and "pg_try_advisory_lock" in fns["schema_lock"] and "pg_advisory_unlock" in fns["schema_lock"]
+          and "psycopg.connect" in fns["schema_lock"] and not blocking
+          and "schema_lock" in fns.get("ensure_schema", "") and "schema_lock" in cp_fns.get("build_postgres_checkpointer", ""))
+    check("B9.schema_setup_lock", ok, "db.schema_lock must poll pg_try_advisory_lock on a dedicated psycopg connection and "
+          f"wrap ensure_schema and PostgresSaver.setup(); blocking pg_advisory_lock calls: {len(blocking)}")
+    integ = "\n".join(read(str(p.relative_to(ROOT))) for p in sorted((ROOT / "tests" / "integration").glob("test_*.py")))
+    m = re.search(r"def test_concurrent_startup_setup_is_serialized\(.*?(?=\ndef |\Z)", integ, re.S)
+    body = m.group(0) if m else ""
+    check("C4.concurrent_startup_test", bool(body) and "Barrier(4)" in body and "pool_size=1" in body
+          and "ensure_schema" in body and "build_postgres_checkpointer" in body
+          and "CREATE DATABASE" in body and "DROP DATABASE" in body,
+          "tests/integration must define test_concurrent_startup_setup_is_serialized (Barrier(4), ensure_schema, "
+          "build_postgres_checkpointer(..., pool_size=1), on a database it creates and drops)")
 
 
 # ------------------------------------------------------------------------------------------------------- behaviour
@@ -589,13 +639,13 @@ def integration_checks() -> None:
     text = "\n".join(read(str(p.relative_to(ROOT))) for p in files)
     n = len(re.findall(r"^\s*def test_\w+", text, re.M))
     marked = all("pytest.mark.integration" in read(str(p.relative_to(ROOT))) for p in files)
-    check("C1.integration_tests_written", n >= 8 and marked, f"{n} integration tests in {len(files)} files (want ≥ 8, all marked)",
+    check("C1.integration_tests_written", n >= 10 and marked, f"{n} integration tests in {len(files)} files (want ≥ 10, all marked)",
           info=f"{n} tests")
     if os.environ.get("TEST_DATABASE_URL") and os.environ.get("TEST_REDIS_URL"):
         r = run([sys.executable, "-m", "pytest", "-m", "integration", "-q", "-p", "no:cacheprovider"])
         last = ([ln for ln in r.stdout.splitlines() if re.search(r"\d+ (passed|failed|error)", ln)] or [r.stdout[-300:]])[-1]
         m = re.search(r"(\d+) passed", last)
-        check("C2.integration_suite", r.returncode == 0 and bool(m) and int(m.group(1)) >= 8, last, info=last)
+        check("C2.integration_suite", r.returncode == 0 and bool(m) and int(m.group(1)) >= 10, last, info=last)
     else:
         note("C2.integration_suite", "TEST_DATABASE_URL/TEST_REDIS_URL not set: run by the reviewer and by the CI job")
     env = {k: v for k, v in os.environ.items() if k not in ("TEST_DATABASE_URL", "TEST_REDIS_URL")}
@@ -645,6 +695,7 @@ def main() -> int:
                       CHECKPOINT_DB_PATH=str(Path(tmp) / "app" / "checkpoints.db"), ENABLE_GUARDRAILS="true")
     static_checks()
     guarded("B7.compose", compose_checks)
+    guarded("B9.schema_setup_lock", lock_checks)
     guarded("B1.production_fail_fast", lambda: prod_checks(tmp))
     storage_checks(tmp)
     rate_limit_checks()

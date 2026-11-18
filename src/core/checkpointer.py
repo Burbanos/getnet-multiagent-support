@@ -11,7 +11,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from src.config import settings
-from src.core.db import is_postgres_url
+from src.core.db import is_postgres_url, schema_lock
 
 
 def build_sqlite_checkpointer(path: str | Path) -> SqliteSaver:
@@ -33,12 +33,14 @@ def build_postgres_checkpointer(url: str, pool_size: int = 5) -> PostgresSaver:
     """Build and initialize a persistent PostgresSaver backed by a psycopg connection pool."""
     pool = ConnectionPool(
         conninfo=_psycopg_conninfo(url),
+        min_size=1,
         max_size=pool_size,
         kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
         open=True,
     )
     saver = PostgresSaver(pool)
-    saver.setup()
+    with schema_lock(url):
+        saver.setup()
     return saver
 
 

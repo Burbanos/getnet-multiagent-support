@@ -104,7 +104,8 @@ jobs:
           code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/tickets -H "X-API-Key: getnet-dev-operator")
           test "$code" = "401"
 
-          TID=$(docker compose exec -T app-a python -c "from src.core.tickets_db import get_tickets_repository; t = get_tickets_repository().create_ticket(user_id='cliente1988', reason='ci cross replica'); print(t['ticket_id'])")
+          TID=$(docker compose exec -T app-a python -c "from src.core.tickets_db import get_tickets_repository; t = get_tickets_repository().create_ticket(user_id='cliente1988', reason='ci cross replica'); print(t['ticket_id'])" | tail -n 1 | tr -d '\r')
+          echo "$TID" | grep -Eq '^GET-TKT-[0-9]{8}-[0-9A-F]{10}$'
           code=$(curl -s -o /tmp/tkt_b.json -w "%{http_code}" http://localhost:8001/tickets/${TID} -H "X-API-Key: ${CUST_KEY}")
           test "$code" = "200"
           code=$(curl -s -o /tmp/tkt_patch.json -w "%{http_code}" -X PATCH http://localhost:8001/tickets/${TID} -H "Content-Type: application/json" -H "X-API-Key: ${OP_KEY}" -d '{"status": "in_progress"}')
