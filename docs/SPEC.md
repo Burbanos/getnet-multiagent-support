@@ -47,6 +47,15 @@ and tool (attribute allowlist), Compose with two replicas and an `observability`
 reviewer ran `verify_phase13a.py` with real Postgres 16 and Redis 7: 40/40. The verifiers and prompts of phases 1–12 left the
 tree; 13A's leave in 13B.
 
+**13B done** (`9c0b2a4`, CI green): planner, pre-send verifier with one replan, language enforcement, escalation gate,
+decline-catalogue applicability; reviewer run of `verify_phase13b.py`: 33/33. **Smoke** (`h3-smoke-1`, holdout 3 × 1,
+committed in `96d6894`): 28/31; language 100%; escalation precision and recall 100% (6 requested tickets, none unrequested);
+no screen error got the catalogue meaning; failures: `t07` (weather labelled out of scope by the planner) and `t24`/`t25`
+(the planner suggested the knowledge agent for a decline code and the supervisor followed the plan); report cost null
+because out-of-scope turns had tokens but no `llm_model`; median turn 8.2 s, planner ≈ 1 s, planner + verifier 14.6 % of
+tokens. Fixed in 13C (supervisor sees goals only; planner prompt; model recorded). **Holdout 3 is no longer clean** for
+`t07`, `t24`, `t25`: the planner prompt was changed after seeing them; the README must say so.
+
 ### Before Phase 13 (HEAD `431eb1f`, phase 12F, CI green)
 
 Reviewer rerun of `scripts/verify_phase12f.py` on Python 3.11.18 before retiring the verifier chain: **75/75** (it re-ran the 58
@@ -186,17 +195,27 @@ the provisional text of this section):
   (`chat_model is None`) builds all three with the product model; tests that pass only `chat_model` keep today's behaviour.
 - **Smoke** after the 13B commit: holdout 3 once with the product model (author), reported as a smoke, not as a result.
 
-### 13C — Write action with confirmation and audit, operator console, corpus completion (items 5, 8b, 9) — provisional
+### 13C — Smoke fixes, confirmed terminal replacement with audit, operator console, corpus pages (items 5, 8b, 9)
 
-- `request_terminal_replacement(serial_number, reason)`: proposal stored as `pending_action` in the thread (action id, args,
-  expiry); executed only by `confirm_pending_action(action_id)` in a later merchant turn; one open request per terminal
-  (idempotency); terminal of another merchant or unknown → `not_found`; no deadline promised.
-- `audit_events` table (actor hash, role, action, masked args, outcome, `otel_trace_id`, time) for proposals, confirmations,
-  cancellations, executions, ticket updates; `GET /audit` for operators.
-- `/operator` console (operator key): ticket queue with filters, masked transcript, reply (PATCH → resume), replacement
-  requests and audit.
-- Corpus: re-collect the three `no_content` pages if robots.txt allows; re-index; labels unchanged (if a new page covers a case
-  labelled "uncovered", the label stays and the README says so).
+Checked by `scripts/verify_phase13c.py`; prompt `docs/phase-prompts/13C.md`; pre-registered cases
+`data/eval/cases_actions.jsonl` (8, reviewer, written before 13C code: proposal then confirmation in a later turn in both
+languages, decline, proposal only, confirmation inside the request message, unknown serial, "yes" with nothing pending,
+topic change after a proposal; no deadline promises).
+- **Smoke fixes:** the supervisor's plan section lists goals only (routing stays with the supervisor and the tool
+  descriptions); the planner prompt makes weather and exchange rates explicitly in scope, sends decline-code meanings to the
+  support agent and prefers "support" when unsure; an out-of-scope turn records the planner's model so cost is computed.
+- **Write action, fail-closed:** `request_terminal_replacement(serial_number, reason)` (support agent) only creates a
+  proposal (`pending_actions`, 30 min); `confirm_pending_action()` (supervisor) executes it only when the planner's new
+  `action_confirmation` is `confirmed`, in a later turn than the proposal, same session, not expired; without a valid plan it
+  refuses. A partial unique index allows one open request per serial (`already_requested` otherwise). Declines are resolved
+  deterministically from the plan. Every proposal, confirmation, decline, expiry, execution and ticket change goes to
+  `audit_events` (hashed actor, allowlisted details, `otel_trace_id`); `GET /audit` and `GET /replacements` for operators.
+- **Operator console** `/operator`: one self-contained page, key kept in memory only, data inserted as text.
+- **Corpus:** the three `no_content` pages are server-rendered WordPress whose text the extractor dropped; `extract_text` is
+  fixed generally, `--only URL` re-collects just those records, a redirect to an already-collected page becomes
+  `redirect_duplicate`; the author rebuilds the index with the API key after the commit. Retrieval labels stay unchanged.
+- **Mock fix:** `diagnose_terminal` with a serial that is not the merchant's returns `not_found` (it returned the first
+  terminal).
 
 ### 13D — Close: one round of real runs, annotator, integration evidence, README (items 7, 9)
 

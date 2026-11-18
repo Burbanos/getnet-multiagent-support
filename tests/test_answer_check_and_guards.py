@@ -66,7 +66,7 @@ class _BoomChatModel(ScriptedChatModel):
 
 def test_supervisor_tool_descriptions_updated_exact():
     by_name = {t.name: t for t in SUPERVISOR_TOOLS}
-    assert list(by_name) == ["ask_knowledge_agent", "ask_support_agent", "escalate_to_human"]
+    assert list(by_name) == ["ask_knowledge_agent", "ask_support_agent", "escalate_to_human", "confirm_pending_action"]
     assert "catálogo de códigos de recusa de transação" in by_name["ask_knowledge_agent"].description
     assert "significado de um código de recusa" in by_name["ask_support_agent"].description
 

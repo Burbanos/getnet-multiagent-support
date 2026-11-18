@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from src.config import logger, settings
 from src.core import metrics
+from src.core.actions_db import get_actions_repository
 from src.core.auth import Principal, auth_mode, authenticate, validate_auth_config
 from src.core.checkpointer import checkpoint_backend, checkpointer_label
 from src.core.db import ping, validate_state_config
@@ -80,6 +81,7 @@ class AgentMetadata(BaseModel):
     verification: dict[str, Any] | None = Field(default=None, description="Pre-send verifier outcome")
     language: dict[str, Any] | None = Field(default=None, description="Language enforcement outcome")
     escalation_gate: dict[str, Any] | None = Field(default=None, description="Escalation gate decision")
+    action: dict[str, Any] | None = Field(default=None, description="Write action outcome in this turn")
     error: str | None = Field(default=None, description="Internal error flag if execution failed")
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
@@ -119,6 +121,7 @@ async def lifespan(app: FastAPI):
     ensure_tracing()
     get_orchestrator()
     get_tickets_repository()
+    get_actions_repository()
     try:
         yield
     finally:
@@ -176,9 +179,23 @@ async def root():
         "health": "/health",
         "chat_endpoint": "/chat",
         "interactive_demo": "/demo",
+        "operator_console": "/operator",
         "tickets_endpoint": "/tickets",
+        "replacements_endpoint": "/replacements",
+        "audit_endpoint": "/audit",
         "metrics_endpoint": "/metrics",
     }
+
+
+@app.get("/operator", response_class=FileResponse, tags=["Operator"])
+async def operator_console():
+    operator_file = STATIC_DIR / "operator.html"
+    if operator_file.exists():
+        return FileResponse(str(operator_file))
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Arquivo do console do operador (operator.html) não encontrado.",
+    )
 
 
 @app.get("/demo", response_class=FileResponse, tags=["Demo"])
@@ -376,6 +393,43 @@ async def list_tickets_endpoint(
     return {"count": len(tickets), "tickets": tickets}
 
 
+@app.get("/replacements", tags=["Actions"])
+async def list_replacements_endpoint(
+    user_id: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    principal: Annotated[Principal, Depends(authenticate)] = None,  # type: ignore[assignment]
+):
+    """List confirmed terminal replacements (operators see all; customers see their own)."""
+    if principal.role == "customer":
+        if user_id is not None and user_id != principal.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied.",
+            )
+        filter_user = principal.user_id
+    else:
+        filter_user = user_id
+    replacements = get_actions_repository().list_replacements(user_id=filter_user, limit=limit)
+    return {"count": len(replacements), "replacements": replacements}
+
+
+@app.get("/audit", tags=["Audit"])
+async def list_audit_endpoint(
+    action: str | None = None,
+    target_id: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    principal: Annotated[Principal, Depends(authenticate)] = None,  # type: ignore[assignment]
+):
+    """List hashed, allowlisted audit events (operator role only)."""
+    if principal.role != "operator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only operators can view audit events.",
+        )
+    events = get_actions_repository().list_audit(limit=limit, action=action, target_id=target_id)
+    return {"count": len(events), "events": events}
+
+
 @app.get("/sessions/{session_id}/messages", tags=["Chat"])
 def get_session_messages_endpoint(
     session_id: Annotated[str, FastAPIPath(..., min_length=1, max_length=64)],
@@ -470,6 +524,7 @@ def chat_endpoint(
                     verification=getattr(state, "verification", None),
                     language=getattr(state, "language", None),
                     escalation_gate=getattr(state, "escalation_gate", None),
+                    action=getattr(state, "action", None),
                     error=getattr(state, "error", None),
                     debug_details={
                         "session_id": state.session_id or active_session,

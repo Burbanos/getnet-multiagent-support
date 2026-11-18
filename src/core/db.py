@@ -11,6 +11,7 @@ import psycopg
 from sqlalchemy import (
     Column,
     Engine,
+    Index,
     Integer,
     MetaData,
     Table,
@@ -45,6 +46,57 @@ tickets = Table(
     Column("delivered_at", Text, nullable=True),
     Column("notified_at", Text, nullable=True),
     Column("notification_status", Text, nullable=True),
+)
+
+pending_actions = Table(
+    "pending_actions",
+    metadata,
+    Column("action_id", Text, primary_key=True),
+    Column("user_id", Text, nullable=False),
+    Column("session_id", Text, nullable=False),
+    Column("action_type", Text, nullable=False),
+    Column("serial_number", Text, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("proposed_trace_id", Text, nullable=False),
+    Column("created_at", Text, nullable=False),
+    Column("expires_at", Text, nullable=False),
+    Column("resolved_at", Text, nullable=True),
+    Column("request_id", Text, nullable=True),
+)
+
+terminal_replacements = Table(
+    "terminal_replacements",
+    metadata,
+    Column("request_id", Text, primary_key=True),
+    Column("user_id", Text, nullable=False),
+    Column("serial_number", Text, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("status", Text, nullable=False, server_default=text("'requested'")),
+    Column("action_id", Text, nullable=False),
+    Column("created_at", Text, nullable=False),
+    Index(
+        "ix_terminal_replacements_open_serial",
+        "serial_number",
+        unique=True,
+        sqlite_where=text("status = 'requested'"),
+        postgresql_where=text("status = 'requested'"),
+    ),
+)
+
+audit_events = Table(
+    "audit_events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("created_at", Text, nullable=False),
+    Column("actor_type", Text, nullable=False),
+    Column("actor_hash", Text, nullable=False),
+    Column("action", Text, nullable=False),
+    Column("target_type", Text, nullable=False),
+    Column("target_id", Text, nullable=False),
+    Column("outcome", Text, nullable=False),
+    Column("details", Text, nullable=False, server_default=text("'{}'")),
+    Column("otel_trace_id", Text, nullable=True),
 )
 
 

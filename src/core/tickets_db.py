@@ -14,6 +14,7 @@ from sqlalchemy import and_, insert, select, update
 
 from src.config import settings
 from src.core import metrics
+from src.core.actions_db import get_actions_repository, reset_actions_repository
 from src.core.db import ensure_schema, make_engine, tickets
 
 logger = logging.getLogger("multiagent.tickets_db")
@@ -101,6 +102,7 @@ class TicketsRepository:
         priority: str = "standard",
         session_id: str | None = None,
         transcript: list[dict[str, Any]] | None = None,
+        actor_type: str = "merchant",
     ) -> dict[str, Any]:
         """Create and persist a new customer support escalation ticket."""
         if not user_id or not str(user_id).strip():
@@ -134,6 +136,20 @@ class TicketsRepository:
 
         logger.info(f"Persisted escalation ticket {ticket_id}")
         metrics.inc_escalation()
+        audit_actor = "system" if actor_type == "system" else "merchant"
+        audit_actor_id = "system" if audit_actor == "system" else clean_user_id
+        try:
+            get_actions_repository().record_audit(
+                actor_type=audit_actor,
+                actor_id=audit_actor_id,
+                action="ticket_created",
+                target_type="ticket",
+                target_id=ticket_id,
+                outcome="open",
+                details={"status": "open", "priority": priority},
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Audit record failed for ticket_created: {type(exc).__name__}")
 
         message = (
             f"Chamado registrado com sucesso sob o protocolo **{ticket_id}**. "
@@ -255,6 +271,30 @@ class TicketsRepository:
                     f"Ticket {ticket_id} status changed concurrently (expected '{curr_status}')"
                 )
 
+        try:
+            actions_repo = get_actions_repository()
+            actions_repo.record_audit(
+                actor_type="operator",
+                actor_id=operator_id,
+                action="ticket_updated",
+                target_type="ticket",
+                target_id=ticket_id,
+                outcome=str(new_status),
+                details={"status": str(new_status)},
+            )
+            if clean_reply is not None:
+                actions_repo.record_audit(
+                    actor_type="operator",
+                    actor_id=operator_id,
+                    action="ticket_replied",
+                    target_type="ticket",
+                    target_id=ticket_id,
+                    outcome="answered",
+                    details={"status": "answered"},
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Audit record failed for ticket update: {type(exc).__name__}")
+
         return self.get_ticket(ticket_id)
 
     def mark_delivered(self, ticket_id: str) -> bool:
@@ -267,7 +307,21 @@ class TicketsRepository:
         )
         with self.engine.begin() as conn:
             res = conn.execute(stmt)
-            return (res.rowcount or 0) > 0
+            marked = (res.rowcount or 0) > 0
+        if marked:
+            try:
+                get_actions_repository().record_audit(
+                    actor_type="system",
+                    actor_id="system",
+                    action="ticket_reply_delivered",
+                    target_type="ticket",
+                    target_id=ticket_id,
+                    outcome="delivered",
+                    details={"status": "delivered"},
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Audit record failed for ticket_reply_delivered: {type(exc).__name__}")
+        return marked
 
     def record_notification(self, ticket_id: str, status: str) -> bool:
         """Record the operator webhook notification outcome; sets notified_at only when status == 'sent'."""
@@ -335,3 +389,4 @@ def reset_tickets_repository() -> None:
         if engine is not None:
             engine.dispose()
     _tickets_repo = None
+    reset_actions_repository()

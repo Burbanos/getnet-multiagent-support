@@ -60,6 +60,7 @@ class SupervisorState(TypedDict):
     replans: int
     language: dict[str, Any] | None
     escalation_gate: dict[str, Any] | None
+    action: dict[str, Any] | None
 
 
 class AgentState(BaseModel):
@@ -109,6 +110,7 @@ class AgentState(BaseModel):
     verification: dict[str, Any] | None = None
     language: dict[str, Any] | None = None
     escalation_gate: dict[str, Any] | None = None
+    action: dict[str, Any] | None = None
     error: str | None = None
 
     model_config = {
@@ -152,6 +154,7 @@ class AgentMetadata(BaseModel):
     verification: dict[str, Any] | None = None
     language: dict[str, Any] | None = None
     escalation_gate: dict[str, Any] | None = None
+    action: dict[str, Any] | None = None
     error: str | None = None
     debug_details: dict[str, Any] = Field(default_factory=dict)
 

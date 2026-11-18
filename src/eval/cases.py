@@ -29,6 +29,7 @@ VALID_CATEGORIES = {
     "multi_turn",
     "multi_intent",
     "public_data",
+    "action",
 }
 VALID_LANGS = {"pt", "en"}
 VALID_AGENTS = {"KnowledgeAgent", "SupportAgent"}
@@ -41,6 +42,8 @@ VALID_TOOLS = {
     "diagnose_declined_transaction",
     "diagnose_terminal",
     "escalate_to_human",
+    "request_terminal_replacement",
+    "confirm_pending_action",
 }
 API_TOOLS = {"get_weather_forecast", "get_exchange_rate"}
 API_STATUSES = {"success", "not_found", "no_data", "unavailable", "invalid_request"}

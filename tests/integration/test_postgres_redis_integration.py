@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import os
 import threading
 import uuid
@@ -14,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from src.core import db
+from src.core.actions_db import ActionsRepository
 from src.core.checkpointer import build_postgres_checkpointer
 from src.core.graph import OrchestrationGraph
 from src.core.rate_limit import RedisRateLimiter
@@ -341,3 +343,98 @@ def test_concurrent_startup_setup_is_serialized(pg_test_url: str) -> None:
                 (temp_db,),
             )
             admin.execute(f'DROP DATABASE IF EXISTS "{temp_db}"')
+
+
+def test_postgres_concurrent_confirmations_single_replacement(pg_test_url: str) -> None:
+    repo = ActionsRepository(pg_test_url)
+    session_id = f"pg-conc-{uuid.uuid4().hex[:8]}"
+    serial = f"GET-{uuid.uuid4().hex[:6].upper()}"
+    try:
+        repo.propose_terminal_replacement("cliente1988", session_id, serial, "tela quebrada", "trc-init")
+        barrier = threading.Barrier(2)
+
+        def _confirm(idx: int) -> dict:
+            barrier.wait(timeout=10)
+            return repo.confirm("cliente1988", session_id, f"trc-confirm-{idx}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futs = [executor.submit(_confirm, i) for i in range(2)]
+            results = [f.result() for f in futs]
+
+        executed = [r for r in results if r["status"] == "executed"]
+        assert len(executed) == 1
+
+        with repo.engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT request_id FROM terminal_replacements WHERE serial_number = :s"),
+                {"s": serial},
+            ).all()
+        assert len(rows) == 1
+    finally:
+        with repo.engine.begin() as conn:
+            conn.execute(text("DELETE FROM terminal_replacements WHERE serial_number = :s"), {"s": serial})
+            conn.execute(text("DELETE FROM pending_actions WHERE serial_number = :s"), {"s": serial})
+        repo.engine.dispose()
+
+
+def test_postgres_actions_tables_and_audit_no_raw_pii(pg_test_url: str) -> None:
+    repo = ActionsRepository(pg_test_url)
+    session_id = f"pg-pii-{uuid.uuid4().hex[:8]}"
+    serial = f"GET-{uuid.uuid4().hex[:6].upper()}"
+    raw_user = f"merchant-raw-{uuid.uuid4().hex[:6]}"
+    raw_cpf = "529.982.247-25"
+    raw_card = "4111 1111 1111 1111"
+    try:
+        repo.propose_terminal_replacement(
+            raw_user,
+            session_id,
+            serial,
+            f"troca urgente cartão {raw_card} CPF {raw_cpf}",
+            "trc-1",
+        )
+        res = repo.confirm(raw_user, session_id, "trc-2")
+        assert res["status"] == "executed"
+
+        with repo.engine.connect() as conn:
+            tables = {
+                r[0]
+                for r in conn.execute(
+                    text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+                ).all()
+            }
+            assert {"pending_actions", "terminal_replacements", "audit_events"} <= tables
+
+            pa_rows = [
+                dict(r._mapping)
+                for r in conn.execute(
+                    text("SELECT * FROM pending_actions WHERE serial_number = :s"),
+                    {"s": serial},
+                ).all()
+            ]
+            tr_rows = [
+                dict(r._mapping)
+                for r in conn.execute(
+                    text("SELECT * FROM terminal_replacements WHERE serial_number = :s"),
+                    {"s": serial},
+                ).all()
+            ]
+            au_rows = [
+                dict(r._mapping)
+                for r in conn.execute(
+                    text("SELECT * FROM audit_events WHERE target_id = :rid OR target_id = :aid"),
+                    {"rid": res["request_id"], "aid": res["action_id"]},
+                ).all()
+            ]
+
+        pa_tr_blob = json.dumps(pa_rows + tr_rows, ensure_ascii=False, default=str)
+        au_blob = json.dumps(au_rows, ensure_ascii=False, default=str)
+        for forbidden in (raw_cpf, "52998224725", raw_card, "4111111111111111"):
+            assert forbidden not in pa_tr_blob
+            assert forbidden not in au_blob
+        assert raw_user not in au_blob
+        assert len(au_rows) >= 2
+    finally:
+        with repo.engine.begin() as conn:
+            conn.execute(text("DELETE FROM terminal_replacements WHERE serial_number = :s"), {"s": serial})
+            conn.execute(text("DELETE FROM pending_actions WHERE serial_number = :s"), {"s": serial})
+        repo.engine.dispose()

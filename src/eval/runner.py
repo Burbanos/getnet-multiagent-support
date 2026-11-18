@@ -81,6 +81,8 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
     lang_copy = copy.deepcopy(raw_lang) if isinstance(raw_lang, dict) else None
     raw_gate = _get_val(state, "escalation_gate")
     gate_copy = copy.deepcopy(raw_gate) if isinstance(raw_gate, dict) else None
+    raw_action = _get_val(state, "action")
+    action_copy = copy.deepcopy(raw_action) if isinstance(raw_action, dict) else None
 
     ticket_obj = _get_val(state, "ticket")
     ticket_dict = ticket_obj if isinstance(ticket_obj, dict) else {}
@@ -119,6 +121,7 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         "verification": ver_copy,
         "language": lang_copy,
         "escalation_gate": gate_copy,
+        "action": action_copy,
         "latency_ms": latency_ms,
     }
 

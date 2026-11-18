@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getnet | Console do Operador</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #ef4444;
+      --accent-hover: #dc2626;
+      --ok: #10b981;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: #020617;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { margin: 0; font-size: 1.1rem; }
+    .nav-group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 0.85rem; }
+    .nav-group a { color: #93c5fd; text-decoration: none; }
+    .nav-group a:hover { text-decoration: underline; }
+    input, select, textarea, button {
+      font: inherit;
+      color: var(--text);
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+    button {
+      background: var(--accent);
+      border-color: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary { background: #334155; border-color: #475569; }
+    button.secondary:hover { background: #475569; }
+    .status-bar {
+      padding: 8px 20px;
+      font-size: 0.85rem;
+      background: #172033;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .status-error { color: #fca5a5; }
+    .status-ok { color: #6ee7b7; }
+    main {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 960px) {
+      main { grid-template-columns: 1fr; }
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .full-width { grid-column: 1 / -1; }
+    h2 { margin: 0 0 10px 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .ticket-list { display: flex; flex-direction: column; gap: 8px; max-height: 440px; overflow-y: auto; }
+    .ticket-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #0f172a;
+      cursor: pointer;
+    }
+    .ticket-item.selected { border-color: var(--accent); }
+    .ticket-meta { font-size: 0.78rem; color: var(--muted); }
+    .transcript {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .msg { padding: 6px 8px; border-radius: 4px; background: #172033; font-size: 0.85rem; }
+    .msg-role { font-weight: 700; margin-right: 6px; color: #93c5fd; }
+    .form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+    .form-row textarea { width: 100%; min-height: 72px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Getnet | Console do Operador</h1>
+    </div>
+    <div class="nav-group">
+      <a href="/demo">Voltar ao Chat (/demo)</a>
+      <label for="opKey">Chave do operador:</label>
+      <input id="opKey" type="password" placeholder="X-API-Key do operador" autocomplete="off">
+      <button id="connectBtn" type="button">Conectar</button>
+      <button id="refreshBtn" class="secondary" type="button">Atualizar</button>
+    </div>
+  </header>
+
+  <div class="status-bar">
+    <span id="httpStatus" class="muted">Informe a chave do operador para carregar os dados.</span>
+    <span id="lastSync" class="muted"></span>
+  </div>
+
+  <main>
+    <section>
+      <div class="form-row" style="justify-content: space-between; margin-top: 0; margin-bottom: 10px;">
+        <h2 style="margin: 0;">Fila de chamados</h2>
+        <select id="statusFilter">
+          <option value="">Todos</option>
+          <option value="open">open</option>
+          <option value="in_progress">in_progress</option>
+          <option value="answered">answered</option>
+          <option value="closed">closed</option>
+        </select>
+      </div>
+      <div id="ticketList" class="ticket-list"></div>
+    </section>
+
+    <section>
+      <h2>Detalhe do chamado</h2>
+      <div id="ticketHeader" class="muted">Selecione um chamado na fila.</div>
+      <div id="ticketTranscript" class="transcript"></div>
+      <form id="ticketForm">
+        <div class="form-row">
+          <label for="ticketStatus">Novo status:</label>
+          <select id="ticketStatus">
+            <option value="">(manter)</option>
+            <option value="in_progress">in_progress</option>
+            <option value="closed">closed</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <textarea id="ticketReply" placeholder="Resposta do atendente ao lojista (dispara retomada da conversa)"></textarea>
+        </div>
+        <div class="form-row">
+          <button type="submit">Enviar atualização</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="full-width">
+      <h2>Pedidos de troca de maquininha</h2>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Request ID</th>
+              <th>Lojista</th>
+              <th>Serial</th>
+              <th>Status</th>
+              <th>Motivo</th>
+              <th>Criado em</th>
+            </tr>
+          </thead>
+          <tbody id="replacementsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="full-width">
+      <div class="form-row" style="justify-content: space-between; margin-top: 0; margin-bottom: 10px;">
+        <h2 style="margin: 0;">Auditoria recente</h2>
+        <input id="auditActionFilter" type="text" placeholder="Filtrar por ação (opcional)">
+      </div>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Horário</th>
+              <th>Ator</th>
+              <th>Hash</th>
+              <th>Ação</th>
+              <th>Alvo</th>
+              <th>Resultado</th>
+              <th>Detalhes</th>
+              <th>Trace OTel</th>
+            </tr>
+          </thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      let operatorKey = "";
+      let selectedTicketId = null;
+
+      const keyInput = document.getElementById("opKey");
+      const connectBtn = document.getElementById("connectBtn");
+      const refreshBtn = document.getElementById("refreshBtn");
+      const statusFilter = document.getElementById("statusFilter");
+      const auditActionFilter = document.getElementById("auditActionFilter");
+      const httpStatusEl = document.getElementById("httpStatus");
+      const lastSyncEl = document.getElementById("lastSync");
+      const ticketListEl = document.getElementById("ticketList");
+      const ticketHeaderEl = document.getElementById("ticketHeader");
+      const ticketTranscriptEl = document.getElementById("ticketTranscript");
+      const ticketForm = document.getElementById("ticketForm");
+      const ticketStatusSel = document.getElementById("ticketStatus");
+      const ticketReplyInput = document.getElementById("ticketReply");
+      const replacementsBody = document.getElementById("replacementsBody");
+      const auditBody = document.getElementById("auditBody");
+
+      function setStatus(message, isError) {
+        httpStatusEl.textContent = message;
+        httpStatusEl.className = isError ? "status-error" : "status-ok";
+      }
+
+      async function apiFetch(path, options) {
+        const opts = Object.assign({ headers: {} }, options || {});
+        opts.headers = Object.assign({}, opts.headers, { "X-API-Key": operatorKey });
+        const resp = await fetch(path, opts);
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status + " em " + path);
+        }
+        return resp.json();
+      }
+
+      function appendCell(row, text) {
+        const td = document.createElement("td");
+        td.textContent = text == null ? "-" : String(text);
+        row.appendChild(td);
+      }
+
+      function renderTicketDetail(tkt) {
+        ticketHeaderEl.replaceChildren();
+        ticketTranscriptEl.replaceChildren();
+        if (!tkt) {
+          ticketHeaderEl.textContent = "Selecione um chamado na fila.";
+          return;
+        }
+        const summary = document.createElement("div");
+        summary.textContent =
+          tkt.ticket_id +
+          " | status: " + tkt.status +
+          " | prioridade: " + tkt.priority +
+          " | motivo: " + tkt.reason;
+        ticketHeaderEl.appendChild(summary);
+
+        const items = Array.isArray(tkt.transcript) ? tkt.transcript : [];
+        if (items.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "muted";
+          empty.textContent = "Sem transcrição registrada.";
+          ticketTranscriptEl.appendChild(empty);
+          return;
+        }
+        for (const msg of items) {
+          const box = document.createElement("div");
+          box.className = "msg";
+          const roleSpan = document.createElement("span");
+          roleSpan.className = "msg-role";
+          roleSpan.textContent = "[" + String(msg.role || "msg") + "]";
+          const contentSpan = document.createElement("span");
+          contentSpan.textContent = String(msg.content || "");
+          box.appendChild(roleSpan);
+          box.appendChild(contentSpan);
+          ticketTranscriptEl.appendChild(box);
+        }
+      }
+
+      async function loadTickets() {
+        const st = statusFilter.value;
+        const url = st ? "/tickets?limit=50&status=" + encodeURIComponent(st) : "/tickets?limit=50";
+        const data = await apiFetch(url);
+        const rows = Array.isArray(data.tickets) ? data.tickets : [];
+        ticketListEl.replaceChildren();
+        let matched = null;
+        for (const tkt of rows) {
+          const card = document.createElement("div");
+          card.className = "ticket-item" + (tkt.ticket_id === selectedTicketId ? " selected" : "");
+          const title = document.createElement("div");
+          title.textContent = tkt.ticket_id + " (" + tkt.status + ")";
+          const meta = document.createElement("div");
+          meta.className = "ticket-meta";
+          meta.textContent = tkt.priority + " • " + String(tkt.reason || "").slice(0, 80);
+          card.appendChild(title);
+          card.appendChild(meta);
+          card.addEventListener("click", function () {
+            selectedTicketId = tkt.ticket_id;
+            renderTicketDetail(tkt);
+            loadTickets().catch(function () {});
+          });
+          ticketListEl.appendChild(card);
+          if (tkt.ticket_id === selectedTicketId) {
+            matched = tkt;
+          }
+        }
+        if (selectedTicketId && !matched && rows.length > 0) {
+          selectedTicketId = rows[0].ticket_id;
+          matched = rows[0];
+        }
+        renderTicketDetail(matched);
+      }
+
+      async function loadReplacements() {
+        const data = await apiFetch("/replacements?limit=50");
+        const rows = Array.isArray(data.replacements) ? data.replacements : [];
+        replacementsBody.replaceChildren();
+        for (const rep of rows) {
+          const tr = document.createElement("tr");
+          appendCell(tr, rep.request_id);
+          appendCell(tr, rep.user_id);
+          appendCell(tr, rep.serial_number);
+          appendCell(tr, rep.status);
+          appendCell(tr, rep.reason);
+          appendCell(tr, rep.created_at);
+          replacementsBody.appendChild(tr);
+        }
+      }
+
+      async function loadAudit() {
+        const act = auditActionFilter.value.trim();
+        const url = act ? "/audit?limit=100&action=" + encodeURIComponent(act) : "/audit?limit=100";
+        const data = await apiFetch(url);
+        const rows = Array.isArray(data.events) ? data.events : [];
+        auditBody.replaceChildren();
+        for (const ev of rows) {
+          const tr = document.createElement("tr");
+          appendCell(tr, ev.created_at);
+          appendCell(tr, ev.actor_type);
+          appendCell(tr, ev.actor_hash);
+          appendCell(tr, ev.action);
+          appendCell(tr, ev.target_type + ":" + ev.target_id);
+          appendCell(tr, ev.outcome);
+          appendCell(tr, JSON.stringify(ev.details || {}));
+          appendCell(tr, ev.otel_trace_id);
+          auditBody.appendChild(tr);
+        }
+      }
+
+      async function refreshAll() {
+        if (!operatorKey) {
+          return;
+        }
+        try {
+          await Promise.all([loadTickets(), loadReplacements(), loadAudit()]);
+          setStatus("Conectado como operador.", false);
+          lastSyncEl.textContent = "Atualizado em " + new Date().toLocaleTimeString();
+        } catch (err) {
+          setStatus(err && err.message ? err.message : "Erro ao consultar API", true);
+        }
+      }
+
+      connectBtn.addEventListener("click", function () {
+        operatorKey = keyInput.value.trim();
+        refreshAll();
+      });
+
+      refreshBtn.addEventListener("click", function () {
+        operatorKey = keyInput.value.trim();
+        refreshAll();
+      });
+
+      statusFilter.addEventListener("change", function () {
+        refreshAll();
+      });
+
+      auditActionFilter.addEventListener("change", function () {
+        refreshAll();
+      });
+
+      ticketForm.addEventListener("submit", async function (evt) {
+        evt.preventDefault();
+        if (!operatorKey || !selectedTicketId) {
+          setStatus("Selecione um chamado e informe a chave do operador.", true);
+          return;
+        }
+        const payload = {};
+        if (ticketStatusSel.value) {
+          payload.status = ticketStatusSel.value;
+        }
+        const replyText = ticketReplyInput.value.trim();
+        if (replyText) {
+          payload.reply = replyText;
+        }
+        try {
+          await apiFetch("/tickets/" + encodeURIComponent(selectedTicketId), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          ticketReplyInput.value = "";
+          ticketStatusSel.value = "";
+          await refreshAll();
+        } catch (err) {
+          setStatus(err && err.message ? err.message : "Erro no PATCH /tickets", true);
+        }
+      });
+
+      setInterval(function () {
+        if (operatorKey && !document.hidden) {
+          refreshAll();
+        }
+      }, 15000);
+    })();
+  </script>
+</body>
+</html>

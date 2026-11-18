@@ -19,6 +19,8 @@ KNOWN_TOOLS: frozenset[str] = frozenset({
     "get_settlement_status",
     "diagnose_declined_transaction",
     "diagnose_terminal",
+    "request_terminal_replacement",
+    "confirm_pending_action",
 })
 
 GUARDRAIL_DECISIONS: frozenset[str] = frozenset({

@@ -1,14 +1,16 @@
 {
   "user_agent": "getnet-multiagent-support-ingest/1.0 (+https://github.com/Burbanos/getnet-multiagent-support)",
   "generated_at": "2026-11-07T01:37:28.827906+00:00",
+  "updated_at": "2026-11-18T18:44:03.386474+00:00",
   "sources_file_sha256": "bf1c65eec9aa6054ab8b703585261ba40a4c6c14a6b9bfa4d222f84666ffaf46",
   "counts": {
-    "fetch_error": 0,
-    "no_content": 3,
-    "ok": 30,
-    "http_error": 0,
     "robots_disallowed": 0,
-    "off_allowlist": 0
+    "fetch_error": 0,
+    "http_error": 0,
+    "ok": 32,
+    "no_content": 0,
+    "off_allowlist": 0,
+    "redirect_duplicate": 1
   },
   "records": [
     {
@@ -93,11 +95,11 @@
     },
     {
       "url": "https://site.getnet.com.br/",
-      "status": "no_content",
+      "status": "ok",
       "http_status": 200,
-      "fetched_at": "2026-11-07T01:37:04.321049+00:00",
-      "sha256": null,
-      "chars": 0
+      "fetched_at": "2026-11-18T18:44:03.399018+00:00",
+      "sha256": "43948eae4a7d238a7e1076d55d33eea0888dacc839f614a29ab21a50cf027a86",
+      "chars": 6383
     },
     {
       "url": "https://site.getnet.com.br/todas-as-maquininhas/",
@@ -173,17 +175,17 @@
     },
     {
       "url": "https://site.getnet.com.br/link-de-pagamento/",
-      "status": "no_content",
+      "status": "ok",
       "http_status": 200,
-      "fetched_at": "2026-11-07T01:37:15.139787+00:00",
-      "sha256": null,
-      "chars": 0
+      "fetched_at": "2026-11-18T18:44:04.944489+00:00",
+      "sha256": "5a5f568b4581b8f14a36f4357149b940001f46f4813499aa5ce71e9bf3900ed0",
+      "chars": 3351
     },
     {
       "url": "https://site.getnet.com.br/pagamentos-pelo-whatsapp/",
-      "status": "no_content",
+      "status": "redirect_duplicate",
       "http_status": 200,
-      "fetched_at": "2026-11-07T01:37:16.183916+00:00",
+      "fetched_at": "2026-11-18T18:44:06.329789+00:00",
       "sha256": null,
       "chars": 0
     },

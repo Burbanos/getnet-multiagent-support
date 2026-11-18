@@ -78,7 +78,7 @@ class SpecialistAgent:
             self._bound_fallback = fallback.bind_tools(self.tools) if fallback is not None else None
         return self._bound_model, self._bound_fallback
 
-    def run(self, task: str, user_id: str, trace_id: str) -> dict[str, Any]:
+    def run(self, task: str, user_id: str, trace_id: str, session_id: str | None = None) -> dict[str, Any]:
         """
         Execute the specialist loop in an isolated context.
         Messages: [SystemMessage(prompt.strip()), HumanMessage(task)].
@@ -96,6 +96,7 @@ class SpecialistAgent:
         web_results: list[dict[str, Any]] = []
         api_results: list[dict[str, Any]] = []
         web_guardrail: list[dict[str, Any]] = []
+        action_results: list[dict[str, Any]] = []
         specialist_usage: dict[str, int] | None = None
 
         steps = 0
@@ -131,6 +132,7 @@ class SpecialistAgent:
                     "web_results": web_results,
                     "api_results": api_results,
                     "web_guardrail": web_guardrail,
+                    "action_results": action_results,
                     "usage": specialist_usage,
                 }
 
@@ -167,7 +169,7 @@ class SpecialistAgent:
                     try:
                         result_str = tool_fn.invoke(
                             tool_args,
-                            config={"configurable": {"user_id": user_id}},
+                            config={"configurable": {"user_id": user_id, "session_id": session_id or "", "trace_id": trace_id}},
                         )
                     except Exception as e:  # noqa: BLE001
                         status = "error"
@@ -261,6 +263,8 @@ class SpecialistAgent:
                                 api_results.append({"tool": tool_name, **parsed})
                                 if parsed.get("status") == "success" and parsed.get("source_url"):
                                     sources.append(parsed["source_url"])
+                            elif tool_name == "request_terminal_replacement":
+                                action_results.append(parsed)
                     except (json.JSONDecodeError, TypeError, KeyError):
                         pass
 
@@ -286,5 +290,6 @@ class SpecialistAgent:
             "web_results": web_results,
             "api_results": api_results,
             "web_guardrail": web_guardrail,
+            "action_results": action_results,
             "usage": specialist_usage,
         }

@@ -66,6 +66,7 @@ def test_tools_registered_for_knowledge_agent() -> None:
         "get_exchange_rate",
         "search_web",
         "escalate_to_human",
+        "request_terminal_replacement",
     ]
     expected_k = [
         "search_knowledge_base",

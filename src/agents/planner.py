@@ -50,6 +50,7 @@ class TurnPlan(BaseModel):
     reply_language: Literal["pt", "en"]
     scope: Literal["support", "out_of_scope"]
     escalation_request: Literal["none", "asked_for_human", "formal_complaint", "accepted_offer"]
+    action_confirmation: Literal["none", "confirmed", "declined"] = "none"
     steps: list[PlanStep]
 
 
@@ -71,6 +72,7 @@ class PlannerResult:
             "reply_language": self.plan.reply_language if self.plan else None,
             "scope": self.plan.scope if self.plan else None,
             "escalation_request": self.plan.escalation_request if self.plan else None,
+            "action_confirmation": self.plan.action_confirmation if self.plan else None,
             "steps": [{"goal": s.goal, "delegate": s.delegate} for s in self.plan.steps] if self.plan else None,
             "error_type": self.error_type,
             "latency_ms": self.latency_ms,

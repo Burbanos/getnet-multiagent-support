@@ -27,12 +27,14 @@ def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = N
     if not terminals:
         return {"error": "Nenhuma máquina de cartão vinculada a este estabelecimento."}
 
-    terminal = terminals[0]
-    if terminal_serial:
-        for t in terminals:
-            if t.get("serial_number") == terminal_serial:
-                terminal = t
-                break
+    clean_serial = terminal_serial.strip() if isinstance(terminal_serial, str) else ""
+    if clean_serial:
+        matched = next((t for t in terminals if t.get("serial_number") == clean_serial), None)
+        if matched is None:
+            return {"status": "not_found", "error": "terminal_not_found"}
+        terminal = matched
+    else:
+        terminal = terminals[0]
 
     model = terminal.get("model")
     sim_operator = terminal.get("sim_operator")

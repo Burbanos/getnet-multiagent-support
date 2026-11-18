@@ -18,5 +18,11 @@ def ask_support_agent(request: str) -> str:
     return ""
 
 
-SUPERVISOR_TOOLS: list[Any] = [ask_knowledge_agent, ask_support_agent, escalate_to_human]
+@tool
+def confirm_pending_action() -> str:
+    """Executa uma solicitação pendente na sessão atual (por exemplo, troca de maquininha proposta na resposta anterior), somente após confirmação explícita do lojista no turno atual."""
+    return ""
+
+
+SUPERVISOR_TOOLS: list[Any] = [ask_knowledge_agent, ask_support_agent, escalate_to_human, confirm_pending_action]
 SUPERVISOR_TOOLS_BY_NAME: dict[str, Any] = {t.name: t for t in SUPERVISOR_TOOLS}

@@ -9,7 +9,10 @@ from langchain_core.tools import tool
 
 import src.rag.retriever as rag_retriever
 from src.core import notifier
+from src.core.actions_db import get_actions_repository
 from src.core.log_context import exc_brief
+from src.core.mock_db import get_mock_db
+from src.core.pii import sanitize_pii
 from src.core.tickets_db import get_tickets_repository
 from src.tools.balance_tools import (
     get_declined_transaction_details,
@@ -200,6 +203,88 @@ def search_web(query: str) -> str:
 
 
 @tool
+def request_terminal_replacement(serial_number: str, reason: str, config: RunnableConfig = None) -> str:
+    """
+    Propõe a solicitação de troca de uma maquininha do lojista. Apenas cria a proposta para confirmação
+    no próximo turno; nenhum pedido é aberto até que o lojista confirme.
+
+    Args:
+        serial_number: Número de série da maquininha do lojista (ex.: 'GET-883921').
+        reason: Motivo resumido da troca sem dados pessoais.
+    """
+    cfg = config.get("configurable", {}) if config else {}
+    user_id = str(cfg.get("user_id") or "")
+    session_id = str(cfg.get("session_id") or "default")
+    trace_id = str(cfg.get("trace_id") or "")
+    clean_serial = serial_number.strip()
+
+    user = get_mock_db().get_user(user_id)
+    terminals = (user or {}).get("terminals", [])
+    matched = next((t for t in terminals if t.get("serial_number") == clean_serial), None)
+    actions_repo = get_actions_repository()
+
+    if user is None or matched is None:
+        actions_repo.record_audit(
+            actor_type="merchant",
+            actor_id=user_id or "unknown",
+            action="replacement_proposal_rejected",
+            target_type="terminal",
+            target_id=clean_serial or "unknown",
+            outcome="not_found",
+            details={"serial_number": clean_serial, "reason_code": "terminal_not_found"},
+            trace_id=trace_id or None,
+        )
+        return json.dumps({"status": "not_found", "error": "terminal_not_found"}, ensure_ascii=False, indent=2)
+
+    open_req = actions_repo.get_open_replacement(clean_serial)
+    if open_req is not None:
+        actions_repo.record_audit(
+            actor_type="merchant",
+            actor_id=user_id,
+            action="replacement_proposal_rejected",
+            target_type="terminal_replacement",
+            target_id=open_req["request_id"],
+            outcome="already_requested",
+            details={"serial_number": clean_serial, "request_id": open_req["request_id"], "status": "requested"},
+            trace_id=trace_id or None,
+        )
+        return json.dumps(
+            {
+                "status": "already_requested",
+                "request_id": open_req["request_id"],
+                "serial_number": clean_serial,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    safe_reason, _ = sanitize_pii(reason or "")
+    clean_reason = safe_reason.strip()[:300] or "troca de maquininha"
+    logger.info(f"[Tool: request_terminal_replacement] invoked (serial_given={bool(clean_serial)}, reason_chars={len(clean_reason)})")
+    proposal = actions_repo.propose_terminal_replacement(
+        user_id=user_id,
+        session_id=session_id,
+        serial_number=clean_serial,
+        reason=clean_reason,
+        trace_id=trace_id,
+        ttl_minutes=30,
+    )
+    return json.dumps(
+        {
+            "status": "pending_confirmation",
+            "action_id": proposal["action_id"],
+            "serial_number": proposal["serial_number"],
+            "model": matched.get("model"),
+            "reason": clean_reason,
+            "expires_in_minutes": 30,
+            "message": "Nothing was requested yet: the merchant must confirm in the next message.",
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@tool
 def escalate_to_human(
     reason: str,
     priority: Literal["standard", "high"] = "standard",
@@ -220,6 +305,7 @@ def escalate_to_human(
     user_id = cfg.get("user_id", "")
     session_id = cfg.get("session_id")
     transcript = cfg.get("transcript")
+    actor_type = cfg.get("actor_type", "merchant")
 
     logger.info(f"[Tool: escalate_to_human] priority={priority}, reason_chars={len(reason)}")
     try:
@@ -230,6 +316,7 @@ def escalate_to_human(
             priority=priority,
             session_id=session_id,
             transcript=transcript,
+            actor_type=actor_type,
         )
         try:
             notify_result = notifier.get_notifier().notify(ticket)
@@ -251,6 +338,7 @@ ALL_TOOLS: list[Any] = [
     get_exchange_rate,
     search_web,
     escalate_to_human,
+    request_terminal_replacement,
 ]
 
 TOOLS_BY_NAME: dict[str, Any] = {tool_fn.name: tool_fn for tool_fn in ALL_TOOLS}

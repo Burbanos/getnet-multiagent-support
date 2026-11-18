@@ -28,6 +28,7 @@ from src.agents.specialists import SpecialistAgent
 from src.agents.verifier import Verifier
 from src.config import settings
 from src.core import metrics
+from src.core.actions_db import get_actions_repository
 from src.core.checkpointer import build_checkpointer
 from src.core.llm import (
     LLMConfigurationError,
@@ -50,13 +51,19 @@ from src.tools.agent_tools import (
     get_exchange_rate,
     get_settlement_status,
     get_weather_forecast,
+    request_terminal_replacement,
     search_knowledge_base,
     search_web,
 )
 from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
 KNOWLEDGE_TOOLS = [search_knowledge_base, get_weather_forecast, get_exchange_rate, search_web]
-SUPPORT_TOOLS = [get_settlement_status, diagnose_declined_transaction, diagnose_terminal]
+SUPPORT_TOOLS = [
+    get_settlement_status,
+    diagnose_declined_transaction,
+    diagnose_terminal,
+    request_terminal_replacement,
+]
 
 logger = logging.getLogger("multiagent.orchestrator")
 
@@ -729,6 +736,7 @@ class OrchestrationGraph:
                 "reply_language": None,
                 "scope": None,
                 "escalation_request": None,
+                "action_confirmation": None,
                 "steps": None,
                 "error_type": None,
                 "latency_ms": None,
@@ -763,11 +771,24 @@ class OrchestrationGraph:
             f"escalation_request={plan_meta['escalation_request']}, steps={step_count})",
             extra={"status": result.status, "latency_ms": result.latency_ms},
         )
-        return {
+        out: dict[str, Any] = {
             "plan": plan_meta,
             "tokens_by_agent": tba,
             "tokens": tokens,
         }
+        if result.status == "ok" and plan_meta.get("action_confirmation") == "declined":
+            dec_res = get_actions_repository().decline(
+                state["user_id"],
+                state["session_id"],
+                trace_id=state.get("trace_id"),
+            )
+            out["action"] = {
+                "tool": "decline_pending_action",
+                "status": dec_res.get("status"),
+                "action_id": dec_res.get("action_id"),
+                "request_id": None,
+            }
+        return out
 
     def _planner_condition(self, state: SupervisorState) -> str:
         """Route to fixed out-of-scope reply only when planner explicitly returned status='ok' & scope='out_of_scope'."""
@@ -785,6 +806,7 @@ class OrchestrationGraph:
         return {
             "messages": [AIMessage(content=reply, id=str(uuid.uuid4()))],
             "final_response": reply,
+            "llm_model": plan.get("model") or settings.LLM_MODEL,
         }
 
     def _verifier_node(self, state: SupervisorState) -> dict[str, Any]:
@@ -1003,13 +1025,14 @@ class OrchestrationGraph:
         if plan.get("status") == "ok":
             steps = plan.get("steps") or []
             steps_text = "\n".join(
-                f"{idx}. {step.get('delegate', 'none')}: {step.get('goal', '')}"
+                f"{idx}. {step.get('goal', '')}"
                 for idx, step in enumerate(steps, start=1)
             ) or "(none)"
             system_prompt += (
                 "\n\n[Plan for this turn]\n"
                 f"reply_language: {plan.get('reply_language')}\n"
                 f"escalation_request: {plan.get('escalation_request')}\n"
+                f"action_confirmation: {plan.get('action_confirmation', 'none')}\n"
                 f"steps:\n{steps_text}"
             )
         feedback = state.get("verification_feedback")
@@ -1242,6 +1265,7 @@ class OrchestrationGraph:
                         "user_id": user_id,
                         "session_id": state["session_id"],
                         "transcript": transcript_snapshot(state["messages"]),
+                        "actor_type": "system",
                     }
                 },
             )
@@ -1297,6 +1321,7 @@ class OrchestrationGraph:
         web_guardrail = list(state.get("web_guardrail", []))
         ticket = state.get("ticket")
         escalation_gate = state.get("escalation_gate")
+        action = state.get("action")
         agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
 
         user_id = state["user_id"]
@@ -1377,9 +1402,23 @@ class OrchestrationGraph:
                         if "SupportAgent" not in agents_used:
                             agents_used.append("SupportAgent")
                         request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
-                        spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
+                        spec_res = self.support_agent.run(
+                            request_text,
+                            user_id=user_id,
+                            trace_id=trace_id,
+                            session_id=state["session_id"],
+                        )
                         if spec_res.get("status") == "error":
                             call_status = "error"
+
+                        for ar in spec_res.get("action_results") or []:
+                            if isinstance(ar, dict):
+                                action = {
+                                    "tool": "request_terminal_replacement",
+                                    "status": ar.get("status"),
+                                    "action_id": ar.get("action_id"),
+                                    "request_id": ar.get("request_id"),
+                                }
 
                         spec_usage = spec_res.get("usage")
                         if spec_usage:
@@ -1476,6 +1515,39 @@ class OrchestrationGraph:
                             except (json.JSONDecodeError, TypeError):
                                 pass
 
+                elif tool_name == "confirm_pending_action":
+                    plan = state.get("plan") or {}
+                    if plan.get("status") != "ok" or plan.get("action_confirmation") != "confirmed":
+                        gate_payload = {"status": "needs_merchant_confirmation"}
+                        result_str = json.dumps(gate_payload, ensure_ascii=False)
+                        t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                        tool_messages.append(t_msg)
+                        tool_results.append(gate_payload)
+                        action = {
+                            "tool": "confirm_pending_action",
+                            "status": "needs_merchant_confirmation",
+                            "action_id": None,
+                            "request_id": None,
+                        }
+                    else:
+                        conf_res = get_actions_repository().confirm(
+                            user_id,
+                            state["session_id"],
+                            trace_id,
+                        )
+                        if conf_res.get("status") in ("executed", "already_requested"):
+                            tools_used.append("confirm_pending_action")
+                        action = {
+                            "tool": "confirm_pending_action",
+                            "status": conf_res.get("status"),
+                            "action_id": conf_res.get("action_id"),
+                            "request_id": conf_res.get("request_id"),
+                        }
+                        result_str = json.dumps(conf_res, ensure_ascii=False)
+                        t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                        tool_messages.append(t_msg)
+                        tool_results.append(conf_res)
+
                 else:
                     call_status = "error"
                     logger.warning(f"Tool '{tool_name}' not available to SupervisorAgent.")
@@ -1516,6 +1588,7 @@ class OrchestrationGraph:
             "web_guardrail": web_guardrail,
             "ticket": ticket,
             "escalation_gate": escalation_gate,
+            "action": action,
             "tokens_by_agent": tba,
             "tokens": tokens,
             "knowledge_outcomes": knowledge_outcomes,
@@ -1612,6 +1685,12 @@ class OrchestrationGraph:
 
             tokens_dict = result.get("tokens")
             model_name = result.get("llm_model")
+            if not model_name and tokens_dict:
+                model_name = (
+                    (result.get("plan") or {}).get("model")
+                    or ((result.get("guardrail") or {}).get("classifier") or {}).get("model")
+                    or settings.LLM_MODEL
+                )
             cost_val = None
             if tokens_dict and isinstance(tokens_dict, dict):
                 from src.core.pricing import cost_usd
@@ -1643,6 +1722,7 @@ class OrchestrationGraph:
                 verification=result.get("verification"),
                 language=result.get("language"),
                 escalation_gate=result.get("escalation_gate"),
+                action=result.get("action"),
                 agents_used=result.get("agents_used", ["SupervisorAgent"]),
                 tools_used=result.get("tools_used", []),
                 tool_calls=result.get("tool_calls", []),
@@ -1699,6 +1779,7 @@ class OrchestrationGraph:
             "replans": 0,
             "language": None,
             "escalation_gate": None,
+            "action": None,
             "agents_used": ["SupervisorAgent"],
             "tools_used": [],
             "tool_calls": [],

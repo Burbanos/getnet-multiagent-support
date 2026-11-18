@@ -1,24 +1,30 @@
 # STATUS DO REPOSITÓRIO
 
-**Subfase:** 13B — Planner, verificação antes do envio, idioma, escalonamento só a pedido e aplicabilidade do catálogo de recusas
-**Base:** `3a175bd` (Fase 13A-fix) | **Python:** 3.13.3
+**Subfase:** 13C — Correções do smoke, troca de maquininha com confirmação e auditoria, console do operador e corpus
+**Base:** `96d6894` (13B + smoke do holdout 3) | **Python:** 3.13.3
 
 ## O que mudou
 
-- **Processo aposentado (13A removida):** removidos via `git rm` `docs/phase-prompts/13A.md`, `docs/phase-prompts/13A-fix.md` e `scripts/verify_phase13a.py`; adicionados `docs/phase-prompts/13B.md`, `scripts/verify_phase13b.py`, `data/eval/cases_holdout3.jsonl` e os prompts em `src/prompts/`.
-- **Planner ([src/agents/planner.py](src/agents/planner.py)):** `PlanStep`, `TurnPlan`, `PlannerResult` e `Planner` com chamada estruturada (`TurnPlan`), span `llm.call` (`llm.caller = "Planner"`), escape XML e corte de `previous_reply` em 2000 caracteres.
-- **Verificador pré-envio ([src/agents/verifier.py](src/agents/verifier.py)):** `StepVerdict`, `Verification`, `VerifierResult` e `Verifier` avaliando cada passo contra a evidência do turno (`llm.caller = "Verifier"`).
-- **Idioma ([src/agents/language.py](src/agents/language.py)):** `detect_reply_language` (via `langdetect` com seed `0` e limiar `0.80`), `preserved_tokens` (URLs, `GET-TKT-...`, números com 2+ dígitos) e `LanguageRewriter` (`llm.caller = "LanguageRewriter"`).
-- **Orquestração, estado, métricas e API ([src/core/graph.py](src/core/graph.py), [src/core/state.py](src/core/state.py), [src/core/metrics.py](src/core/metrics.py), [src/config.py](src/config.py), [.env.example](.env.example), [src/eval/runner.py](src/eval/runner.py), [src/main.py](src/main.py)):** novos nós `planner`, `out_of_scope`, `verifier` (até 1 replanejamento com `RemoveMessage` ou abstenção fixa) e `language_check` (1 reescrita validada por `preserved_tokens`); portão de escalonamento em `_tools_node`; métricas `getnet_planner_total`, `getnet_verifier_total`, `getnet_language_enforcement_total` e `getnet_escalation_gate_total`; campos `plan`, `verification`, `language` e `escalation_gate` em `observe_turn`, `AgentState` e `/chat`.
-- **Ferramenta de recusa ([src/tools/agent_tools.py](src/tools/agent_tools.py)):** parâmetro obrigatório `code_context` em `diagnose_declined_transaction` (retornando `not_applicable` para `terminal_screen` e `app`) e docstring atualizada em `escalate_to_human`.
-- **Testes:** novos [tests/test_planner.py](tests/test_planner.py) (9), [tests/test_verifier_node.py](tests/test_verifier_node.py) (8), [tests/test_language_enforcement.py](tests/test_language_enforcement.py) (8), [tests/test_escalation_gate.py](tests/test_escalation_gate.py) (6) e [tests/test_decline_context.py](tests/test_decline_context.py) (5); ajustes permitidos nos 4 pontos em testes existentes.
+- **Aposentadoria da 13B:** removidos via `git rm` `docs/phase-prompts/13B.md` e `scripts/verify_phase13b.py`; adicionados `docs/phase-prompts/13C.md`, `scripts/verify_phase13c.py`, `data/eval/cases_actions.jsonl` e os prompts atualizados em `src/prompts/`.
+- **Correções do smoke ([planner.py](src/agents/planner.py), [graph.py](src/core/graph.py), [terminal_tools.py](src/tools/terminal_tools.py)):** `[Plan for this turn]` agora passa só o objetivo (`N. <goal>`) sem `delegate`; turnos `out_of_scope` (e qualquer turno com tokens sem `llm_model`) registram o modelo do planner para calcular `estimated_cost_usd`; `diagnose_terminal_connectivity` devolve `{"status": "not_found", "error": "terminal_not_found"}` quando `terminal_serial` não pertence ao lojista.
+- **Troca de maquininha com confirmação, idempotência e auditoria ([db.py](src/core/db.py), [actions_db.py](src/core/actions_db.py), [tickets_db.py](src/core/tickets_db.py), [agent_tools.py](src/tools/agent_tools.py), [supervisor_tools.py](src/tools/supervisor_tools.py), [specialists.py](src/agents/specialists.py), [state.py](src/core/state.py), [runner.py](src/eval/runner.py), [cases.py](src/eval/cases.py), [metrics.py](src/core/metrics.py)):**
+  - `TurnPlan` ganha `action_confirmation` (`none|confirmed|declined`); tabelas `pending_actions`, `terminal_replacements` (com índice único parcial `status = 'requested'` em `serial_number`) e `audit_events` (ator em `actor_hash` e `details` restrito à allowlist).
+  - `ActionsRepository` com `propose_terminal_replacement`, `confirm` (`SELECT ... FOR UPDATE`, guarda `same_turn`, expiração e `already_requested`), `decline` (chamado deterministicamente no `planner`), `list_replacements`, `list_audit` e `record_audit`.
+  - `request_terminal_replacement` (Support Agent, `sanitize_pii` e limite de 300 chars) e `confirm_pending_action` (Supervisor, portão fail-closed no `_tools_node`). Campo `action` em `AgentState`, `AgentMetadata` e `observe_turn`. Auditoria completa do ciclo de vida dos chamados (`ticket_created` `merchant`/`system`, `ticket_updated`, `ticket_replied`, `ticket_reply_delivered`).
+- **API e Console do operador ([main.py](src/main.py), [operator.html](src/static/operator.html), [demo.html](src/static/demo.html)):** novos `GET /audit`, `GET /replacements` e `GET /operator` (arquivo único sem dependências externas, chave só em memória, DOM via `createElement`/`textContent`, atualização a cada 15 s) com link em `/` e `/demo`.
+- **Corpus ([ingest.py](src/rag/ingest.py), [pages.jsonl](data/corpus/pages.jsonl), [manifest.json](data/corpus/manifest.json), [README.md](data/corpus/README.md)):** adicionados `--only URL`, status `redirect_duplicate` em `STATUSES`, extração corrigida e recoleta parcial das três URLs (`ok: 32`, `redirect_duplicate: 1`).
+- **Testes:** novos [test_actions_repository.py](tests/test_actions_repository.py) (10), [test_write_action_flow.py](tests/test_write_action_flow.py) (8), [test_audit_and_operator.py](tests/test_audit_and_operator.py) (8), [test_ingest_extract.py](tests/test_ingest_extract.py) (4), [test_smoke_fixes.py](tests/test_smoke_fixes.py) (3), 2 testes Postgres novos em [test_postgres_redis_integration.py](tests/integration/test_postgres_redis_integration.py) e ajustes mínimos permitidos nos 3 arquivos existentes.
+
+## Causa do texto vazio no corpus
+
+- As páginas `https://site.getnet.com.br/` e `https://site.getnet.com.br/link-de-pagamento/` são WordPress renderizado no servidor sem tag `<main>` e com múltiplos `<article>` curtos usadas apenas em cards auxiliares (3 cards de 123–229 caracteres na home e 4 cards de 76–111 caracteres no Link de Pagamento), enquanto o conteúdo principal (6.383 caracteres na home e 3.351 no Link de Pagamento após remover menus, cabeçalhos e rodapés) fica no restante do `<body>`. O seletor antigo (`main or article or body`) escolhia o primeiro pequeno `<article>`, gerando menos de 300 caracteres (`no_content`). Já `.../pagamentos-pelo-whatsapp/` retorna HTTP 301 para `.../link-de-pagamento/` e passou a ser registrado como `redirect_duplicate`.
 
 ## Verificações
 
 - `python -m ruff check .`: `All checks passed!`
-- `python -m pytest -q -p no:cacheprovider`: `448 passed, 10 deselected in 43.75s`
-- `python scripts/verify_phase13b.py`: `SUMMARY: 32/32 passed` (`PASS A0`–`A7`, `PASS S1.status`, `PASS P1`–`P4`, `PASS G1`–`G10`, `PASS R1`–`R3`, `PASS Q1`–`Q6`, `INFO C2.integration_suite`)
+- `python -m pytest -q -p no:cacheprovider`: `481 passed, 12 deselected in 46.26s`
+- `python scripts/verify_phase13c.py`: `SUMMARY: 31/31 passed` (`PASS A0`–`A8`, `PASS S1.status`, `PASS C1`–`C3`, `PASS G1`–`G6`, `PASS E1`–`E3`, `PASS R1`–`R3`, `PASS Q1`–`Q6`, `INFO Q7.integration_suite`)
 
 ## Perguntas / divergências
 
-Nenhuma divergência identificada com `docs/SPEC.md` ou `docs/phase-prompts/13B.md`.
+Nenhuma divergência identificada com `docs/SPEC.md` ou `docs/phase-prompts/13C.md`.

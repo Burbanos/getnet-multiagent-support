@@ -28,6 +28,7 @@ python -m src.rag.ingest
 
 ## Data da Coleta
 - **Data de geração**: 06/11/2026.
+- **Coleta parcial (`--only`)**: 18/11/2026 (recoleta das três URLs em `site.getnet.com.br`: home, `link-de-pagamento/` e `pagamentos-pelo-whatsapp/` como `redirect_duplicate`).
 
 ## Aviso Legal e Atribuição
 
