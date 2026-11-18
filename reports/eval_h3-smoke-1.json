@@ -1,0 +1,693 @@
+{
+  "run_id": "h3-smoke-1",
+  "generated_at": "2026-11-18T15:42:50.973804+00:00",
+  "cases_sha256": "54bb563bc67835074e119e4c8918bf9a3c12929fd8b57e770e61b6864a5a1c7b",
+  "cases_file": "data/eval/cases_holdout3.jsonl",
+  "complete": true,
+  "n_cases": 31,
+  "n_evaluated": 31,
+  "n_errors": 0,
+  "error_ids": [],
+  "metrics": {
+    "routing_rate": 0.8235294117647058,
+    "tools_rate": 0.8695652173913043,
+    "escalation_rate": 1.0,
+    "priority_rate": 1.0,
+    "blocked_rate": 1.0,
+    "sources_rate": null,
+    "facts_rate": 0.75,
+    "facts_none_rate": 0.9090909090909091,
+    "language_rate": 1.0,
+    "pass_rate": 0.9032258064516129,
+    "escalation_precision": 1.0,
+    "escalation_recall": 1.0,
+    "latency_ms_p50": 9445.7,
+    "latency_ms_p95": 17717.5,
+    "tokens_total": 356040,
+    "tokens_mean_per_case": 11485.161290322581,
+    "estimated_cost_usd": null
+  },
+  "by_category": {
+    "escalation": {
+      "n": 4,
+      "pass_rate": 1.0
+    },
+    "knowledge": {
+      "n": 4,
+      "pass_rate": 1.0
+    },
+    "multi_intent": {
+      "n": 1,
+      "pass_rate": 1.0
+    },
+    "multi_turn": {
+      "n": 3,
+      "pass_rate": 1.0
+    },
+    "off_topic": {
+      "n": 4,
+      "pass_rate": 1.0
+    },
+    "public_data": {
+      "n": 2,
+      "pass_rate": 0.5
+    },
+    "support": {
+      "n": 6,
+      "pass_rate": 0.6666666666666666
+    },
+    "uncovered": {
+      "n": 7,
+      "pass_rate": 1.0
+    }
+  },
+  "by_lang": {
+    "en": {
+      "n": 20,
+      "pass_rate": 0.9
+    },
+    "pt": {
+      "n": 11,
+      "pass_rate": 0.9090909090909091
+    }
+  },
+  "official": {
+    "n": 0,
+    "pass_rate": null
+  },
+  "per_case": [
+    {
+      "id": "t01",
+      "category": "knowledge",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t02",
+      "category": "knowledge",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t03",
+      "category": "support",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t04",
+      "category": "support",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": true,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t05",
+      "category": "support",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t06",
+      "category": "public_data",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t07",
+      "category": "public_data",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": false,
+        "tools_ok": false,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": false,
+        "language_ok": true
+      },
+      "passed": false
+    },
+    {
+      "id": "t08",
+      "category": "multi_intent",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t09",
+      "category": "multi_turn",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": true,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t10",
+      "category": "uncovered",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t11",
+      "category": "off_topic",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t12",
+      "category": "off_topic",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t13",
+      "category": "off_topic",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t14",
+      "category": "uncovered",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t15",
+      "category": "uncovered",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t16",
+      "category": "support",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t17",
+      "category": "knowledge",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t18",
+      "category": "knowledge",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t19",
+      "category": "off_topic",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": true,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t20",
+      "category": "uncovered",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t21",
+      "category": "uncovered",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t22",
+      "category": "uncovered",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t23",
+      "category": "uncovered",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": null,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": true,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t24",
+      "category": "support",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": false,
+        "tools_ok": false,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": false,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": false
+    },
+    {
+      "id": "t25",
+      "category": "support",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": false,
+        "tools_ok": false,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": true,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": false
+    },
+    {
+      "id": "t26",
+      "category": "escalation",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t27",
+      "category": "escalation",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t28",
+      "category": "escalation",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": true,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t29",
+      "category": "escalation",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": true,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t30",
+      "category": "multi_turn",
+      "lang": "pt",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    },
+    {
+      "id": "t31",
+      "category": "multi_turn",
+      "lang": "en",
+      "official": false,
+      "status": "ok",
+      "checks": {
+        "routing_ok": null,
+        "tools_ok": true,
+        "escalation_ok": true,
+        "priority_ok": null,
+        "blocked_ok": true,
+        "sources_ok": null,
+        "facts_ok": null,
+        "facts_none_ok": null,
+        "language_ok": true
+      },
+      "passed": true
+    }
+  ],
+  "answer_models": [
+    "gemini-3.5-flash-lite"
+  ],
+  "judge": null,
+  "cost_note": "Estimated answer cost from src/core/pricing.py (paid tier, Standard); null when no turn has tokens or any turn with tokens has no price. Excludes judge calls and query embeddings.",
+  "guardrail": {
+    "recorded_turns": 34,
+    "unrecorded_turns": 0,
+    "by_layer": {
+      "patterns": 0,
+      "classifier": 0,
+      "none": 34
+    },
+    "classifier_status": {
+      "ok": 34
+    },
+    "classifier_tokens": {
+      "input_tokens": 23510,
+      "output_tokens": 782,
+      "total_tokens": 24292
+    },
+    "blocked_by_patterns": [],
+    "blocked_by_classifier": []
+  }
+}
