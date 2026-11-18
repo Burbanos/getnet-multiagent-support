@@ -14,6 +14,31 @@
 
 ---
 
+### Fase 12E: Limites das Descrições das Ferramentas
+
+#### Ambiente e verificação
+- Ambiente: Python 3.13.3
+- `python -m ruff check .`: passou (`All checks passed!`)
+- `python -m pytest -q -p no:cacheprovider`: `390 passed`
+- `python scripts/verify_phase12e.py`: `SUMMARY: 75/75 passed` (`PASS E0`–`E7`, `PASS Q0`–`Q5`, `PASS Q2.pytest_offline_no_key :: 390 passed`)
+
+#### Commit base
+- `79aa33f379ed9eba8bd5cefab9f8556bacef9ab9` (Fase 12D)
+
+#### Alterações
+- `src/tools/supervisor_tools.py`: ajustadas as descrições de `ask_knowledge_agent` (incluindo como usar, ativar ou encontrar uma função da maquininha) e `ask_support_agent` (delimitando diagnóstico técnico de conexão/sinal/Wi-Fi e excluindo erros de tela de configuração, rede, atualização ou inicialização do catálogo de recusa).
+- `src/tools/agent_tools.py`: incluída frase de exclusão para erros de tela de configuração, rede, atualização ou inicialização na docstring de `diagnose_declined_transaction`.
+- `tests/test_tool_descriptions.py`: adicionados 3 testes offline validando os limites das descrições em `SUPERVISOR_TOOLS`, `diagnose_declined_transaction` e `diagnose_terminal`.
+- Arquivos do revisor mantidos intactos: `docs/SPEC.md`, `docs/phase-prompts/12E.md`, `scripts/verify_phase12e.py`, `data/eval/cases_routing_holdout2.jsonl`.
+
+#### Não feito
+- Execuções com modelo real (`v2-7..9`, `rh-4..6`, `rh2-1..3`) ficam a cargo do autor após o commit desta subfase.
+
+#### Perguntas / divergências com o SPEC
+- Nenhuma divergência identificada com `docs/SPEC.md`.
+
+---
+
 ### Fase 12D: Roteamento, Verificação da Resposta e Guardas
 
 #### Ambiente e verificação

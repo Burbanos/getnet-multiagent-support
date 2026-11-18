@@ -418,7 +418,9 @@ use 3.11; the lock is regenerated in Codespaces with the `python:3.11-slim` imag
   of dense top 6 and BM25 top 6 (mean 8.9 candidates) holds an answer chunk for all 30 answerable queries (dense top 8 alone
   misses `e05` and `e07`). So fusion only widens the candidate pool; a reranker has to choose.
 
-**Environment from Phase 12:** Antigravity runs Gemini 4 Hydrogen (successor of Gemini 3.8 Flash), effort High by default;
+**Environment from Phase 12:** 12A-12D ran on Gemini 4 Hydrogen; from 12E Antigravity runs in "Orchestrator (Argon)" mode
+(Gemini 4 Argon, which may hand routine steps to Hydrogen; no effort setting), and each prompt names the model instead of an
+effort. Until 12D: Antigravity runs Gemini 4 Hydrogen (successor of Gemini 3.8 Flash), effort High by default;
 each prompt states the recommended effort at the top (Extra only for sub-phases that change the LangGraph graph/state or the
 retrieval). Sub-phases may be somewhat larger; the rules against shortcuts stay. The product model does not change
 (`gemini-3.5-flash-lite`: every published result was measured with it). `docs/DECISIONS.md` is not edited (already read by the
@@ -465,9 +467,44 @@ evaluator).
   test change) are superseded and re-checked as 12D `D2`, `D10.observe_turn` and `D11`. The web classifier is wired like the
   message classifier (production, or an explicit `guardrail_model`), so the existing scripted tests do not change.
 
-**Current phase: 12D** (tool descriptions, answer check, account fail-closed, web results guard), prompt
-`docs/phase-prompts/12D.md`, verifier `scripts/verify_phase12d.py`. After the 12D commit the author runs, once each:
-`v2-4`..`v2-6` on `cases_v2.jsonl` with the judge, and `rh-1`..`rh-3` on `cases_routing_holdout.jsonl` (no judge).
+- 12D (`79aa33f`; reviewer reran `verify_phase12d.py`: 79/79 on 3.11.18; reviewer files identical; CI #73-#76 green for
+  12A-12D). Minor, accepted: the answer check node calls `_get_bound_models()` outside the `try` that guards the revision call
+  (a model configuration error there surfaces as a turn error, as in the supervisor node).
+- `v2-4`..`v2-6` (author, 2026-11-13 UTC, paid Tier 1, `gemini-3.5-flash-lite`, judge `gemini-3.6-flash`; records on the
+  author's machine until the closing sub-phase). `compare --cases data/eval/cases_v2.jsonl` (the default `--cases` is the v1
+  set and gives wrong numbers), 11G (`v2-1..3`) vs 12D (`v2-4..6`): pass 91.9% (91.0-92.3) vs 94.4% (93.6-96.2); official
+  scenarios 96.7% vs 80.0% (`off08` answered in Portuguese 3/3, `off04` once in Portuguese and once escalated unasked, `off10`
+  escalated unasked once); routing 95.4% vs 98.5%; judge abstention precision 80.0% vs 97.4%, recall 80.0% vs 80.0%; latency
+  p50 5.1 s vs 6.1 s, p95 9.3 s vs 13.8 s; US$ 0.253 vs 0.281 per run. Fixed in 3/3 (failed 3/3 before): `k16`, `o02`, `s04`,
+  `s06`. **Regressions in 3/3 (passed before): `k09`** ("Pix por aproximação não aparece na maquininha" goes to
+  `diagnose_terminal`) **and `u03`** ("erro 05 na tela de configuração de rede": answered with the decline catalogue's
+  "05 = Não Autorizada", a wrong answer; the deterministic checks pass it, the judge grounds it on the wrong tool's output,
+  only the judge's abstention metric flags it). Answer check: 234/234 `passed`, no revision. Web results classifier: one
+  `search_web` call per run, `allow`. Classifier `ok` in every call, `guardrail_degraded` never set.
+- `rh-1`..`rh-3` (same day): 23/24 (routing 24/24; `r04` answered in Portuguese once). The holdout had no "terminal
+  function" or "screen error" near-miss, so it could not see `k09`/`u03`.
+- Human validation (author's `answers.csv`, blind; reviewer's reference equal field by field): checks pass 90.0% of the sample,
+  author finds 96.7% acceptable; route vs label 25/27 (kappa 0.87), abstain vs label 24/26 (0.75), acceptable vs checks 28/30
+  (0.47), acceptable vs judge 28/30 (-0.03, prevalence: almost all acceptable), abstained vs judge 29/30 (0.91), grounding 30/30
+  equal (all 5, does not discriminate). No answer passed by the checks was rejected by the author. After seeing the
+  disagreements the author corrected three of his own answers (`h24` route `ambos`, `h30` not acceptable, `h07` grounding 3):
+  kept as a separate `answers_revisado.csv`, reported next to the blind one, with the selection bias stated (only
+  disagreements were re-read). Reviewer observations: the `u01` label ("uncovered") is probably wrong (author and judge find the
+  evidence answers it; kept to preserve comparability); `m01` says "esta informação vem do site global" with two
+  `site.getnet.com.br` sources, missed by author and judge.
+- Decision (the user delegated it to the reviewer): fix `k09`/`u03` before closing, so Phase 12 takes six sub-phases instead
+  of five. 12E is the boundary fix; 12F closes.
+- Planning 12E: the second holdout `data/eval/cases_routing_holdout2.jsonl` (12 cases: 4 terminal-function questions for the
+  Knowledge Agent, 3 screen errors that must not use the decline catalogue, 3 decline codes in terminal words, 2 terminal
+  connectivity problems) was written before the new descriptions; both are the reviewer's, written knowing `k09` and `u03`, so
+  the README states it is not an independent measurement. Only the two delegation descriptions change and
+  `diagnose_declined_transaction` gains a two-line exclusion (its examples stay). 12D `D2.tool_descriptions` is superseded and
+  re-checked as 12E `E3`.
+
+**Current phase: 12E** (description boundaries for terminal functions and screen errors), model Orchestrator (Argon), prompt
+`docs/phase-prompts/12E.md`, verifier `scripts/verify_phase12e.py`. After the 12E commit the author runs, once each:
+`v2-7`..`v2-9` on `cases_v2.jsonl` with the judge, `rh-4`..`rh-6` on `cases_routing_holdout.jsonl` and `rh2-1`..`rh2-3` on
+`cases_routing_holdout2.jsonl` (no judge).
 
 **Free-tier quota (user's AI Studio page, 2026-11-07):** "Gemini 3.6 Flash" (what `gemini-3.5-flash` now serves)
 5 RPM / 20 RPD; `gemini-3.5-flash-lite` 15 RPM / 500 RPD; `gemini-3.1-flash-lite` 15 RPM / 500 RPD (separate quota);
@@ -1399,7 +1436,7 @@ re-run or edited; new runs get new ids.
 - *Housekeeping.* The `openai`/`anthropic` branches are removed (12A). The demo PTAX transcript becomes `v2-2` `d04`; the
   invented collection dates go to "Limitações"; "Autoria e revisão" says phases up to 11 were implemented with Gemini 3.8 Flash
   and from 12 with Gemini 4 Hydrogen (12E).
-**Split (12B-12E provisional):**
+**Split (12B-12F provisional; 12F added after the 12D runs, see Current state):**
 - 12A (High; checked by `scripts/verify_phase12a.py`): `src/eval/human_validation.py` (sample, form, answer parsing, agreement,
   report) and the CLI `human-sample` / `human-agreement`; `reports/human_validation/{sample.json, form.md,
   answers_template.csv}` generated and committed (no answers, no agreement report yet); reviewer file
@@ -1426,9 +1463,15 @@ re-run or edited; new runs get new ids.
   `GUARDRAIL_WEB_RESULTS_ENABLED`), metric `getnet_answer_checks_total`, record and `/chat` fields `answer_check` and
   `web_guardrail`, `_trim_history` that never raises, tests. Reviewer file `src/prompts/guardrail_web_classifier.md`. Then the
   user runs `v2-4`..`v2-6` (with judge), `rh-1`..`rh-3` on the routing holdout, and fills `answers.csv`.
-- 12E (High): records committed as written, reports generated (retrieval hybrid, v2 comparison before/after, routing holdout,
-  human agreement), README dictated by the reviewer (results, new sections, housekeeping above), STATUS. Outside the repository:
-  the reply to feedback v2 in first person, saved in the project as `claude/nota-resposta-feedback-v4-v2.md`.
+- 12E (Orchestrator (Argon); checked by `scripts/verify_phase12e.py`; added after the 12D runs, see Current state):
+  `ask_knowledge_agent` covers how to use, enable or find a terminal function; `ask_support_agent` says a technical terminal
+  diagnosis (connection, signal, Wi-Fi) and that an error shown on a configuration, network, update or start-up screen is not a
+  decline code; `diagnose_declined_transaction` gains the same exclusion; `tests/test_tool_descriptions.py`. Reviewer file
+  `data/eval/cases_routing_holdout2.jsonl`. Then the user runs `v2-7..9` (judge), `rh-4..6` and `rh2-1..3`.
+- 12F (closing): records committed as written, reports generated (retrieval hybrid, v2 comparison 11G / 12D / 12E, both routing
+  holdouts, human agreement blind and revised), README dictated by the reviewer (results, new sections, housekeeping above, an
+  authorship line that says which README parts the reviewer dictated), STATUS. Outside the repository: the reply to feedback v2
+  in first person, saved in the project as `claude/nota-resposta-feedback-v4-v2.md`.
 **Acceptance:**
 - AC12.1 The human sample, its form and the routing holdout are committed before the author's answers and before the routing
   change; the agreement is reported as it came out, with intervals.
@@ -1439,3 +1482,4 @@ re-run or edited; new runs get new ids.
 - AC12.4 Account tools refuse to run when the classifier is unavailable; web results pass the classifier before the model.
 - AC12.5 Every final answer passes the answer check or is revised/replaced, and the outcome is recorded.
 - AC12.6 Every new README claim has evidence in the repository; no product model change; `docs/DECISIONS.md` unchanged.
+- AC12.7 The routing change is measured on `cases_v2.jsonl` and on both holdouts, and every regression it causes is reported.

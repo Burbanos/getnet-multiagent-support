@@ -52,6 +52,8 @@ def diagnose_declined_transaction(error_code: str | None = None, config: Runnabl
     - Transação recusada ou venda não aprovada no cartão
     - Código de erro de recusa (ex: Código 51 saldo insuficiente, Código 05 não autorizada)
     - Dúvidas sobre o motivo de recusa pelo banco emissor e o que fazer
+    Não use para erros exibidos em telas de configuração, rede, atualização ou inicialização da maquininha:
+    o catálogo cobre só códigos de recusa de transação de cartão.
 
     Args:
         error_code: Código numérico opcional da recusa (ex: '51').
