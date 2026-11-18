@@ -3,6 +3,7 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,10 @@ from langgraph.graph import END, START, StateGraph
 from src.agents.answer_check import check_answer
 from src.agents.guardrails import ATTACK_REFUSAL, INJECTION_REFUSAL, GuardrailAgent
 from src.agents.injection_classifier import WEB_PROMPT_PATH, InjectionClassifier
+from src.agents.language import LanguageRewriter, detect_reply_language, preserved_tokens
+from src.agents.planner import Planner
 from src.agents.specialists import SpecialistAgent
+from src.agents.verifier import Verifier
 from src.config import settings
 from src.core import metrics
 from src.core.checkpointer import build_checkpointer
@@ -102,8 +106,80 @@ ANSWER_REVISION_INSTRUCTION = (
     "appear in tool results of this conversation, mention only ticket ids that a tool returned, and do not promise when "
     "anyone will reply or act. Do not call tools. Reply with the answer text only."
 )
+OUT_OF_SCOPE_MESSAGE = {
+    "pt": (
+        "Esse pedido está fora do que eu posso atender aqui. Posso ajudar com produtos e serviços da Getnet, "
+        "com a sua conta (vendas, depósitos, transações recusadas e maquininha), com clima, câmbio (PTAX) e "
+        "notícias sobre pagamentos."
+    ),
+    "en": (
+        "That request is outside what I can help with here. I can help with Getnet products and services, "
+        "your account (sales, deposits, declined transactions and card machine), weather, exchange rates (PTAX) "
+        "and payments news."
+    ),
+}
+VERIFIER_ABSTENTION_MESSAGE = {
+    "pt": (
+        "Não consegui confirmar essa resposta nas fontes disponíveis, então prefiro não respondê-la. "
+        "Se quiser, posso abrir um chamado para a equipe de atendimento humano."
+    ),
+    "en": (
+        "I could not confirm this answer against the available sources, so I would rather not answer it. "
+        "If you want, I can open a request with our human support team."
+    ),
+}
+MAX_EVIDENCE_ITEM_CHARS = 4000
+MAX_EVIDENCE_TOTAL_CHARS = 12000
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
+
+
+def _accumulate_tokens(
+    tba: dict[str, dict[str, int]] | None,
+    agent_key: str,
+    usage: dict[str, Any] | None,
+) -> tuple[dict[str, dict[str, int]] | None, dict[str, int] | None]:
+    if not usage:
+        if not tba:
+            return tba, None
+        return tba, {
+            "input_tokens": sum(v["input_tokens"] for v in tba.values()),
+            "output_tokens": sum(v["output_tokens"] for v in tba.values()),
+            "total_tokens": sum(v["total_tokens"] for v in tba.values()),
+        }
+    inp = int(usage.get("input_tokens") or 0)
+    out = int(usage.get("output_tokens") or 0)
+    tot = int(usage.get("total_tokens") if usage.get("total_tokens") is not None else (inp + out))
+    tba_dict = dict(tba) if tba is not None else {}
+    cur = tba_dict.get(agent_key, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+    tba_dict[agent_key] = {
+        "input_tokens": cur["input_tokens"] + inp,
+        "output_tokens": cur["output_tokens"] + out,
+        "total_tokens": cur["total_tokens"] + tot,
+    }
+    tokens = {
+        "input_tokens": sum(v["input_tokens"] for v in tba_dict.values()),
+        "output_tokens": sum(v["output_tokens"] for v in tba_dict.values()),
+        "total_tokens": sum(v["total_tokens"] for v in tba_dict.values()),
+    }
+    return tba_dict, tokens
+
+
+def _latest_merchant_message_index(messages: Sequence[BaseMessage]) -> int | None:
+    for idx in range(len(messages) - 1, -1, -1):
+        msg = messages[idx]
+        if isinstance(msg, HumanMessage):
+            extra = getattr(msg, "additional_kwargs", None) or {}
+            if extra.get("origin") != "operator":
+                return idx
+    return None
+
+
+def _latest_ai_message(messages: Sequence[BaseMessage]) -> AIMessage | None:
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
+            return msg
+    return None
 
 
 def load_supervisor_prompt() -> str:
@@ -129,6 +205,9 @@ class OrchestrationGraph:
         fallback_model: BaseChatModel | None = None,
         checkpointer: Any | None = None,
         guardrail_model: BaseChatModel | None = None,
+        planner_model: BaseChatModel | None = None,
+        verifier_model: BaseChatModel | None = None,
+        rewrite_model: BaseChatModel | None = None,
     ):
         self.guardrail_agent = GuardrailAgent()
         self.chat_model: BaseChatModel | None = chat_model
@@ -145,6 +224,18 @@ class OrchestrationGraph:
         else:
             self.injection_classifier = None
             web_classifier = None
+
+        self.planner: Planner | None = (
+            Planner(planner_model) if planner_model is not None else (Planner() if chat_model is None else None)
+        )
+        self.verifier: Verifier | None = (
+            Verifier(verifier_model) if verifier_model is not None else (Verifier() if chat_model is None else None)
+        )
+        self.language_rewriter: LanguageRewriter | None = (
+            LanguageRewriter(rewrite_model)
+            if rewrite_model is not None
+            else (LanguageRewriter() if chat_model is None else None)
+        )
         self._bound_model: Any = None
         self._bound_fallback: Any = None
 
@@ -203,10 +294,14 @@ class OrchestrationGraph:
         builder.add_node("operator_resume", self._wrap_node("operator_resume", self._operator_resume_node))
         builder.add_node("handoff_gate", self._wrap_node("handoff_gate", self._handoff_gate_node))
         builder.add_node("guardrail_classifier", self._wrap_node("guardrail_classifier", self._guardrail_classifier_node))
+        builder.add_node("planner", self._wrap_node("planner", self._planner_node))
+        builder.add_node("out_of_scope", self._wrap_node("out_of_scope", self._out_of_scope_node))
         builder.add_node("supervisor", self._wrap_node("supervisor", self._supervisor_node))
         builder.add_node("tools", self._wrap_node("tools", self._tools_node))
         builder.add_node("force_escalation", self._wrap_node("force_escalation", self._force_escalation_node))
+        builder.add_node("verifier", self._wrap_node("verifier", self._verifier_node))
         builder.add_node("answer_check", self._wrap_node("answer_check", self._answer_check_node))
+        builder.add_node("language_check", self._wrap_node("language_check", self._language_check_node))
         builder.add_node("abstention_check", self._wrap_node("abstention_check", self._abstention_check_node))
 
         # 2. Add Edges
@@ -242,10 +337,20 @@ class OrchestrationGraph:
             "guardrail_classifier",
             self._guardrail_classifier_condition,
             {
-                "continue": "supervisor",
+                "continue": "planner",
                 "stop": END,
             },
         )
+
+        builder.add_conditional_edges(
+            "planner",
+            self._planner_condition,
+            {
+                "out_of_scope": "out_of_scope",
+                "supervisor": "supervisor",
+            },
+        )
+        builder.add_edge("out_of_scope", END)
 
         builder.add_conditional_edges(
             "supervisor",
@@ -253,14 +358,24 @@ class OrchestrationGraph:
             {
                 "tools": "tools",
                 "force_escalation": "force_escalation",
-                "end": "answer_check",
+                "verifier": "verifier",
             },
         )
 
         # ReAct observation loop: from tools back to supervisor
         builder.add_edge("tools", "supervisor")
         builder.add_edge("force_escalation", END)
-        builder.add_edge("answer_check", "abstention_check")
+
+        builder.add_conditional_edges(
+            "verifier",
+            self._verifier_condition,
+            {
+                "supervisor": "supervisor",
+                "answer_check": "answer_check",
+            },
+        )
+        builder.add_edge("answer_check", "language_check")
+        builder.add_edge("language_check", "abstention_check")
         builder.add_edge("abstention_check", END)
 
         return builder.compile(checkpointer=self.checkpointer)
@@ -606,6 +721,277 @@ class OrchestrationGraph:
 
         return {"consecutive_abstentions": current_count}
 
+    def _planner_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Classify turn language, scope, escalation request, and up to 4 sub-steps."""
+        if not settings.PLANNER_ENABLED or self.planner is None:
+            plan_meta: dict[str, Any] = {
+                "status": "disabled",
+                "reply_language": None,
+                "scope": None,
+                "escalation_request": None,
+                "steps": None,
+                "error_type": None,
+                "latency_ms": None,
+                "model": None,
+            }
+            metrics.inc_planner("disabled")
+            logger.info("planner finished", extra={"status": "disabled"})
+            return {"plan": plan_meta}
+
+        messages = list(state.get("messages") or [])
+        merchant_idx = _latest_merchant_message_index(messages)
+        latest_msg = _get_message_text(messages[merchant_idx]) if merchant_idx is not None else ""
+
+        previous_reply: str | None = None
+        if merchant_idx is not None and merchant_idx > 0:
+            for prev in reversed(messages[:merchant_idx]):
+                if isinstance(prev, AIMessage) and not getattr(prev, "tool_calls", None):
+                    candidate = _get_message_text(prev).strip()
+                    if candidate:
+                        previous_reply = candidate
+                        break
+
+        result = self.planner.plan(latest_msg, previous_reply)
+        plan_meta = result.as_metadata()
+        tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "Planner", result.usage)
+        metrics.inc_planner(result.status)
+        step_count = len(plan_meta["steps"]) if isinstance(plan_meta.get("steps"), list) else 0
+        logger.info(
+            "Planner decision "
+            f"(status={result.status}, scope={plan_meta['scope']}, "
+            f"reply_language={plan_meta['reply_language']}, "
+            f"escalation_request={plan_meta['escalation_request']}, steps={step_count})",
+            extra={"status": result.status, "latency_ms": result.latency_ms},
+        )
+        return {
+            "plan": plan_meta,
+            "tokens_by_agent": tba,
+            "tokens": tokens,
+        }
+
+    def _planner_condition(self, state: SupervisorState) -> str:
+        """Route to fixed out-of-scope reply only when planner explicitly returned status='ok' & scope='out_of_scope'."""
+        plan = state.get("plan") or {}
+        if plan.get("status") == "ok" and plan.get("scope") == "out_of_scope":
+            return "out_of_scope"
+        return "supervisor"
+
+    def _out_of_scope_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Return fixed bilingual scope refusal without calling the supervisor or tools."""
+        plan = state.get("plan") or {}
+        lang = plan.get("reply_language")
+        key = lang if lang in OUT_OF_SCOPE_MESSAGE else "pt"
+        reply = OUT_OF_SCOPE_MESSAGE[key]
+        return {
+            "messages": [AIMessage(content=reply, id=str(uuid.uuid4()))],
+            "final_response": reply,
+        }
+
+    def _verifier_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Validate supervisor draft against plan steps and current-turn tool evidence before sending."""
+        plan = state.get("plan") or {}
+        steps = plan.get("steps") or []
+        replans = int(state.get("replans") or 0)
+        prev_ver = state.get("verification") or {}
+        rounds = list(prev_ver.get("rounds") or [])
+
+        if not settings.VERIFIER_ENABLED or self.verifier is None:
+            metrics.inc_verifier("disabled")
+            logger.info("verifier finished", extra={"status": "disabled"})
+            return {
+                "verification": {"status": "disabled", "replans": replans, "rounds": rounds, "error_type": None},
+                "verification_feedback": None,
+            }
+
+        if plan.get("status") != "ok" or not steps or state.get("ticket") or state.get("handoff"):
+            metrics.inc_verifier("skipped")
+            logger.info("verifier finished", extra={"status": "skipped"})
+            return {
+                "verification": {"status": "skipped", "replans": replans, "rounds": rounds, "error_type": None},
+                "verification_feedback": None,
+            }
+
+        messages = list(state.get("messages") or [])
+        merchant_idx = _latest_merchant_message_index(messages)
+        latest_msg = _get_message_text(messages[merchant_idx]) if merchant_idx is not None else ""
+        draft_msg = _latest_ai_message(messages)
+        draft_text = _get_message_text(draft_msg).strip() if draft_msg is not None else ""
+        if not draft_text:
+            metrics.inc_verifier("skipped")
+            logger.info("verifier finished", extra={"status": "skipped"})
+            return {
+                "verification": {"status": "skipped", "replans": replans, "rounds": rounds, "error_type": None},
+                "verification_feedback": None,
+            }
+
+        ev_start = (merchant_idx + 1) if merchant_idx is not None else 0
+        ev_parts = [
+            _get_message_text(m)[:MAX_EVIDENCE_ITEM_CHARS]
+            for m in messages[ev_start:]
+            if isinstance(m, ToolMessage)
+        ]
+        evidence = "\n".join(ev_parts)[:MAX_EVIDENCE_TOTAL_CHARS]
+
+        result = self.verifier.verify(latest_msg, steps, evidence, draft_text)
+        tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "Verifier", result.usage)
+
+        if result.status in ("invalid", "error"):
+            metrics.inc_verifier(result.status)
+            logger.info("verifier finished", extra={"status": result.status, "latency_ms": result.latency_ms})
+            return {
+                "verification": {
+                    "status": result.status,
+                    "replans": replans,
+                    "rounds": rounds,
+                    "error_type": result.error_type,
+                },
+                "verification_feedback": None,
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        rounds.append(result.verdicts)
+        if not result.failures:
+            final_status = "passed_after_replan" if replans >= 1 else "passed"
+            metrics.inc_verifier(final_status)
+            logger.info("verifier finished", extra={"status": final_status, "latency_ms": result.latency_ms})
+            return {
+                "verification": {
+                    "status": final_status,
+                    "replans": replans,
+                    "rounds": rounds,
+                    "error_type": None,
+                },
+                "verification_feedback": None,
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        draft_id = getattr(draft_msg, "id", None) if draft_msg is not None else None
+        if replans == 0:
+            feedback_lines = [
+                f"step {f['step']}: {f['verdict']} — {f.get('note', '')}" for f in result.failures
+            ]
+            feedback = "\n".join(feedback_lines)
+            removals = [RemoveMessage(id=draft_id)] if draft_id else []
+            metrics.inc_verifier("replanning")
+            logger.info("verifier finished", extra={"status": "replanning", "latency_ms": result.latency_ms})
+            return {
+                "messages": removals,
+                "verification": {
+                    "status": "replanning",
+                    "replans": 1,
+                    "rounds": rounds,
+                    "error_type": None,
+                },
+                "verification_feedback": feedback,
+                "replans": 1,
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        lang = plan.get("reply_language")
+        abstain_key = lang if lang in VERIFIER_ABSTENTION_MESSAGE else "pt"
+        abstain_text = VERIFIER_ABSTENTION_MESSAGE[abstain_key]
+        msg_id = draft_id or str(uuid.uuid4())
+        metrics.inc_verifier("abstained")
+        logger.info("verifier finished", extra={"status": "abstained", "latency_ms": result.latency_ms})
+        return {
+            "messages": [AIMessage(content=abstain_text, id=msg_id)],
+            "final_response": abstain_text,
+            "verification": {
+                "status": "abstained",
+                "replans": replans,
+                "rounds": rounds,
+                "error_type": None,
+            },
+            "verification_feedback": None,
+            "tokens_by_agent": tba,
+            "tokens": tokens,
+        }
+
+    def _verifier_condition(self, state: SupervisorState) -> str:
+        """Loop back once to supervisor when replanning, else continue to answer_check."""
+        status = (state.get("verification") or {}).get("status")
+        return "supervisor" if status == "replanning" else "answer_check"
+
+    def _language_check_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Verify final reply language matches target and rewrite once with token preservation if needed."""
+        if not settings.LANGUAGE_ENFORCEMENT_ENABLED or self.language_rewriter is None:
+            metrics.inc_language_enforcement("disabled")
+            logger.info("language check finished", extra={"status": "disabled"})
+            return {"language": {"status": "disabled", "target": None, "detected": None}}
+
+        ac_status = (state.get("answer_check") or {}).get("status")
+        if ac_status not in ("passed", "revised"):
+            metrics.inc_language_enforcement("skipped")
+            logger.info("language check finished", extra={"status": "skipped"})
+            return {"language": {"status": "skipped", "target": None, "detected": None}}
+
+        messages = list(state.get("messages") or [])
+        plan = state.get("plan") or {}
+        if plan.get("status") == "ok" and plan.get("reply_language") in ("pt", "en"):
+            target: str | None = plan["reply_language"]
+        else:
+            merchant_idx = _latest_merchant_message_index(messages)
+            latest_msg = _get_message_text(messages[merchant_idx]) if merchant_idx is not None else ""
+            inferred = detect_reply_language(latest_msg)
+            target = inferred if inferred in ("pt", "en") else None
+
+        if target is None:
+            metrics.inc_language_enforcement("undetermined")
+            logger.info("language check finished", extra={"status": "undetermined"})
+            return {"language": {"status": "undetermined", "target": None, "detected": None}}
+
+        last_msg = _latest_ai_message(messages)
+        reply_text = _get_message_text(last_msg).strip() if last_msg is not None else ""
+        detected = detect_reply_language(reply_text)
+
+        if detected == target:
+            metrics.inc_language_enforcement("ok")
+            logger.info("language check finished", extra={"status": "ok"})
+            return {"language": {"status": "ok", "target": target, "detected": detected}}
+
+        if detected not in ("pt", "en"):
+            metrics.inc_language_enforcement("undetermined")
+            logger.info("language check finished", extra={"status": "undetermined"})
+            return {"language": {"status": "undetermined", "target": target, "detected": detected}}
+
+        rw_res = self.language_rewriter.rewrite(reply_text, target)
+        tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "LanguageRewriter", rw_res.usage)
+
+        if rw_res.status == "error" or not rw_res.text:
+            metrics.inc_language_enforcement("error")
+            logger.info("language check finished", extra={"status": "error", "latency_ms": rw_res.latency_ms})
+            return {
+                "language": {"status": "error", "target": target, "detected": detected},
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        orig_toks = preserved_tokens(reply_text)
+        new_toks = preserved_tokens(rw_res.text)
+        new_lang = detect_reply_language(rw_res.text)
+        if orig_toks <= new_toks and new_lang == target:
+            msg_id = (getattr(last_msg, "id", None) if last_msg is not None else None) or str(uuid.uuid4())
+            metrics.inc_language_enforcement("rewritten")
+            logger.info("language check finished", extra={"status": "rewritten", "latency_ms": rw_res.latency_ms})
+            return {
+                "messages": [AIMessage(content=rw_res.text, id=msg_id)],
+                "final_response": rw_res.text,
+                "language": {"status": "rewritten", "target": target, "detected": detected},
+                "tokens_by_agent": tba,
+                "tokens": tokens,
+            }
+
+        metrics.inc_language_enforcement("rewrite_rejected")
+        logger.info("language check finished", extra={"status": "rewrite_rejected", "latency_ms": rw_res.latency_ms})
+        return {
+            "language": {"status": "rewrite_rejected", "target": target, "detected": detected},
+            "tokens_by_agent": tba,
+            "tokens": tokens,
+        }
+
     def _supervisor_node(self, state: SupervisorState) -> dict[str, Any]:
         """
         Supervisor reasoning step: invokes the model with supervisor prompt and bound tools.
@@ -613,6 +999,23 @@ class OrchestrationGraph:
         """
         bound_model, bound_fallback = self._get_bound_models()
         system_prompt = load_supervisor_prompt()
+        plan = state.get("plan") or {}
+        if plan.get("status") == "ok":
+            steps = plan.get("steps") or []
+            steps_text = "\n".join(
+                f"{idx}. {step.get('delegate', 'none')}: {step.get('goal', '')}"
+                for idx, step in enumerate(steps, start=1)
+            ) or "(none)"
+            system_prompt += (
+                "\n\n[Plan for this turn]\n"
+                f"reply_language: {plan.get('reply_language')}\n"
+                f"escalation_request: {plan.get('escalation_request')}\n"
+                f"steps:\n{steps_text}"
+            )
+        feedback = state.get("verification_feedback")
+        if feedback:
+            system_prompt += f"\n\n[Verification before sending]\n{feedback}"
+
         full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
         trace_id = state.get("trace_id", "")
 
@@ -623,6 +1026,8 @@ class OrchestrationGraph:
             trace_id=trace_id,
             caller_name="Supervisor",
         )
+        if not getattr(ai_message, "id", None):
+            ai_message = ai_message.model_copy(update={"id": str(uuid.uuid4())})
 
         model_used = extract_model_name(active_model)
 
@@ -636,28 +1041,11 @@ class OrchestrationGraph:
 
         current_steps = state.get("supervisor_steps", 0) + 1
 
-        tba = state.get("tokens_by_agent")
-        u = getattr(ai_message, "usage_metadata", None)
-        if u:
-            inp = u.get("input_tokens", 0)
-            out = u.get("output_tokens", 0)
-            tot = u.get("total_tokens", inp + out)
-            tba_dict = dict(tba) if tba is not None else {}
-            cur = tba_dict.get("SupervisorAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
-            tba_dict["SupervisorAgent"] = {
-                "input_tokens": cur["input_tokens"] + inp,
-                "output_tokens": cur["output_tokens"] + out,
-                "total_tokens": cur["total_tokens"] + tot,
-            }
-            tba = tba_dict
-
-        tokens = None
-        if tba:
-            tokens = {
-                "input_tokens": sum(v["input_tokens"] for v in tba.values()),
-                "output_tokens": sum(v["output_tokens"] for v in tba.values()),
-                "total_tokens": sum(v["total_tokens"] for v in tba.values()),
-            }
+        tba, tokens = _accumulate_tokens(
+            state.get("tokens_by_agent"),
+            "SupervisorAgent",
+            getattr(ai_message, "usage_metadata", None),
+        )
 
         return {
             "messages": [ai_message],
@@ -679,7 +1067,7 @@ class OrchestrationGraph:
                 if current_steps >= settings.MAX_SUPERVISOR_STEPS:
                     return "force_escalation"
                 return "tools"
-        return "end"
+        return "verifier"
 
     def _answer_check_node(self, state: SupervisorState) -> dict[str, Any]:
         """Validate the supervisor's final reply against consulted evidence before abstention_check."""
@@ -908,6 +1296,7 @@ class OrchestrationGraph:
         api_results = list(state.get("api_results", []))
         web_guardrail = list(state.get("web_guardrail", []))
         ticket = state.get("ticket")
+        escalation_gate = state.get("escalation_gate")
         agents_used = list(state.get("agents_used", ["SupervisorAgent"]))
 
         user_id = state["user_id"]
@@ -1027,38 +1416,65 @@ class OrchestrationGraph:
                             api_results.extend(spec_res["api_results"])
 
                 elif tool_name == "escalate_to_human":
-                    escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
-                    if escalate_fn:
-                        try:
-                            result_str = escalate_fn.invoke(
-                                tool_args,
-                                config={
-                                    "configurable": {
-                                        "user_id": user_id,
-                                        "session_id": state["session_id"],
-                                        "transcript": transcript_snapshot(state["messages"]),
-                                    }
-                                },
-                            )
-                        except Exception as e:  # noqa: BLE001
-                            call_status = "error"
-                            logger.error(f"Error executing escalate_to_human: {type(e).__name__}")
-                            result_str = json.dumps({"status": "error", "error": "ticket_persistence_failed"})
+                    plan = state.get("plan") or {}
+                    allow_escalation = True
+                    if plan.get("status") == "ok":
+                        esc_req = plan.get("escalation_request")
+                        if esc_req == "none":
+                            allow_escalation = False
+                            escalation_gate = {"decision": "rejected", "escalation_request": "none"}
+                            metrics.inc_escalation_gate("rejected")
+                            gate_payload = {
+                                "status": "needs_merchant_request",
+                                "message": (
+                                    "No ticket was opened: in this turn the merchant did not ask for a person or a "
+                                    "ticket, did not file a formal complaint and did not accept an offer to open one."
+                                ),
+                            }
+                            result_str = json.dumps(gate_payload, ensure_ascii=False)
+                            t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                            tool_messages.append(t_msg)
+                            tool_results.append(gate_payload)
+                        else:
+                            escalation_gate = {"decision": "allowed", "escalation_request": esc_req}
+                            metrics.inc_escalation_gate("allowed")
+                    else:
+                        escalation_gate = {"decision": "allowed_no_plan", "escalation_request": None}
+                        metrics.inc_escalation_gate("allowed_no_plan")
 
-                        tools_used.append("escalate_to_human")
-                        t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
-                        tool_messages.append(t_msg)
+                    if allow_escalation:
+                        escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
+                        if escalate_fn:
+                            try:
+                                result_str = escalate_fn.invoke(
+                                    tool_args,
+                                    config={
+                                        "configurable": {
+                                            "user_id": user_id,
+                                            "session_id": state["session_id"],
+                                            "transcript": transcript_snapshot(state["messages"]),
+                                        }
+                                    },
+                                )
+                            except Exception as e:  # noqa: BLE001
+                                call_status = "error"
+                                logger.error(f"Error executing escalate_to_human: {type(e).__name__}")
+                                result_str = json.dumps({"status": "error", "error": "ticket_persistence_failed"})
 
-                        try:
-                            parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
-                            if isinstance(parsed, dict):
-                                if parsed.get("status") == "error" or "error" in parsed:
-                                    call_status = "error"
-                                if parsed.get("ticket_id"):
-                                    ticket = parsed
-                                tool_results.append(parsed)
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+                            tools_used.append("escalate_to_human")
+                            t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                            tool_messages.append(t_msg)
+
+                            try:
+                                parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
+                                if isinstance(parsed, dict):
+                                    if parsed.get("status") == "error" or "error" in parsed:
+                                        call_status = "error"
+                                    if parsed.get("ticket_id"):
+                                        ticket = parsed
+                                    tool_results.append(parsed)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
 
                 else:
                     call_status = "error"
@@ -1099,6 +1515,7 @@ class OrchestrationGraph:
             "api_results": api_results,
             "web_guardrail": web_guardrail,
             "ticket": ticket,
+            "escalation_gate": escalation_gate,
             "tokens_by_agent": tba,
             "tokens": tokens,
             "knowledge_outcomes": knowledge_outcomes,
@@ -1222,6 +1639,10 @@ class OrchestrationGraph:
                 guardrail=result.get("guardrail"),
                 answer_check=result.get("answer_check"),
                 web_guardrail=result.get("web_guardrail", []),
+                plan=result.get("plan"),
+                verification=result.get("verification"),
+                language=result.get("language"),
+                escalation_gate=result.get("escalation_gate"),
                 agents_used=result.get("agents_used", ["SupervisorAgent"]),
                 tools_used=result.get("tools_used", []),
                 tool_calls=result.get("tool_calls", []),
@@ -1272,6 +1693,12 @@ class OrchestrationGraph:
             "guardrail_degraded": False,
             "answer_check": None,
             "web_guardrail": [],
+            "plan": None,
+            "verification": None,
+            "verification_feedback": None,
+            "replans": 0,
+            "language": None,
+            "escalation_gate": None,
             "agents_used": ["SupervisorAgent"],
             "tools_used": [],
             "tool_calls": [],

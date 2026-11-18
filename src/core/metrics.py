@@ -36,6 +36,27 @@ GUARDRAIL_DECISIONS: frozenset[str] = frozenset({
 
 NOTIFICATION_STATUSES: frozenset[str] = frozenset({"sent", "failed", "disabled"})
 ANSWER_CHECK_STATUSES: frozenset[str] = frozenset({"passed", "revised", "fallback", "skipped"})
+PLANNER_STATUSES: frozenset[str] = frozenset({"ok", "invalid", "error", "disabled"})
+VERIFIER_STATUSES: frozenset[str] = frozenset({
+    "passed",
+    "passed_after_replan",
+    "replanning",
+    "abstained",
+    "invalid",
+    "error",
+    "skipped",
+    "disabled",
+})
+LANGUAGE_STATUSES: frozenset[str] = frozenset({
+    "ok",
+    "rewritten",
+    "rewrite_rejected",
+    "error",
+    "undetermined",
+    "skipped",
+    "disabled",
+})
+ESCALATION_GATE_DECISIONS: frozenset[str] = frozenset({"allowed", "rejected", "allowed_no_plan"})
 
 # Cumulative histogram bucket thresholds
 LATENCY_BUCKETS: tuple[float, ...] = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
@@ -53,6 +74,10 @@ _tokens: dict[str, int] = {"input": 0, "output": 0}
 _guardrail_decisions: dict[str, int] = {}
 _notifications: dict[str, int] = {}
 _answer_checks: dict[str, int] = {}
+_planner_outcomes: dict[str, int] = {}
+_verifier_outcomes: dict[str, int] = {}
+_language_outcomes: dict[str, int] = {}
+_escalation_gate_decisions: dict[str, int] = {}
 _rate_limit_backend_errors_total: int = 0
 
 
@@ -74,6 +99,10 @@ def reset() -> None:
         _guardrail_decisions.clear()
         _notifications.clear()
         _answer_checks.clear()
+        _planner_outcomes.clear()
+        _verifier_outcomes.clear()
+        _language_outcomes.clear()
+        _escalation_gate_decisions.clear()
         _rate_limit_backend_errors_total = 0
 
 
@@ -134,6 +163,34 @@ def inc_answer_check(status: str) -> None:
     norm = status if status in ANSWER_CHECK_STATUSES else "unknown"
     with _lock:
         _answer_checks[norm] = _answer_checks.get(norm, 0) + 1
+
+
+def inc_planner(status: str) -> None:
+    """Increment the turn planner outcome counter."""
+    norm = status if status in PLANNER_STATUSES else "unknown"
+    with _lock:
+        _planner_outcomes[norm] = _planner_outcomes.get(norm, 0) + 1
+
+
+def inc_verifier(status: str) -> None:
+    """Increment the pre-send verifier outcome counter."""
+    norm = status if status in VERIFIER_STATUSES else "unknown"
+    with _lock:
+        _verifier_outcomes[norm] = _verifier_outcomes.get(norm, 0) + 1
+
+
+def inc_language_enforcement(status: str) -> None:
+    """Increment the language enforcement outcome counter."""
+    norm = status if status in LANGUAGE_STATUSES else "unknown"
+    with _lock:
+        _language_outcomes[norm] = _language_outcomes.get(norm, 0) + 1
+
+
+def inc_escalation_gate(decision: str) -> None:
+    """Increment the escalation gate decision counter."""
+    norm = decision if decision in ESCALATION_GATE_DECISIONS else "unknown"
+    with _lock:
+        _escalation_gate_decisions[norm] = _escalation_gate_decisions.get(norm, 0) + 1
 
 
 def inc_rate_limit_error() -> None:
@@ -200,6 +257,34 @@ def render() -> str:
         ])
         for st, count in sorted(_answer_checks.items()):
             lines.append(f'getnet_answer_checks_total{{status="{st}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_planner_total Total number of turn planner outcomes.",
+            "# TYPE getnet_planner_total counter",
+        ])
+        for st, count in sorted(_planner_outcomes.items()):
+            lines.append(f'getnet_planner_total{{status="{st}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_verifier_total Total number of pre-send verifier outcomes.",
+            "# TYPE getnet_verifier_total counter",
+        ])
+        for st, count in sorted(_verifier_outcomes.items()):
+            lines.append(f'getnet_verifier_total{{status="{st}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_language_enforcement_total Total number of language enforcement outcomes.",
+            "# TYPE getnet_language_enforcement_total counter",
+        ])
+        for st, count in sorted(_language_outcomes.items()):
+            lines.append(f'getnet_language_enforcement_total{{status="{st}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_escalation_gate_total Total number of escalation gate decisions.",
+            "# TYPE getnet_escalation_gate_total counter",
+        ])
+        for dec, count in sorted(_escalation_gate_decisions.items()):
+            lines.append(f'getnet_escalation_gate_total{{decision="{dec}"}} {count}')
 
         lines.extend([
             "# HELP getnet_escalations_total Total number of tickets escalated to human.",

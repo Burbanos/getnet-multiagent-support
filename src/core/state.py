@@ -54,6 +54,12 @@ class SupervisorState(TypedDict):
     guardrail_degraded: bool
     answer_check: dict[str, Any] | None
     web_guardrail: list[dict[str, Any]]
+    plan: dict[str, Any] | None
+    verification: dict[str, Any] | None
+    verification_feedback: str | None
+    replans: int
+    language: dict[str, Any] | None
+    escalation_gate: dict[str, Any] | None
 
 
 class AgentState(BaseModel):
@@ -99,6 +105,10 @@ class AgentState(BaseModel):
     guardrail: dict[str, Any] | None = None
     answer_check: dict[str, Any] | None = None
     web_guardrail: list[dict[str, Any]] = Field(default_factory=list)
+    plan: dict[str, Any] | None = None
+    verification: dict[str, Any] | None = None
+    language: dict[str, Any] | None = None
+    escalation_gate: dict[str, Any] | None = None
     error: str | None = None
 
     model_config = {
@@ -138,6 +148,10 @@ class AgentMetadata(BaseModel):
     guardrail: dict[str, Any] | None = None
     answer_check: dict[str, Any] | None = None
     web_guardrail: list[dict[str, Any]] = Field(default_factory=list)
+    plan: dict[str, Any] | None = None
+    verification: dict[str, Any] | None = None
+    language: dict[str, Any] | None = None
+    escalation_gate: dict[str, Any] | None = None
     error: str | None = None
     debug_details: dict[str, Any] = Field(default_factory=dict)
 

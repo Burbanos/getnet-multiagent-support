@@ -73,6 +73,14 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
     ac_copy = copy.deepcopy(raw_ac) if isinstance(raw_ac, dict) else None
     raw_wg = _get_val(state, "web_guardrail", []) or []
     wg_copy = copy.deepcopy(raw_wg) if isinstance(raw_wg, list) else []
+    raw_plan = _get_val(state, "plan")
+    plan_copy = copy.deepcopy(raw_plan) if isinstance(raw_plan, dict) else None
+    raw_ver = _get_val(state, "verification")
+    ver_copy = copy.deepcopy(raw_ver) if isinstance(raw_ver, dict) else None
+    raw_lang = _get_val(state, "language")
+    lang_copy = copy.deepcopy(raw_lang) if isinstance(raw_lang, dict) else None
+    raw_gate = _get_val(state, "escalation_gate")
+    gate_copy = copy.deepcopy(raw_gate) if isinstance(raw_gate, dict) else None
 
     ticket_obj = _get_val(state, "ticket")
     ticket_dict = ticket_obj if isinstance(ticket_obj, dict) else {}
@@ -107,6 +115,10 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
         "guardrail_layer": guardrail_layer(guard),
         "answer_check": ac_copy,
         "web_guardrail": wg_copy,
+        "plan": plan_copy,
+        "verification": ver_copy,
+        "language": lang_copy,
+        "escalation_gate": gate_copy,
         "latency_ms": latency_ms,
     }
 

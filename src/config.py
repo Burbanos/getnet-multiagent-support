@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     GUARDRAIL_ACCOUNT_FAIL_CLOSED: bool = True
     GUARDRAIL_WEB_RESULTS_ENABLED: bool = True
     ANSWER_CHECK_ENABLED: bool = True
+    PLANNER_ENABLED: bool = True
+    VERIFIER_ENABLED: bool = True
+    LANGUAGE_ENFORCEMENT_ENABLED: bool = True
     API_KEYS: str = ""
     RATE_LIMIT_PER_MINUTE: int = 30
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"

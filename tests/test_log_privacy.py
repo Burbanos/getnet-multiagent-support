@@ -112,7 +112,7 @@ def test_tool_logs_have_no_conversation_text(
 
         agent_tools.search_knowledge_base.invoke({"query": f"taxa {MARK}"})
         agent_tools.search_web.invoke({"query": f"clima {MARK}"})
-        agent_tools.diagnose_declined_transaction.invoke({"error_code": MARK}, config=cfg)
+        agent_tools.diagnose_declined_transaction.invoke({"code_context": "declined_sale", "error_code": MARK}, config=cfg)
         agent_tools.diagnose_terminal.invoke({"serial_number": MARK}, config=cfg)
         agent_tools.escalate_to_human.invoke({"reason": f"cliente pediu {MARK}", "priority": "standard"}, config=cfg)
 

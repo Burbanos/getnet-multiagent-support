@@ -76,6 +76,10 @@ class AgentMetadata(BaseModel):
     api_results: list[dict[str, Any]] = Field(default_factory=list, description="Results of the weather and exchange-rate APIs used in the turn")
     answer_check: dict[str, Any] | None = Field(default=None, description="Post-supervisor answer validation outcome")
     web_guardrail: list[dict[str, Any]] = Field(default_factory=list, description="Guardrail screening outcomes for web search results")
+    plan: dict[str, Any] | None = Field(default=None, description="Structured turn planner output")
+    verification: dict[str, Any] | None = Field(default=None, description="Pre-send verifier outcome")
+    language: dict[str, Any] | None = Field(default=None, description="Language enforcement outcome")
+    escalation_gate: dict[str, Any] | None = Field(default=None, description="Escalation gate decision")
     error: str | None = Field(default=None, description="Internal error flag if execution failed")
     debug_details: dict[str, Any] | None = Field(default=None, description="Diagnostic payload")
 
@@ -462,6 +466,10 @@ def chat_endpoint(
                     api_results=getattr(state, "api_results", []) or [],
                     answer_check=getattr(state, "answer_check", None),
                     web_guardrail=getattr(state, "web_guardrail", []) or [],
+                    plan=getattr(state, "plan", None),
+                    verification=getattr(state, "verification", None),
+                    language=getattr(state, "language", None),
+                    escalation_gate=getattr(state, "escalation_gate", None),
                     error=getattr(state, "error", None),
                     debug_details={
                         "session_id": state.session_id or active_session,

@@ -45,7 +45,11 @@ def get_settlement_status(config: RunnableConfig) -> str:
 
 
 @tool
-def diagnose_declined_transaction(error_code: str | None = None, config: RunnableConfig = None) -> str:
+def diagnose_declined_transaction(
+    code_context: Literal["declined_sale", "terminal_screen", "app", "unknown"],
+    error_code: str | None = None,
+    config: RunnableConfig = None,
+) -> str:
     """
     Diagnostica motivos de transações recusadas na maquininha Getnet e orienta o lojista.
     Use sempre que o usuário relatar:
@@ -56,10 +60,36 @@ def diagnose_declined_transaction(error_code: str | None = None, config: Runnabl
     o catálogo cobre só códigos de recusa de transação de cartão.
 
     Args:
+        code_context: Onde o código apareceu: 'declined_sale' (venda/pagamento recusado no cartão),
+            'terminal_screen' (tela da maquininha fora de venda: configuração, rede, Wi-Fi, atualização,
+            inicialização), 'app' (app ou portal Getnet) ou 'unknown' (não informado no pedido).
         error_code: Código numérico opcional da recusa (ex: '51').
     """
+    if code_context in ("terminal_screen", "app"):
+        queried = error_code.strip() if error_code else None
+        logger.info(
+            "[Tool: diagnose_declined_transaction] not_applicable "
+            f"(code_context={code_context}, error_code_given={bool(queried)})"
+        )
+        return json.dumps(
+            {
+                "status": "not_applicable",
+                "code_context": code_context,
+                "queried_code": queried,
+                "reason": (
+                    "o catálogo cobre apenas códigos de recusa de transação de cartão; "
+                    "o código não veio de uma venda recusada"
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: diagnose_declined_transaction] invoked (error_code_given={bool(error_code)})")
+    logger.info(
+        "[Tool: diagnose_declined_transaction] invoked "
+        f"(code_context={code_context}, error_code_given={bool(error_code)})"
+    )
     result = get_declined_transaction_details(user_id=user_id, error_code=error_code)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -178,9 +208,9 @@ def escalate_to_human(
     """
     Registra um chamado formal de transbordo e atendimento humano no banco de dados do sistema.
     Use quando:
-    - O usuário solicitar expressamente falar com atendente, pessoa, especialista ou operador humano
-    - Houver reclamação formal em ouvidoria, Procon ou ação regulatória (use priority='high')
-    - A solicitação do usuário não puder ser resolvida por nenhuma das ferramentas disponíveis
+    - O lojista pede para falar com uma pessoa/atendente ou para abrir um chamado
+    - O lojista registra reclamação formal (Procon, ouvidoria, Banco Central, justiça) (use priority='high')
+    - O lojista aceita a oferta do assistente de abrir um chamado
 
     Args:
         reason: Motivo detalhado do encaminhamento ao time humano de atendimento.

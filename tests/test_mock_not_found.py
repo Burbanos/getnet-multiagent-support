@@ -53,7 +53,7 @@ def test_agent_tool_returns_not_found():
     res_settlement = json.loads(get_settlement_status.invoke({}, config=cfg))
     assert res_settlement == NOT_FOUND
 
-    res_declined = json.loads(diagnose_declined_transaction.invoke({"error_code": "51"}, config=cfg))
+    res_declined = json.loads(diagnose_declined_transaction.invoke({"code_context": "declined_sale", "error_code": "51"}, config=cfg))
     assert res_declined == NOT_FOUND
 
     res_terminal = json.loads(diagnose_terminal.invoke({}, config=cfg))

@@ -66,7 +66,7 @@ SCENARIOS = [
         "id": 8,
         "message": "My card machine is showing a transaction decline error.",
         "expected_tool": "diagnose_declined_transaction",
-        "tool_args": {"error_code": "51"},
+        "tool_args": {"code_context": "declined_sale", "error_code": "51"},
         "expected_data_keywords": ["cliente1988", "51"],
         "user_id": "cliente1988",
     },

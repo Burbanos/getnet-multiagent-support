@@ -14,8 +14,8 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 1. **No fake signals.** No hardcoded confidence, token counts, costs, answers or "passing" metrics. Unmeasured → `null`.
 2. **No regex/keyword routing.** Routing and tool selection are decided by the LLM via function calling. Regex only in the
-   guardrail and PII layers. Validating a tool argument against the conversation (e.g. a quote must be a substring of a merchant
-   message) is argument validation, not routing.
+   guardrail and PII layers. A deterministic gate over an LLM's structured output (e.g. no ticket when the planner found no
+   request for one) is not routing.
 3. **No hardcoded answers.** Every user-facing sentence comes from the LLM grounded on tool output, or from a fixed system
    message that is clearly one (refusal, unavailable, abstention, pending ticket).
 4. **Tests never hit the network or a real LLM.** Scripted chat models, mocked HTTP, `fakeredis`. Tests that need Postgres and
@@ -38,7 +38,16 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 ---
 
-## Current state (2026-11-18, HEAD `431eb1f`, phase 12F, CI green)
+## Current state (2026-11-18)
+
+**13A done** (`66add08` + fix `3a175bd`, CI green on `test`, `integration` and `docker`): checkpoints and tickets in Postgres
+(SQLAlchemy Core; SQLite only for dev and tests), schema setup serialised across replicas by a Postgres advisory lock, Redis
+sliding-window rate limit shared by replicas (per-process fallback, flagged), OpenTelemetry spans per request, node, LLM call
+and tool (attribute allowlist), Compose with two replicas and an `observability` profile (Jaeger, Prometheus, Grafana). The
+reviewer ran `verify_phase13a.py` with real Postgres 16 and Redis 7: 40/40. The verifiers and prompts of phases 1–12 left the
+tree; 13A's leave in 13B.
+
+### Before Phase 13 (HEAD `431eb1f`, phase 12F, CI green)
 
 Reviewer rerun of `scripts/verify_phase12f.py` on Python 3.11.18 before retiring the verifier chain: **75/75** (it re-ran the 58
 earlier verifiers with their superseded lists). That is the last run of the old chain; see "Retired verifiers" below.
@@ -144,29 +153,38 @@ Checked by `scripts/verify_phase13a.py`. No change to graph behaviour, prompts, 
   `DATABASE_URL`) refuses to start.
 - **Process volume:** the old verifiers, phase prompts and `docs/status-history.md` leave the tree.
 
-### 13B — Planner, verifier, language, escalation evidence, decline-catalogue applicability (items 1, 2, 3, 8a) — provisional
+### 13B — Planner, pre-send verification, language, escalation only on request, decline-catalogue applicability (items 1, 2, 3, 8a)
 
-- **Holdout 3** (`data/eval/cases_holdout3.jsonl`, reviewer, committed before any 13B code): English questions of every
-  category, requests where a ticket must not be opened (knowledge gaps, creative/off-topic asks), screen errors close to `u03`,
-  merchant-requested escalations in both languages, and the 13C confirmation flows. Not independent (same reviewer, written
-  knowing the failures); the README says so.
-- **Planner node** before the supervisor: forced structured output (`reply_language` pt|en, `out_of_scope`, sub-tasks with
-  delegate and success criterion). Out of scope → fixed bilingual system message without tools. The plan goes to the
-  supervisor as context; routing stays function calling.
-- **Verifier node** after the supervisor's draft: forced structured output per sub-task (`answered | evidence_does_not_apply |
-  unsupported_claim | not_answered`). Any failure → one replan with the critique; a second failure → abstention with an offer of
-  a human agent. Recorded per turn; tokens counted.
-- **Decline catalogue applicability:** `diagnose_declined_transaction` gains a required typed argument for where the code was
-  shown (`declined_sale | terminal_screen | app | unknown`); outside a declined sale it returns `not_applicable` instead of the
-  catalogue entry.
-- **Language enforcement:** after the answer check, the reply language is detected with `langdetect` (seeded; not the eval's
-  lexicon detector); a mismatch with the plan's language triggers one rewrite that must keep amounts, codes, ticket ids and URLs
-  (checked); the outcome is recorded.
-- **Escalation evidence:** `escalate_to_human` requires `trigger` (`merchant_asked | formal_complaint | cannot_sell_or_receive |
-  merchant_accepted_offer`) and `merchant_quote`, which must be a substring (normalised) of a merchant message of the thread;
-  otherwise the tool returns `needs_merchant_request` and the model offers instead. Automatic escalation after two abstentions
-  becomes an offer; the step-limit escalation stays forced.
-- **Smoke** at the end: holdout 3 once with the product model (author, < US$ 0.10), reported as a smoke, not as a result.
+Checked by `scripts/verify_phase13b.py`; prompt `docs/phase-prompts/13B.md`. Decisions taken while writing it (they replace
+the provisional text of this section):
+- **Holdout 3** (`data/eval/cases_holdout3.jsonl`, 31 cases, reviewer, committed with 13B before any 13B code runs on it):
+  English questions across categories and one language switch, off-topic and knowledge-gap requests where no ticket may be
+  opened, error codes shown outside a declined sale (05, 51, 57 on settings, update, start-up screens and in the app) with the
+  catalogue meaning as forbidden facts, the contrast cases where the catalogue applies, and merchant-requested escalations
+  (explicit, formal complaint, accepted offer) in both languages. Not independent (same reviewer, written knowing the
+  failures). The 13C confirmation flows get their own pre-registered cases before 13C code.
+- **Planner node** before the supervisor, product model, forced structured output `TurnPlan`: `reply_language`,
+  `scope` (`support | out_of_scope`), `escalation_request` (`none | asked_for_human | formal_complaint | accepted_offer`),
+  up to 4 steps (`goal`, `delegate`). Out of scope → fixed bilingual system message, no tools. The plan is appended to the
+  supervisor's system prompt (never to the persisted messages); routing stays function calling.
+- **Verifier node** after the supervisor's draft, product model, forced structured output: one verdict per step
+  (`answered | evidence_does_not_apply | unsupported_claim | not_answered`). One replan with the critique (the failed draft
+  is removed from history); a second failure → fixed abstention with an offer of a human agent. Invalid output or provider
+  error → the draft goes on (fail-open, recorded).
+- **Escalation gate** instead of the quote idea: a quote can be any substring of the question, so it does not separate
+  "asked" from "not asked". The planner's `escalation_request` is an LLM judgement made before the supervisor sees any
+  evidence; with a plan and `none`, `escalate_to_human` returns `needs_merchant_request` and opens nothing. Without a plan the
+  gate is open (refusing a requested human is worse than one extra ticket). The step-limit escalation and the automatic
+  escalation after two consecutive abstentions stay as they are: both are documented system policies, and neither caused the
+  unrequested tickets (single-turn `off04`/`o04` tickets were opened by the supervisor).
+- **Decline catalogue applicability:** `diagnose_declined_transaction` gets a required `code_context`
+  (`declined_sale | terminal_screen | app | unknown`); outside a declined sale it returns `not_applicable`.
+- **Language enforcement** after `answer_check`, only on model-written answers: `langdetect` (seeded; not the eval's lexicon
+  detector); a mismatch with the plan's language triggers one rewrite, accepted only if every URL, ticket id and number of 2+
+  digits survives and the new text is in the target language.
+- **Injection, not flags, in tests:** `OrchestrationGraph(..., planner_model, verifier_model, rewrite_model)`; production
+  (`chat_model is None`) builds all three with the product model; tests that pass only `chat_model` keep today's behaviour.
+- **Smoke** after the 13B commit: holdout 3 once with the product model (author), reported as a smoke, not as a result.
 
 ### 13C — Write action with confirmation and audit, operator console, corpus completion (items 5, 8b, 9) — provisional
 
@@ -182,7 +200,7 @@ Checked by `scripts/verify_phase13a.py`. No change to graph behaviour, prompts, 
 
 ### 13D — Close: one round of real runs, annotator, integration evidence, README (items 7, 9)
 
-Runs `v2-10..12` (judge), holdouts 1–3 × 3, `rerank-4..6` if the corpus changed; the annotator's answers and agreement
+Runs `v2-10..12` (judge), holdouts 1–3 and the 13C cases × 3, `rerank-4..6` if the corpus changed; the annotator's answers and agreement
 (author × annotator, annotator × labels, annotator × judge); `reports/integration/` from a Codespaces Compose run (two replicas,
 a real conversation continued across replicas, shared 429, PII scan of Postgres, one exported trace); README rewritten shorter,
 claims table pointing to tests and reports; `docs/history.md` decision.
