@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -23,6 +24,7 @@ TEST_CARD_SPACED = "4111 1111 1111 1111"
 TEST_CARD_DIGITS = "4111111111111111"
 TEST_CPF_FORMATTED = "529.982.247-25"
 TEST_CPF_DIGITS = "52998224725"
+_BYTEA_HEX_RE = re.compile(r"\\\\x([0-9a-fA-F]+)")
 
 
 def scan_pii(text: str) -> dict[str, int]:
@@ -32,6 +34,91 @@ def scan_pii(text: str) -> dict[str, int]:
         "card_digits": text.count(TEST_CARD_DIGITS),
         "cpf_formatted": text.count(TEST_CPF_FORMATTED),
         "cpf_digits": text.count(TEST_CPF_DIGITS),
+    }
+
+
+def scan_dump(dump_text: str, marker: str) -> dict[str, Any]:
+    """Scan pg_dump COPY text and decoded \\\\x hex bytea blobs for PII and marker."""
+    totals = {k: 0 for k in ("card_spaced", "card_digits", "cpf_formatted", "cpf_digits")}
+    marker_count = 0
+    bytea_values = 0
+
+    def _collect(chunk: str) -> None:
+        nonlocal marker_count
+        for key, count in scan_pii(chunk).items():
+            totals[key] += count
+        if marker:
+            marker_count += chunk.count(marker)
+
+    def _replace_bytea(match: re.Match[str]) -> str:
+        nonlocal bytea_values
+        bytea_values += 1
+        hex_str = match.group(1)
+        if len(hex_str) % 2 == 1:
+            hex_str = hex_str[:-1]
+        decoded = bytes.fromhex(hex_str).decode("utf-8", errors="replace")
+        _collect(decoded)
+        return " "
+
+    plain_text = _BYTEA_HEX_RE.sub(_replace_bytea, dump_text)
+    _collect(plain_text)
+    return {
+        "pii": totals,
+        "marker": marker_count,
+        "bytea_values": bytea_values,
+    }
+
+
+def make_api_keys() -> tuple[dict[str, str], str]:
+    """Generate five distinct scenario API keys and build their SHA-256 API_KEYS specification."""
+    specs = (
+        ("conversation", "cliente1988", "customer"),
+        ("ticket", "cliente1988", "customer"),
+        ("pii", "cliente1988", "customer"),
+        ("rate_limit", "cliente_rl", "customer"),
+        ("operator", "operador_evidencia", "operator"),
+    )
+    keys: dict[str, str] = {}
+    entries: list[str] = []
+    for scenario, user_id, role in specs:
+        raw_key = secrets.token_hex(16)
+        keys[scenario] = raw_key
+        digest = hashlib.sha256(raw_key.encode()).hexdigest()
+        entries.append(f"{digest}:{user_id}:{role}")
+    return keys, ";".join(entries)
+
+
+def render_env(pg_password: str, api_keys_spec: str) -> str:
+    """Render the temporary Compose .env file without persisting GEMINI_API_KEY to disk."""
+    return (
+        "\n".join([
+            f"POSTGRES_PASSWORD={pg_password}",
+            f"API_KEYS={api_keys_spec}",
+            "RATE_LIMIT_PER_MINUTE=6",
+            "TRACING_EXPORTER=otlp",
+        ])
+        + "\n"
+    )
+
+
+def ticket_checks(
+    patch_status: int,
+    patch_body: dict[str, Any],
+    messages_after_patch: list[dict[str, Any]],
+    audit_actions: list[str],
+) -> dict[str, bool]:
+    """Evaluate cross-replica ticket update and immediate operator delivery on PATCH."""
+    across = patch_status == 200 and isinstance(patch_body, dict) and patch_body.get("status") == "answered"
+    resume = patch_body.get("resume") if isinstance(patch_body, dict) else None
+    resume_ok = isinstance(resume, dict) and resume.get("status") == "resumed"
+    delivered_audit = "ticket_reply_delivered" in (audit_actions or [])
+    assistant_msgs = sum(
+        1 for msg in (messages_after_patch or []) if isinstance(msg, dict) and msg.get("role") == "assistant"
+    )
+    delivered = across and resume_ok and delivered_audit and assistant_msgs >= 2
+    return {
+        "ticket_across_replicas": across,
+        "reply_delivered": delivered,
     }
 
 
@@ -287,9 +374,10 @@ def _render_report_md(report: dict[str, Any]) -> str:
         f"`/replacements` em `app-a`/`app-b`=`{conv.get('replacements_seen_a')}`/`{conv.get('replacements_seen_b')}`, "
         f"eventos de auditoria=`{conv.get('audit_event_count')}`.",
         f"- **Chamado entre réplicas:** criação em `app-b` (`{tkt.get('ticket_id')}`), PATCH em `app-a` "
-        f"(HTTP `{tkt.get('patch_http_status')}`), entrega no Turno 2 em `app-b` (status handoff=`{((tkt.get('turn2') or {}).get('handoff') or {}).get('status')}`), "
+        f"(HTTP `{tkt.get('patch_http_status')}`, resume=`{tkt.get('patch_resume_status')}`), "
+        f"mensagens após PATCH em `app-b`=`{tkt.get('messages_after_patch_count')}`, "
         f"eventos de auditoria=`{tkt.get('audit_event_count')}`.",
-        f"- **Varredura de PII:** `pg_dump` ({pii.get('pg_dump_bytes')} bytes, marcador={pii.get('pg_marker_count')}, pii={pii.get('pg_pii')}); "
+        f"- **Varredura de PII:** `pg_dump` ({pii.get('pg_dump_bytes')} bytes, bytea={pii.get('pg_bytea_values')}, marcador={pii.get('pg_marker_count')}, pii={pii.get('pg_pii')}); "
         f"logs (`{pii.get('logs_bytes')}` bytes, marcador={pii.get('logs_marker_count')}, pii={pii.get('logs_pii')}).",
         f"- **Limite compartilhado:** primeiros 6 status=`{rl.get('initial_statuses')}`, 7º em 8001=HTTP `{rl.get('seventh_status')}` "
         f"(Retry-After=`{rl.get('seventh_retry_after')}`).",
@@ -316,21 +404,8 @@ def run_compose_evidence(run_id: str) -> int:
     orig_env = env_path.read_text(encoding="utf-8") if had_env else ""
 
     pg_password = secrets.token_hex(16)
-    cust_key = secrets.token_hex(16)
-    op_key = secrets.token_hex(16)
-    rl_key = secrets.token_hex(16)
-    api_keys_spec = ";".join([
-        f"{hashlib.sha256(cust_key.encode()).hexdigest()}:cliente1988:customer",
-        f"{hashlib.sha256(op_key.encode()).hexdigest()}:operador_evidencia:operator",
-        f"{hashlib.sha256(rl_key.encode()).hexdigest()}:cliente_rl:customer",
-    ])
-    temp_env = "\n".join([
-        f"POSTGRES_PASSWORD={pg_password}",
-        f"GEMINI_API_KEY={gemini_key}",
-        f"API_KEYS={api_keys_spec}",
-        "RATE_LIMIT_PER_MINUTE=6",
-        "TRACING_EXPORTER=otlp",
-    ]) + "\n"
+    keys, api_keys_spec = make_api_keys()
+    temp_env = render_env(pg_password, api_keys_spec)
 
     report: dict[str, Any] = {
         "run_id": run_id,
@@ -407,10 +482,12 @@ def run_compose_evidence(run_id: str) -> int:
 
         # Step 4: Conversation across replicas (propose on app-a, confirm on app-b)
         conv_session = f"compose-conv-{run_id}-{uuid.uuid4().hex[:8]}"
+        conv_key = keys["conversation"]
+        op_key = keys["operator"]
         t1_st, t1_hdr, t1_body = _http_json(
             "POST",
             "http://localhost:8000/chat",
-            api_key=cust_key,
+            api_key=conv_key,
             body={
                 "message": "Minha maquininha GET-883921 está com a tela quebrada e quero trocar.",
                 "session_id": conv_session,
@@ -419,7 +496,7 @@ def run_compose_evidence(run_id: str) -> int:
         t2_st, t2_hdr, t2_body = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=cust_key,
+            api_key=conv_key,
             body={"message": "Sim, pode solicitar a troca.", "session_id": conv_session},
         )
         t1_rec = _extract_turn_record(8000, t1_st, t1_hdr, t1_body)
@@ -429,10 +506,10 @@ def run_compose_evidence(run_id: str) -> int:
         sess_st, _, sess_body = _http_json(
             "GET",
             f"http://localhost:8000/sessions/{urllib.parse.quote(conv_session)}/messages",
-            api_key=cust_key,
+            api_key=conv_key,
         )
-        rep_b_st, _, rep_b_body = _http_json("GET", "http://localhost:8001/replacements", api_key=cust_key)
-        rep_a_st, _, rep_a_body = _http_json("GET", "http://localhost:8000/replacements", api_key=cust_key)
+        rep_b_st, _, rep_b_body = _http_json("GET", "http://localhost:8001/replacements", api_key=conv_key)
+        rep_a_st, _, rep_a_body = _http_json("GET", "http://localhost:8000/replacements", api_key=conv_key)
 
         req_id = (t2_rec.get("action") or {}).get("request_id") if isinstance(t2_rec.get("action"), dict) else None
         audit_conv_st = 0
@@ -479,10 +556,11 @@ def run_compose_evidence(run_id: str) -> int:
 
         # Step 5: Ticket across replicas
         tkt_session = f"compose-tkt-{run_id}-{uuid.uuid4().hex[:8]}"
+        tkt_key = keys["ticket"]
         tk1_st, tk1_hdr, tk1_body = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=cust_key,
+            api_key=tkt_key,
             body={"message": "Quero falar com um atendente humano, por favor.", "session_id": tkt_session},
         )
         tk1_rec = _extract_turn_record(8001, tk1_st, tk1_hdr, tk1_body)
@@ -497,10 +575,16 @@ def run_compose_evidence(run_id: str) -> int:
                 api_key=op_key,
                 body={"reply": op_reply},
             )
+        tkt_sess_st, _, tkt_sess_body = _http_json(
+            "GET",
+            f"http://localhost:8001/sessions/{urllib.parse.quote(tkt_session)}/messages",
+            api_key=tkt_key,
+        )
+        messages_after_patch = list(tkt_sess_body.get("messages") or []) if tkt_sess_st == 200 else []
         tk2_st, tk2_hdr, tk2_body = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=cust_key,
+            api_key=tkt_key,
             body={"message": "Alguma novidade?", "session_id": tkt_session},
         )
         tk2_rec = _extract_turn_record(8001, tk2_st, tk2_hdr, tk2_body)
@@ -514,26 +598,29 @@ def run_compose_evidence(run_id: str) -> int:
                 api_key=op_key,
             )
 
-        tkt_audit_actions = [e.get("action") for e in (audit_tkt_body.get("events") or [])]
+        tkt_audit_actions = [str(e.get("action")) for e in (audit_tkt_body.get("events") or []) if e.get("action")]
+        tkt_eval = ticket_checks(patch_st, patch_body, messages_after_patch, tkt_audit_actions)
         report["ticket_across_replicas"] = {
             "session_id": tkt_session,
             "ticket_id": ticket_id,
             "turn1": tk1_rec,
             "patch_http_status": patch_st,
             "patch_status": patch_body.get("status"),
+            "patch_resume_status": (patch_body.get("resume") or {}).get("status")
+            if isinstance(patch_body.get("resume"), dict)
+            else None,
+            "messages_after_patch_http_status": tkt_sess_st,
+            "messages_after_patch_count": len(messages_after_patch),
             "turn2": tk2_rec,
             "audit_http_status": audit_tkt_st,
             "audit_event_count": len(audit_tkt_body.get("events") or []),
             "audit_actions": tkt_audit_actions,
         }
         report["checks"]["ticket_across_replicas"] = bool(
-            tk1_st == 200 and ticket_id and patch_st == 200 and patch_body.get("status") == "answered"
+            tk1_st == 200 and ticket_id and tkt_eval["ticket_across_replicas"]
         )
         report["checks"]["reply_delivered"] = bool(
-            tk2_st == 200
-            and op_reply in tk2_rec.get("response", "")
-            and "ticket_created" in tkt_audit_actions
-            and "ticket_replied" in tkt_audit_actions
+            tk1_st == 200 and ticket_id and tk2_st == 200 and tkt_eval["reply_delivered"]
         )
 
         # Step 6: PII persistence vs masking & log hygiene
@@ -542,7 +629,7 @@ def run_compose_evidence(run_id: str) -> int:
         pii_st, pii_hdr, _ = _http_json(
             "POST",
             "http://localhost:8000/chat",
-            api_key=cust_key,
+            api_key=keys["pii"],
             body={
                 "message": f"Meu cartão {TEST_CARD_SPACED} e CPF {TEST_CPF_FORMATTED} ref {marker}",
                 "session_id": pii_session,
@@ -552,8 +639,9 @@ def run_compose_evidence(run_id: str) -> int:
 
         dump_res = _run_cmd(["docker", "compose", "exec", "-T", "postgres", "pg_dump", "-U", "getnet", "-d", "getnet", "--data-only"])
         dump_text = dump_res.stdout or ""
-        pg_pii = scan_pii(dump_text)
-        pg_marker_count = dump_text.count(marker)
+        pg_scan = scan_dump(dump_text, marker)
+        pg_pii = pg_scan["pii"]
+        pg_marker_count = pg_scan["marker"]
 
         logs_res = _run_cmd(["docker", "compose", "logs", "--no-color", "app-a", "app-b"])
         logs_text = (logs_res.stdout or "") + "\n" + (logs_res.stderr or "")
@@ -563,6 +651,7 @@ def run_compose_evidence(run_id: str) -> int:
         report["pii"] = {
             "http_status": pii_st,
             "pg_dump_bytes": len(dump_text.encode("utf-8")),
+            "pg_bytea_values": pg_scan["bytea_values"],
             "pg_marker_count": pg_marker_count,
             "pg_pii": pg_pii,
             "logs_bytes": len(logs_text.encode("utf-8")),
@@ -578,6 +667,7 @@ def run_compose_evidence(run_id: str) -> int:
 
         # Step 7: Shared rate limit across 8000 / 8001 (limit = 6)
         rl_session = f"compose-rl-{run_id}-{uuid.uuid4().hex[:8]}"
+        rl_key = keys["rate_limit"]
         ports = [8000, 8001, 8000, 8001, 8000, 8001]
         initial_statuses: list[int] = []
         for port in ports:

@@ -65,6 +65,14 @@ error in confirm/decline became the generic instability message. Found while pla
 serial, and the eval runner shares one tickets/actions database per run, so the second action case of a run would get
 `already_requested`; the corpus text now includes time-bound promotional copy (Black Friday) and a maintenance notice.
 
+**13D-1 done** (`ce0ceec`, CI green): reviewer run of `verify_phase13d1.py` with Postgres and Redis: 30/30 (501 offline
+tests, 13 integration). The review of `scripts/compose_evidence.py` (which no verifier can run: it needs Docker and the API
+key) found three defects, fixed in **13D-1-fix** before the author's Compose run: the `pg_dump` text hides checkpoint
+messages in `bytea` hex (reproduced: the marker appears 0 times in the dump text and 6 times after decoding), so the PII scan
+was blind to checkpoints; the rate limit counts every authenticated request per key, and one customer key made 8 requests
+within a minute against a limit of 6; the operator reply is delivered at the `PATCH` (`resume_after_operator`), not in the
+customer's next turn. The temporary `.env` also stops carrying the Gemini key.
+
 ### Before Phase 13 (HEAD `431eb1f`, phase 12F, CI green)
 
 Reviewer rerun of `scripts/verify_phase12f.py` on Python 3.11.18 before retiring the verifier chain: **75/75** (it re-ran the 58

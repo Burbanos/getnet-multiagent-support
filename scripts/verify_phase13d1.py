@@ -34,11 +34,13 @@ sys.path.insert(0, str(ROOT))
 RESULTS: list[tuple[str, bool]] = []
 BASE = "5a2ff9b"  # 13C + rebuilt index
 PROMPT = "docs/phase-prompts/13D-1.md"
-REVIEWER = {"docs/SPEC.md", "docs/process.md", PROMPT, "scripts/verify_phase13d1.py"}
+FIX_PROMPT = "docs/phase-prompts/13D-1-fix.md"
+REVIEWER = {"docs/SPEC.md", "docs/process.md", PROMPT, FIX_PROMPT, "scripts/verify_phase13d1.py"}
 PINNED = {
-    "docs/SPEC.md": "3faf9151ed30715f32bc136e118bce2f4a90e72010c8c828597b795c25d6005c",
+    "docs/SPEC.md": "2fffdd0932f0ee4fe0f933a1ae22b73756d3a60810365f6825ef3e97a20abed5",
     "docs/process.md": "3f9d3cb1651b3ffee3882572b695000987c9859f99ff5047734f7657a862c5c9",
     PROMPT: "1c3170c2459b2eba857cb15a00035320aabe77c6d67b39df437d8541c2792edc",
+    FIX_PROMPT: "25c44b031d7bc62c8b3fa348e2c6ef090df8b66b2bec5eb56a2f2420531ed658",
 }
 RETIRED = {"docs/phase-prompts/13C.md", "scripts/verify_phase13c.py"}
 ALLOWED_CODE = {
@@ -51,7 +53,7 @@ FROZEN = ["reports", "data", "README.md", "docs/DECISIONS.md", "docs/history.md"
           "docker-compose.yml", "Dockerfile", "deploy", "requirements.txt", "requirements-dev.txt", "requirements.lock",
           ".github", ".env.example"]
 NEW_TESTS = {"tests/test_audit_transactions.py": 4, "tests/test_eval_isolation.py": 3, "tests/test_annotator_import.py": 6,
-             "tests/test_raters_and_context.py": 4, "tests/test_compose_evidence.py": 3}
+             "tests/test_raters_and_context.py": 4, "tests/test_compose_evidence.py": 6}
 MIN_TESTS = 481 + sum(NEW_TESTS.values())
 ALLOWED_ATTRS = {"app.trace_id", "user.hash", "service.replica", "http.route", "http.status_code", "graph.node", "llm.caller",
                  "llm.model", "llm.input_tokens", "llm.output_tokens", "llm.fallback_used", "llm.status", "tool.name",
@@ -197,8 +199,8 @@ def static_checks() -> None:
 
     verifiers = sorted(p.name for p in (ROOT / "scripts").glob("verify_*.py"))
     prompts = sorted(p.name for p in (ROOT / "docs" / "phase-prompts").glob("*.md"))
-    check("A2.retired_process_files", verifiers == ["verify_phase13d1.py"] and prompts == ["13D-1.md"],
-          f"only verify_phase13d1.py and 13D-1.md may remain: {verifiers} {prompts}")
+    check("A2.retired_process_files", verifiers == ["verify_phase13d1.py"] and prompts == ["13D-1-fix.md", "13D-1.md"],
+          f"only verify_phase13d1.py, 13D-1.md and 13D-1-fix.md may remain: {verifiers} {prompts}")
 
     diff = run(["git", "diff", "--name-only", "--no-renames", BASE])
     untracked = run(["git", "ls-files", "--others", "--exclude-standard"]).stdout.split()
@@ -670,6 +672,53 @@ def compose_script() -> None:
           f"clean_marker={clean.get('marker_in_attributes')} help_rc={h.returncode}/{hr.returncode} static={static}")
 
 
+def compose_fix() -> None:
+    """13D-1-fix: bytea-aware dump scan, one API key per scenario, no Gemini key on disk, delivery judged at the PATCH."""
+    path = ROOT / "scripts" / "compose_evidence.py"
+    spec = importlib.util.spec_from_file_location("compose_evidence_fix_probe", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    marker = "zqdumpmarker42"
+    hexblob = "83a4" + f"Cartão {CARD} ref {marker}".encode().hex() + "00ff"
+    bs = "\\"  # one backslash; pg_dump writes bytea in COPY text format as two backslashes followed by x and hex
+    dump = ("COPY public.checkpoint_blobs (thread_id, checkpoint_ns, channel, version, type, blob) FROM stdin;\n"
+            f"cliente1988:s1\t\tmessages\t1\tmsgpack\t{bs}{bs}x{hexblob}\n{bs}.\n"
+            "COPY public.tickets (ticket_id, reason) FROM stdin;\n"
+            f"GET-TKT-1\tCPF {CPF_RAW} texto {marker}\n{bs}.\n")
+    res = mod.scan_dump(dump, marker)
+    clean = mod.scan_dump(f"COPY public.x (a) FROM stdin;\n{bs}{bs}x" + b"nada aqui".hex() + f"\n{bs}.\n", marker)
+    ok_scan = (res.get("marker") == 2 and (res.get("pii") or {}).get("card_spaced") == 1
+               and (res.get("pii") or {}).get("cpf_digits") == 1 and res.get("bytea_values", 0) >= 1
+               and clean.get("marker") == 0 and all(v == 0 for v in (clean.get("pii") or {}).values()))
+    keys, spec_str = mod.make_api_keys()
+    entries = [e for e in spec_str.split(";") if e]
+    users = {e.split(":")[1] + ":" + e.split(":")[2] for e in entries if e.count(":") == 2}
+    ok_keys = (set(keys) == {"conversation", "ticket", "pii", "rate_limit", "operator"} and len(set(keys.values())) == 5
+               and len(entries) == 5 and all(k not in spec_str for k in keys.values())
+               and users == {"cliente1988:customer", "cliente_rl:customer", "operador_evidencia:operator"}
+               and sum(e.endswith(":cliente1988:customer") for e in entries) == 3)
+    env_text = mod.render_env("zqpgpass", spec_str)
+    ok_env = ("GEMINI_API_KEY" not in env_text and "RATE_LIMIT_PER_MINUTE=6" in env_text
+              and "TRACING_EXPORTER=otlp" in env_text and "POSTGRES_PASSWORD=zqpgpass" in env_text
+              and f"API_KEYS={spec_str}" in env_text)
+    msgs = [{"role": "customer", "content": "Quero falar com um atendente."},
+            {"role": "assistant", "content": "Abri o chamado GET-TKT-1."},
+            {"role": "assistant", "content": "O atendimento respondeu: tudo certo."}]
+    good = mod.ticket_checks(200, {"status": "answered", "resume": {"status": "resumed"}}, msgs,
+                             ["ticket_created", "ticket_updated", "ticket_replied", "ticket_reply_delivered"])
+    not_resumed = mod.ticket_checks(200, {"status": "answered", "resume": {"status": "failed"}}, msgs,
+                                    ["ticket_created", "ticket_updated", "ticket_replied"])
+    no_patch = mod.ticket_checks(404, {}, msgs[:2], ["ticket_created"])
+    ok_ticket = (good == {"ticket_across_replicas": True, "reply_delivered": True}
+                 and not_resumed.get("ticket_across_replicas") is True and not_resumed.get("reply_delivered") is False
+                 and no_patch == {"ticket_across_replicas": False, "reply_delivered": False})
+    src = read("scripts/compose_evidence.py")
+    ok_static = "op_reply in" not in src and "GEMINI_API_KEY={" not in src
+    check("T11.compose_evidence_fix", ok_scan and ok_keys and ok_env and ok_ticket and ok_static,
+          f"scan={res} clean={clean} keys_ok={ok_keys} entries={len(entries)} env_ok={ok_env} "
+          f"ticket={good}/{not_resumed}/{no_patch} static_ok={ok_static}")
+
+
 def write_action_regression() -> None:
     from langgraph.checkpoint.memory import MemorySaver
 
@@ -848,6 +897,7 @@ def main() -> int:
     guarded("T8.run_context_append_only", lambda: context_checks(tmp))
     guarded("T9.hybrid_report_named", hybrid_report_name)
     guarded("T10.compose_evidence_script", compose_script)
+    guarded("T11.compose_evidence_fix", compose_fix)
     guarded("G1.write_action_gate_unchanged", write_action_regression)
     leaks = [x for x in lines if MARK in x or "zq-secret-detail" in x]
     check("G2.no_message_text_in_logs", not leaks, f"{len(leaks)} log records contain the merchant text marker or error detail")

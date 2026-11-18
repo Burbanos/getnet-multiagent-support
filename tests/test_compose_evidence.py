@@ -89,3 +89,88 @@ def test_compose_evidence_cli_help_and_missing_key() -> None:
     assert top_help.returncode == 0
     assert run_help.returncode == 0 and "--run-id" in run_help.stdout
     assert no_key.returncode != 0 and "GEMINI_API_KEY" in no_key.stderr
+
+
+def test_scan_dump_decodes_pg_dump_bytea_hex_blobs_and_plain_text() -> None:
+    bs = "\\"
+    hex_blob = "92a4" + f"Cartão {ce.TEST_CARD_SPACED} marcador zq-99".encode().hex() + "00ff"
+    dirty_dump = (
+        "COPY public.checkpoint_blobs (thread_id, blob) FROM stdin;\n"
+        f"cliente1988:s1\t{bs}{bs}x{hex_blob}\n"
+        f"{bs}.\n"
+        "COPY public.tickets (ticket_id, reason) FROM stdin;\n"
+        f"GET-TKT-1\tCPF {ce.TEST_CPF_DIGITS} zq-99\n"
+        f"{bs}.\n"
+    )
+    res_dirty = ce.scan_dump(dirty_dump, "zq-99")
+    assert res_dirty == {
+        "pii": {"card_spaced": 1, "card_digits": 0, "cpf_formatted": 0, "cpf_digits": 1},
+        "marker": 2,
+        "bytea_values": 1,
+    }
+
+    clean_hex = "a1" + "Cartão [CARTAO_OCULTO] ref zq-99".encode().hex()
+    clean_dump = (
+        "COPY public.checkpoint_blobs (thread_id, blob) FROM stdin;\n"
+        f"cliente1988:s1\t{bs}{bs}x{clean_hex}\n"
+        f"{bs}.\n"
+    )
+    res_clean = ce.scan_dump(clean_dump, "zq-99")
+    assert res_clean == {
+        "pii": {"card_spaced": 0, "card_digits": 0, "cpf_formatted": 0, "cpf_digits": 0},
+        "marker": 1,
+        "bytea_values": 1,
+    }
+
+
+def test_make_api_keys_and_render_env_isolate_scenarios_without_gemini_key() -> None:
+    keys, spec = ce.make_api_keys()
+    assert set(keys) == {"conversation", "ticket", "pii", "rate_limit", "operator"}
+    assert len(set(keys.values())) == 5
+    entries = spec.split(";")
+    assert len(entries) == 5
+    assert all(raw not in spec for raw in keys.values())
+    assert sum(e.endswith(":cliente1988:customer") for e in entries) == 3
+    assert sum(e.endswith(":cliente_rl:customer") for e in entries) == 1
+    assert sum(e.endswith(":operador_evidencia:operator") for e in entries) == 1
+
+    env_text = ce.render_env("pg-secret-pw", spec)
+    assert "GEMINI_API_KEY" not in env_text
+    assert "POSTGRES_PASSWORD=pg-secret-pw" in env_text
+    assert f"API_KEYS={spec}" in env_text
+    assert "RATE_LIMIT_PER_MINUTE=6" in env_text
+    assert "TRACING_EXPORTER=otlp" in env_text
+
+
+def test_ticket_checks_evaluates_delivery_at_patch() -> None:
+    msgs = [
+        {"role": "customer", "content": "Quero falar com atendente."},
+        {"role": "assistant", "content": "Abri o chamado GET-TKT-1."},
+        {"role": "assistant", "content": "Resposta do atendente entregue."},
+    ]
+    ok = ce.ticket_checks(
+        200,
+        {"status": "answered", "resume": {"status": "resumed"}},
+        msgs,
+        ["ticket_created", "ticket_updated", "ticket_replied", "ticket_reply_delivered"],
+    )
+    assert ok == {"ticket_across_replicas": True, "reply_delivered": True}
+
+    failed_resume = ce.ticket_checks(
+        200,
+        {"status": "answered", "resume": {"status": "failed"}},
+        msgs,
+        ["ticket_created", "ticket_updated", "ticket_replied", "ticket_reply_delivered"],
+    )
+    assert failed_resume == {"ticket_across_replicas": True, "reply_delivered": False}
+
+    missing_msg = ce.ticket_checks(
+        200,
+        {"status": "answered", "resume": {"status": "resumed"}},
+        msgs[:2],
+        ["ticket_created", "ticket_updated", "ticket_replied", "ticket_reply_delivered"],
+    )
+    assert missing_msg == {"ticket_across_replicas": True, "reply_delivered": False}
+
+    no_patch = ce.ticket_checks(404, {}, msgs[:2], ["ticket_created"])
+    assert no_patch == {"ticket_across_replicas": False, "reply_delivered": False}
