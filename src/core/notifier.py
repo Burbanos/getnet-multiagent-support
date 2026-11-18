@@ -10,6 +10,7 @@ import httpx
 
 from src.config import settings
 from src.core import metrics
+from src.core.tracing import set_attributes, span
 
 logger = logging.getLogger("multiagent.notifier")
 
@@ -56,41 +57,44 @@ class OperatorNotifier:
 
     def notify(self, ticket: Mapping[str, Any]) -> NotificationResult:
         """Notify the configured operator webhook about a ticket. Never raises."""
-        if not self.url or not self.url.strip():
-            metrics.inc_notification("disabled")
-            logger.info("operator notification", extra={"status": "disabled"})
-            return NotificationResult(status="disabled", error_type=None, http_status=None)
+        with span("notifier.webhook"):
+            if not self.url or not self.url.strip():
+                metrics.inc_notification("disabled")
+                set_attributes({"notification.status": "disabled"})
+                logger.info("operator notification", extra={"status": "disabled"})
+                return NotificationResult(status="disabled", error_type=None, http_status=None)
 
-        payload = build_payload(ticket)
-        try:
-            if self._client is not None:
-                response = self._client.post(self.url, json=payload, timeout=self.timeout_s)
-            else:
-                with httpx.Client(timeout=self.timeout_s) as client:
-                    response = client.post(self.url, json=payload)
+            payload = build_payload(ticket)
+            try:
+                if self._client is not None:
+                    response = self._client.post(self.url, json=payload, timeout=self.timeout_s)
+                else:
+                    with httpx.Client(timeout=self.timeout_s) as client:
+                        response = client.post(self.url, json=payload)
 
-            if 200 <= response.status_code < 300:
-                result = NotificationResult(
-                    status="sent",
-                    error_type=None,
-                    http_status=response.status_code,
-                )
-            else:
+                if 200 <= response.status_code < 300:
+                    result = NotificationResult(
+                        status="sent",
+                        error_type=None,
+                        http_status=response.status_code,
+                    )
+                else:
+                    result = NotificationResult(
+                        status="failed",
+                        error_type=f"http_{response.status_code}",
+                        http_status=response.status_code,
+                    )
+            except Exception as exc:  # noqa: BLE001 - best-effort webhook notification must never raise
                 result = NotificationResult(
                     status="failed",
-                    error_type=f"http_{response.status_code}",
-                    http_status=response.status_code,
+                    error_type=type(exc).__name__,
+                    http_status=None,
                 )
-        except Exception as exc:  # noqa: BLE001 - best-effort webhook notification must never raise
-            result = NotificationResult(
-                status="failed",
-                error_type=type(exc).__name__,
-                http_status=None,
-            )
 
-        metrics.inc_notification(result.status)
-        logger.info("operator notification", extra={"status": result.status})
-        return result
+            metrics.inc_notification(result.status)
+            set_attributes({"notification.status": result.status})
+            logger.info("operator notification", extra={"status": result.status})
+            return result
 
 
 _notifier_instance: OperatorNotifier | None = None

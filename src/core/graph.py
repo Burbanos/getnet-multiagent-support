@@ -24,7 +24,7 @@ from src.agents.injection_classifier import WEB_PROMPT_PATH, InjectionClassifier
 from src.agents.specialists import SpecialistAgent
 from src.config import settings
 from src.core import metrics
-from src.core.checkpointer import build_sqlite_checkpointer
+from src.core.checkpointer import build_checkpointer
 from src.core.llm import (
     LLMConfigurationError,
     LLMNotConfiguredError,
@@ -38,6 +38,7 @@ from src.core.log_context import exc_brief
 from src.core.pii import sanitize_pii
 from src.core.state import AgentRole, AgentState, SupervisorState
 from src.core.tickets_db import _get_message_text, get_tickets_repository, transcript_snapshot
+from src.core.tracing import set_attributes, span
 from src.tools.agent_tools import (
     TOOLS_BY_NAME,
     diagnose_declined_transaction,
@@ -185,11 +186,12 @@ class OrchestrationGraph:
     def _wrap_node(self, node_name: str, fn: Any) -> Any:
         def wrapped(state: SupervisorState) -> dict[str, Any]:
             t0 = time.perf_counter()
-            try:
-                return fn(state)
-            finally:
-                ms = round((time.perf_counter() - t0) * 1000, 2)
-                logger.info("node finished", extra={"node": node_name, "latency_ms": ms})
+            with span(f"graph.node.{node_name}", {"graph.node": node_name}):
+                try:
+                    return fn(state)
+                finally:
+                    ms = round((time.perf_counter() - t0) * 1000, 2)
+                    logger.info("node finished", extra={"node": node_name, "latency_ms": ms})
 
         return wrapped
 
@@ -917,75 +919,16 @@ class OrchestrationGraph:
             tool_name = call.get("name")
             tool_args = call.get("args", {})
             call_id = call.get("id", str(uuid.uuid4()))
-            call_start = time.perf_counter()
-            call_status = "ok"
+            with span("tool.call", {"tool.name": str(tool_name or "unknown")}):
+                call_start = time.perf_counter()
+                call_status = "ok"
 
-            if tool_name == "ask_knowledge_agent":
-                if "KnowledgeAgent" not in agents_used:
-                    agents_used.append("KnowledgeAgent")
-                question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
-                spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
-                knowledge_outcomes.append(bool(spec_res.get("sources")))
-                if spec_res.get("status") == "error":
-                    call_status = "error"
-
-                spec_usage = spec_res.get("usage")
-                if spec_usage:
-                    inp = spec_usage.get("input_tokens", 0)
-                    out = spec_usage.get("output_tokens", 0)
-                    tot = spec_usage.get("total_tokens", inp + out)
-                    tba_dict = dict(tba) if tba is not None else {}
-                    cur = tba_dict.get("KnowledgeAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
-                    tba_dict["KnowledgeAgent"] = {
-                        "input_tokens": cur["input_tokens"] + inp,
-                        "output_tokens": cur["output_tokens"] + out,
-                        "total_tokens": cur["total_tokens"] + tot,
-                    }
-                    tba = tba_dict
-
-                payload = {
-                    "agent": spec_res["agent"],
-                    "status": spec_res["status"],
-                    "answer": spec_res["answer"],
-                    "tools_used": spec_res["tools_used"],
-                    "sources": spec_res["sources"],
-                }
-                payload_str = json.dumps(payload, ensure_ascii=False)
-                t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
-                tool_messages.append(t_msg)
-                tool_results.append(payload)
-
-                tools_used.extend(spec_res["tools_used"])
-                sources.extend(spec_res["sources"])
-                retrieved_docs.extend(spec_res["retrieved_docs"])
-                if spec_res.get("web_results"):
-                    web_results.extend(spec_res["web_results"])
-                if spec_res.get("api_results"):
-                    api_results.extend(spec_res["api_results"])
-                if spec_res.get("web_guardrail"):
-                    web_guardrail.extend(spec_res["web_guardrail"])
-
-            elif tool_name == "ask_support_agent":
-                if state.get("guardrail_degraded") and settings.GUARDRAIL_ACCOUNT_FAIL_CLOSED:
-                    call_status = "error"
-                    metrics.inc_guardrail("account_blocked_degraded")
-                    payload = {
-                        "agent": "SupportAgent",
-                        "status": "error",
-                        "error": "guardrail_unavailable",
-                        "answer": ACCOUNT_GUARDRAIL_UNAVAILABLE,
-                        "tools_used": [],
-                        "sources": [],
-                    }
-                    payload_str = json.dumps(payload, ensure_ascii=False)
-                    t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
-                    tool_messages.append(t_msg)
-                    tool_results.append(payload)
-                else:
-                    if "SupportAgent" not in agents_used:
-                        agents_used.append("SupportAgent")
-                    request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
-                    spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
+                if tool_name == "ask_knowledge_agent":
+                    if "KnowledgeAgent" not in agents_used:
+                        agents_used.append("KnowledgeAgent")
+                    question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
+                    spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
+                    knowledge_outcomes.append(bool(spec_res.get("sources")))
                     if spec_res.get("status") == "error":
                         call_status = "error"
 
@@ -995,8 +938,8 @@ class OrchestrationGraph:
                         out = spec_usage.get("output_tokens", 0)
                         tot = spec_usage.get("total_tokens", inp + out)
                         tba_dict = dict(tba) if tba is not None else {}
-                        cur = tba_dict.get("SupportAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
-                        tba_dict["SupportAgent"] = {
+                        cur = tba_dict.get("KnowledgeAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+                        tba_dict["KnowledgeAgent"] = {
                             "input_tokens": cur["input_tokens"] + inp,
                             "output_tokens": cur["output_tokens"] + out,
                             "total_tokens": cur["total_tokens"] + tot,
@@ -1022,59 +965,120 @@ class OrchestrationGraph:
                         web_results.extend(spec_res["web_results"])
                     if spec_res.get("api_results"):
                         api_results.extend(spec_res["api_results"])
+                    if spec_res.get("web_guardrail"):
+                        web_guardrail.extend(spec_res["web_guardrail"])
 
-            elif tool_name == "escalate_to_human":
-                escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
-                if escalate_fn:
-                    try:
-                        result_str = escalate_fn.invoke(
-                            tool_args,
-                            config={
-                                "configurable": {
-                                    "user_id": user_id,
-                                    "session_id": state["session_id"],
-                                    "transcript": transcript_snapshot(state["messages"]),
-                                }
-                            },
-                        )
-                    except Exception as e:  # noqa: BLE001
+                elif tool_name == "ask_support_agent":
+                    if state.get("guardrail_degraded") and settings.GUARDRAIL_ACCOUNT_FAIL_CLOSED:
                         call_status = "error"
-                        logger.error(f"Error executing escalate_to_human: {type(e).__name__}")
-                        result_str = json.dumps({"status": "error", "error": "ticket_persistence_failed"})
+                        metrics.inc_guardrail("account_blocked_degraded")
+                        payload = {
+                            "agent": "SupportAgent",
+                            "status": "error",
+                            "error": "guardrail_unavailable",
+                            "answer": ACCOUNT_GUARDRAIL_UNAVAILABLE,
+                            "tools_used": [],
+                            "sources": [],
+                        }
+                        payload_str = json.dumps(payload, ensure_ascii=False)
+                        t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
+                        tool_messages.append(t_msg)
+                        tool_results.append(payload)
+                    else:
+                        if "SupportAgent" not in agents_used:
+                            agents_used.append("SupportAgent")
+                        request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
+                        spec_res = self.support_agent.run(request_text, user_id=user_id, trace_id=trace_id)
+                        if spec_res.get("status") == "error":
+                            call_status = "error"
 
-                    tools_used.append("escalate_to_human")
-                    t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                        spec_usage = spec_res.get("usage")
+                        if spec_usage:
+                            inp = spec_usage.get("input_tokens", 0)
+                            out = spec_usage.get("output_tokens", 0)
+                            tot = spec_usage.get("total_tokens", inp + out)
+                            tba_dict = dict(tba) if tba is not None else {}
+                            cur = tba_dict.get("SupportAgent", {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+                            tba_dict["SupportAgent"] = {
+                                "input_tokens": cur["input_tokens"] + inp,
+                                "output_tokens": cur["output_tokens"] + out,
+                                "total_tokens": cur["total_tokens"] + tot,
+                            }
+                            tba = tba_dict
+
+                        payload = {
+                            "agent": spec_res["agent"],
+                            "status": spec_res["status"],
+                            "answer": spec_res["answer"],
+                            "tools_used": spec_res["tools_used"],
+                            "sources": spec_res["sources"],
+                        }
+                        payload_str = json.dumps(payload, ensure_ascii=False)
+                        t_msg = ToolMessage(content=payload_str, tool_call_id=call_id, name=tool_name)
+                        tool_messages.append(t_msg)
+                        tool_results.append(payload)
+
+                        tools_used.extend(spec_res["tools_used"])
+                        sources.extend(spec_res["sources"])
+                        retrieved_docs.extend(spec_res["retrieved_docs"])
+                        if spec_res.get("web_results"):
+                            web_results.extend(spec_res["web_results"])
+                        if spec_res.get("api_results"):
+                            api_results.extend(spec_res["api_results"])
+
+                elif tool_name == "escalate_to_human":
+                    escalate_fn = TOOLS_BY_NAME.get("escalate_to_human")
+                    if escalate_fn:
+                        try:
+                            result_str = escalate_fn.invoke(
+                                tool_args,
+                                config={
+                                    "configurable": {
+                                        "user_id": user_id,
+                                        "session_id": state["session_id"],
+                                        "transcript": transcript_snapshot(state["messages"]),
+                                    }
+                                },
+                            )
+                        except Exception as e:  # noqa: BLE001
+                            call_status = "error"
+                            logger.error(f"Error executing escalate_to_human: {type(e).__name__}")
+                            result_str = json.dumps({"status": "error", "error": "ticket_persistence_failed"})
+
+                        tools_used.append("escalate_to_human")
+                        t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
+                        tool_messages.append(t_msg)
+
+                        try:
+                            parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
+                            if isinstance(parsed, dict):
+                                if parsed.get("status") == "error" or "error" in parsed:
+                                    call_status = "error"
+                                if parsed.get("ticket_id"):
+                                    ticket = parsed
+                                tool_results.append(parsed)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
+                else:
+                    call_status = "error"
+                    logger.warning(f"Tool '{tool_name}' not available to SupervisorAgent.")
+                    err_payload = json.dumps({"error": f"tool {tool_name} not available to SupervisorAgent"})
+                    t_msg = ToolMessage(content=err_payload, tool_call_id=call_id, name=tool_name)
                     tool_messages.append(t_msg)
 
-                    try:
-                        parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
-                        if isinstance(parsed, dict):
-                            if parsed.get("status") == "error" or "error" in parsed:
-                                call_status = "error"
-                            if parsed.get("ticket_id"):
-                                ticket = parsed
-                            tool_results.append(parsed)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-
-            else:
-                call_status = "error"
-                logger.warning(f"Tool '{tool_name}' not available to SupervisorAgent.")
-                err_payload = json.dumps({"error": f"tool {tool_name} not available to SupervisorAgent"})
-                t_msg = ToolMessage(content=err_payload, tool_call_id=call_id, name=tool_name)
-                tool_messages.append(t_msg)
-
-            latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
-            metrics.inc_tool(tool_name, call_status)
-            logger.info(
-                "tool finished",
-                extra={
-                    "tool": tool_name,
-                    "agent": "SupervisorAgent",
-                    "status": call_status,
-                    "latency_ms": latency_ms,
-                },
-            )
+                latency_ms = round((time.perf_counter() - call_start) * 1000, 2)
+                metrics.inc_tool(tool_name, call_status)
+                set_attributes({"tool.status": call_status})
+                logger.info(
+                    "tool finished",
+                    extra={
+                        "tool": tool_name,
+                        "agent": "SupervisorAgent",
+                        "status": call_status,
+                        "latency_ms": latency_ms,
+                    },
+                )
 
         tokens = None
         if tba:
@@ -1461,6 +1465,6 @@ def get_orchestrator() -> OrchestrationGraph:
     """Dependency getter for singleton OrchestrationGraph."""
     global _orchestrator_instance
     if _orchestrator_instance is None:
-        checkpointer = build_sqlite_checkpointer(settings.CHECKPOINT_DB_PATH)
+        checkpointer = build_checkpointer()
         _orchestrator_instance = OrchestrationGraph(checkpointer=checkpointer)
     return _orchestrator_instance

@@ -16,6 +16,7 @@ from src.core.llm import (
     get_fallback_model,
     invoke_model_with_fallback,
 )
+from src.core.tracing import set_attributes, span
 
 logger = logging.getLogger("multiagent.specialists")
 
@@ -142,134 +143,138 @@ class SpecialistAgent:
                 call_id = call.get("id", str(uuid.uuid4()))
 
                 if tool_name not in self.tools_by_name:
-                    err_msg = json.dumps({"error": f"tool {tool_name} not available to {self.name}"})
-                    t_msg = ToolMessage(content=err_msg, tool_call_id=call_id, name=tool_name)
+                    with span("tool.call", {"agent.name": self.name, "tool.name": str(tool_name or "unknown")}):
+                        err_msg = json.dumps({"error": f"tool {tool_name} not available to {self.name}"})
+                        t_msg = ToolMessage(content=err_msg, tool_call_id=call_id, name=tool_name)
+                        messages.append(t_msg)
+                        metrics.inc_tool(tool_name, "error")
+                        set_attributes({"tool.status": "error"})
+                        logger.info(
+                            "tool finished",
+                            extra={
+                                "tool": tool_name,
+                                "agent": self.name,
+                                "status": "error",
+                                "latency_ms": 0.0,
+                            },
+                        )
+                    continue
+
+                tool_fn = self.tools_by_name[tool_name]
+                with span("tool.call", {"agent.name": self.name, "tool.name": str(tool_name or "unknown")}):
+                    t0 = time.perf_counter()
+                    status = "ok"
+                    try:
+                        result_str = tool_fn.invoke(
+                            tool_args,
+                            config={"configurable": {"user_id": user_id}},
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        status = "error"
+                        logger.error(f"Error executing tool {tool_name} in {self.name}: {type(e).__name__}")
+                        result_str = json.dumps({"error": f"tool {tool_name} failed: {type(e).__name__}"})
+
+                    latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+                    if (
+                        tool_name == "search_web"
+                        and self.web_classifier is not None
+                        and settings.GUARDRAIL_WEB_RESULTS_ENABLED
+                    ):
+                        try:
+                            parsed_web = json.loads(result_str) if isinstance(result_str, str) else result_str
+                        except (json.JSONDecodeError, TypeError):
+                            parsed_web = None
+                        if isinstance(parsed_web, dict) and parsed_web.get("status") == "success":
+                            raw_results = parsed_web.get("results") or []
+                            if raw_results:
+                                screen_lines: list[str] = []
+                                for idx, item in enumerate(raw_results, start=1):
+                                    if isinstance(item, dict):
+                                        title = item.get("title") or ""
+                                        snippet = item.get("snippet") or ""
+                                        url = item.get("url") or ""
+                                    else:
+                                        title, snippet, url = "", str(item), ""
+                                    screen_lines.append(f"[{idx}] {title}\n{snippet}\n{url}")
+                                clf_res = self.web_classifier.classify("\n\n".join(screen_lines))
+                                specialist_usage = _accumulate_usage(specialist_usage, clf_res.usage)
+                                allowed = clf_res.status == "ok" and clf_res.verdict == "allow"
+                                dropped = not allowed
+                                if allowed:
+                                    metrics.inc_guardrail("web_allow")
+                                else:
+                                    metrics.inc_guardrail(
+                                        "web_unavailable" if clf_res.status == "error" else "web_block"
+                                    )
+                                    result_str = json.dumps(
+                                        {
+                                            "status": "blocked",
+                                            "error": "web_results_blocked",
+                                            "results": [],
+                                        },
+                                        ensure_ascii=False,
+                                    )
+                                web_guardrail.append({
+                                    **clf_res.as_metadata(),
+                                    "results": len(raw_results),
+                                    "dropped": dropped,
+                                })
+                                logger.info(
+                                    "web results screened",
+                                    extra={"status": clf_res.status, "dropped": dropped},
+                                )
+
+                    tools_used.append(tool_name)
+                    t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
                     messages.append(t_msg)
-                    metrics.inc_tool(tool_name, "error")
+
+                    try:
+                        parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
+                        if isinstance(parsed, dict):
+                            if parsed.get("status") == "error" or "error" in parsed:
+                                status = "error"
+                            if tool_name == "search_knowledge_base":
+                                docs = parsed.get("documents", [])
+                                for d in docs:
+                                    retrieved_docs.append(d)
+                                    if d.get("url"):
+                                        sources.append(d.get("url"))
+                                retrieval_info = parsed.get("retrieval")
+                                rerank_usage = (
+                                    retrieval_info.get("usage")
+                                    if isinstance(retrieval_info, dict)
+                                    else None
+                                )
+                                specialist_usage = _accumulate_usage(specialist_usage, rerank_usage)
+                            elif tool_name == "search_web":
+                                results = parsed.get("results", [])
+                                for r in results:
+                                    if r.get("url"):
+                                        sources.append(r.get("url"))
+                                    web_results.append({
+                                        "url": r.get("url", ""),
+                                        "title": r.get("title", ""),
+                                        "snippet": r.get("snippet", ""),
+                                    })
+                            elif tool_name in API_TOOLS:
+                                api_results.append({"tool": tool_name, **parsed})
+                                if parsed.get("status") == "success" and parsed.get("source_url"):
+                                    sources.append(parsed["source_url"])
+                    except (json.JSONDecodeError, TypeError, KeyError):
+                        pass
+
+                    metrics.inc_tool(tool_name, status)
+                    set_attributes({"tool.status": status})
                     logger.info(
                         "tool finished",
                         extra={
                             "tool": tool_name,
                             "agent": self.name,
-                            "status": "error",
-                            "latency_ms": 0.0,
+                            "status": status,
+                            "latency_ms": latency_ms,
                         },
                     )
-                    continue
-
-                tool_fn = self.tools_by_name[tool_name]
-                t0 = time.perf_counter()
-                status = "ok"
-                try:
-                    result_str = tool_fn.invoke(
-                        tool_args,
-                        config={"configurable": {"user_id": user_id}},
-                    )
-                except Exception as e:  # noqa: BLE001
-                    status = "error"
-                    logger.error(f"Error executing tool {tool_name} in {self.name}: {type(e).__name__}")
-                    result_str = json.dumps({"error": f"tool {tool_name} failed: {type(e).__name__}"})
-
-                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-
-                if (
-                    tool_name == "search_web"
-                    and self.web_classifier is not None
-                    and settings.GUARDRAIL_WEB_RESULTS_ENABLED
-                ):
-                    try:
-                        parsed_web = json.loads(result_str) if isinstance(result_str, str) else result_str
-                    except (json.JSONDecodeError, TypeError):
-                        parsed_web = None
-                    if isinstance(parsed_web, dict) and parsed_web.get("status") == "success":
-                        raw_results = parsed_web.get("results") or []
-                        if raw_results:
-                            screen_lines: list[str] = []
-                            for idx, item in enumerate(raw_results, start=1):
-                                if isinstance(item, dict):
-                                    title = item.get("title") or ""
-                                    snippet = item.get("snippet") or ""
-                                    url = item.get("url") or ""
-                                else:
-                                    title, snippet, url = "", str(item), ""
-                                screen_lines.append(f"[{idx}] {title}\n{snippet}\n{url}")
-                            clf_res = self.web_classifier.classify("\n\n".join(screen_lines))
-                            specialist_usage = _accumulate_usage(specialist_usage, clf_res.usage)
-                            allowed = clf_res.status == "ok" and clf_res.verdict == "allow"
-                            dropped = not allowed
-                            if allowed:
-                                metrics.inc_guardrail("web_allow")
-                            else:
-                                metrics.inc_guardrail(
-                                    "web_unavailable" if clf_res.status == "error" else "web_block"
-                                )
-                                result_str = json.dumps(
-                                    {
-                                        "status": "blocked",
-                                        "error": "web_results_blocked",
-                                        "results": [],
-                                    },
-                                    ensure_ascii=False,
-                                )
-                            web_guardrail.append({
-                                **clf_res.as_metadata(),
-                                "results": len(raw_results),
-                                "dropped": dropped,
-                            })
-                            logger.info(
-                                "web results screened",
-                                extra={"status": clf_res.status, "dropped": dropped},
-                            )
-
-                tools_used.append(tool_name)
-                t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
-                messages.append(t_msg)
-
-                try:
-                    parsed = json.loads(result_str) if isinstance(result_str, str) else result_str
-                    if isinstance(parsed, dict):
-                        if parsed.get("status") == "error" or "error" in parsed:
-                            status = "error"
-                        if tool_name == "search_knowledge_base":
-                            docs = parsed.get("documents", [])
-                            for d in docs:
-                                retrieved_docs.append(d)
-                                if d.get("url"):
-                                    sources.append(d.get("url"))
-                            retrieval_info = parsed.get("retrieval")
-                            rerank_usage = (
-                                retrieval_info.get("usage")
-                                if isinstance(retrieval_info, dict)
-                                else None
-                            )
-                            specialist_usage = _accumulate_usage(specialist_usage, rerank_usage)
-                        elif tool_name == "search_web":
-                            results = parsed.get("results", [])
-                            for r in results:
-                                if r.get("url"):
-                                    sources.append(r.get("url"))
-                                web_results.append({
-                                    "url": r.get("url", ""),
-                                    "title": r.get("title", ""),
-                                    "snippet": r.get("snippet", ""),
-                                })
-                        elif tool_name in API_TOOLS:
-                            api_results.append({"tool": tool_name, **parsed})
-                            if parsed.get("status") == "success" and parsed.get("source_url"):
-                                sources.append(parsed["source_url"])
-                except (json.JSONDecodeError, TypeError, KeyError):
-                    pass
-
-                metrics.inc_tool(tool_name, status)
-                logger.info(
-                    "tool finished",
-                    extra={
-                        "tool": tool_name,
-                        "agent": self.name,
-                        "status": status,
-                        "latency_ms": latency_ms,
-                    },
-                )
 
         return {
             "agent": self.name,

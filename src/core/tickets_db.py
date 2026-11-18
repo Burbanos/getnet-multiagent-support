@@ -1,18 +1,20 @@
-"""Persistent SQLite repository for human escalation tickets with lifecycle management."""
+"""Persistent repository for human escalation tickets over PostgreSQL or SQLite via SQLAlchemy Core."""
 from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
+from sqlalchemy import and_, insert, select, update
 
 from src.config import settings
 from src.core import metrics
+from src.core.db import ensure_schema, make_engine, tickets
 
 logger = logging.getLogger("multiagent.tickets_db")
 
@@ -84,62 +86,13 @@ def transcript_snapshot(messages: list[Any], limit: int = 20, max_chars: int = 2
 
 
 class TicketsRepository:
-    """Manages SQLite storage and lifecycle for customer escalation tickets."""
+    """Manages SQLite or PostgreSQL storage and lifecycle for customer escalation tickets."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str | Path) -> None:
         self.db_path = str(db_path)
-        path_obj = Path(self.db_path)
-        path_obj.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
-
-    def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_db(self) -> None:
-        with self._get_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS tickets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ticket_id TEXT UNIQUE NOT NULL,
-                    user_id TEXT NOT NULL,
-                    session_id TEXT,
-                    reason TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'open',
-                    priority TEXT NOT NULL DEFAULT 'standard',
-                    channel TEXT NOT NULL DEFAULT 'ai_chat',
-                    transcript TEXT NOT NULL DEFAULT '[]',
-                    operator_reply TEXT,
-                    operator_id TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    answered_at TEXT,
-                    delivered_at TEXT,
-                    notified_at TEXT,
-                    notification_status TEXT
-                )
-            """)
-            cursor = conn.cursor()
-            existing_cols = {row[1] for row in cursor.execute("PRAGMA table_info(tickets)").fetchall()}
-            if "session_id" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN session_id TEXT")
-            if "transcript" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN transcript TEXT NOT NULL DEFAULT '[]'")
-            if "operator_reply" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN operator_reply TEXT")
-            if "operator_id" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN operator_id TEXT")
-            if "answered_at" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN answered_at TEXT")
-            if "delivered_at" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN delivered_at TEXT")
-            if "notified_at" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN notified_at TEXT")
-            if "notification_status" not in existing_cols:
-                cursor.execute("ALTER TABLE tickets ADD COLUMN notification_status TEXT")
-            conn.commit()
-            logger.info(f"Tickets database initialized at: {self.db_path}")
+        self.engine = make_engine(self.db_path, pool_size=settings.DB_POOL_SIZE)
+        ensure_schema(self.engine)
+        logger.info("Tickets repository initialized")
 
     def create_ticket(
         self,
@@ -164,14 +117,20 @@ class TicketsRepository:
         suffix = uuid.uuid4().hex[:10].upper()
         ticket_id = f"GET-TKT-{date_str}-{suffix}"
 
-        with self._get_connection() as conn:
-            conn.execute("""
-                INSERT INTO tickets (
-                    ticket_id, user_id, session_id, reason, status, priority,
-                    channel, transcript, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'open', ?, 'ai_chat', ?, ?, ?)
-            """, (ticket_id, clean_user_id, session_id, clean_reason, priority, transcript_json, now, now))
-            conn.commit()
+        stmt = insert(tickets).values(
+            ticket_id=ticket_id,
+            user_id=clean_user_id,
+            session_id=session_id,
+            reason=clean_reason,
+            status="open",
+            priority=priority,
+            channel="ai_chat",
+            transcript=transcript_json,
+            created_at=now,
+            updated_at=now,
+        )
+        with self.engine.begin() as conn:
+            conn.execute(stmt)
 
         logger.info(f"Persisted escalation ticket {ticket_id}")
         metrics.inc_escalation()
@@ -194,7 +153,7 @@ class TicketsRepository:
             "message": message,
         }
 
-    def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+    def _row_to_dict(self, row: Mapping[str, Any]) -> dict[str, Any]:
         data = dict(row)
         tr = data.get("transcript")
         if isinstance(tr, str):
@@ -208,11 +167,10 @@ class TicketsRepository:
 
     def get_ticket(self, ticket_id: str) -> dict[str, Any] | None:
         """Retrieve ticket details by ticket ID with decoded transcript."""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM tickets WHERE ticket_id = ?", (ticket_id,))
-            row = cursor.fetchone()
-            if row:
+        stmt = select(tickets).where(tickets.c.ticket_id == ticket_id)
+        with self.engine.connect() as conn:
+            row = conn.execute(stmt).mappings().first()
+            if row is not None:
                 return self._row_to_dict(row)
         return None
 
@@ -224,27 +182,19 @@ class TicketsRepository:
     ) -> list[dict[str, Any]]:
         """List persisted tickets with optional filtering and clamped limit."""
         clamped_limit = max(1, min(200, limit))
-        query = "SELECT * FROM tickets"
-        conditions: list[str] = []
-        params: list[Any] = []
-
+        stmt = select(tickets)
+        conditions = []
         if user_id:
-            conditions.append("user_id = ?")
-            params.append(user_id)
+            conditions.append(tickets.c.user_id == user_id)
         if status:
-            conditions.append("status = ?")
-            params.append(status)
-
+            conditions.append(tickets.c.status == status)
         if conditions:
-            query += " WHERE " + " AND ".join(conditions)
+            stmt = stmt.where(and_(*conditions))
+        stmt = stmt.order_by(tickets.c.id.desc()).limit(clamped_limit)
 
-        query += " ORDER BY id DESC LIMIT ?"
-        params.append(clamped_limit)
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, tuple(params))
-            return [self._row_to_dict(row) for row in cursor.fetchall()]
+        with self.engine.connect() as conn:
+            rows = conn.execute(stmt).mappings().all()
+            return [self._row_to_dict(row) for row in rows]
 
     def update_ticket(
         self,
@@ -284,74 +234,85 @@ class TicketsRepository:
             )
 
         now = datetime.now(UTC).isoformat()
-        with self._get_connection() as conn:
-            if clean_reply is not None:
-                cursor = conn.execute("""
-                    UPDATE tickets
-                    SET status = ?, operator_reply = ?, operator_id = ?, answered_at = ?, updated_at = ?
-                    WHERE ticket_id = ? AND status = ?
-                """, (new_status, clean_reply, operator_id, now, now, ticket_id, curr_status))
-            else:
-                cursor = conn.execute("""
-                    UPDATE tickets
-                    SET status = ?, operator_id = ?, updated_at = ?
-                    WHERE ticket_id = ? AND status = ?
-                """, (new_status, operator_id, now, ticket_id, curr_status))
-            if cursor.rowcount == 0:
+        values: dict[str, Any] = {
+            "status": new_status,
+            "operator_id": operator_id,
+            "updated_at": now,
+        }
+        if clean_reply is not None:
+            values["operator_reply"] = clean_reply
+            values["answered_at"] = now
+
+        stmt = (
+            update(tickets)
+            .where(and_(tickets.c.ticket_id == ticket_id, tickets.c.status == curr_status))
+            .values(**values)
+        )
+        with self.engine.begin() as conn:
+            res = conn.execute(stmt)
+            if (res.rowcount or 0) == 0:
                 raise TicketTransitionError(
                     f"Ticket {ticket_id} status changed concurrently (expected '{curr_status}')"
                 )
-            conn.commit()
 
         return self.get_ticket(ticket_id)
 
     def mark_delivered(self, ticket_id: str) -> bool:
         """Mark ticket as delivered to the user in the chat session. Returns True only if marked now."""
         now = datetime.now(UTC).isoformat()
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "UPDATE tickets SET delivered_at = ? WHERE ticket_id = ? AND delivered_at IS NULL",
-                (now, ticket_id),
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+        stmt = (
+            update(tickets)
+            .where(and_(tickets.c.ticket_id == ticket_id, tickets.c.delivered_at.is_(None)))
+            .values(delivered_at=now)
+        )
+        with self.engine.begin() as conn:
+            res = conn.execute(stmt)
+            return (res.rowcount or 0) > 0
 
     def record_notification(self, ticket_id: str, status: str) -> bool:
         """Record the operator webhook notification outcome; sets notified_at only when status == 'sent'."""
-        with self._get_connection() as conn:
-            if status == "sent":
-                now = datetime.now(UTC).isoformat()
-                cursor = conn.execute(
-                    "UPDATE tickets SET notified_at = ?, notification_status = ? WHERE ticket_id = ?",
-                    (now, status, ticket_id),
-                )
-            else:
-                cursor = conn.execute(
-                    "UPDATE tickets SET notification_status = ? WHERE ticket_id = ?",
-                    (status, ticket_id),
-                )
-            conn.commit()
-            return cursor.rowcount > 0
+        values: dict[str, Any] = {"notification_status": status}
+        if status == "sent":
+            values["notified_at"] = datetime.now(UTC).isoformat()
+        stmt = update(tickets).where(tickets.c.ticket_id == ticket_id).values(**values)
+        with self.engine.begin() as conn:
+            res = conn.execute(stmt)
+            return (res.rowcount or 0) > 0
 
     def append_customer_message(self, ticket_id: str, content: str) -> bool:
-        """Append a user message to the ticket's transcript and update updated_at. Returns False if ticket missing."""
-        ticket = self.get_ticket(ticket_id)
-        if ticket is None:
-            return False
-
+        """Append a user message to the ticket's transcript inside one locked transaction."""
         clean_content = content[:2000]
-        transcript = list(ticket.get("transcript") or [])
-        transcript.append({"role": "user", "content": clean_content})
-        tr_json = json.dumps(transcript, ensure_ascii=False)
         now = datetime.now(UTC).isoformat()
 
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "UPDATE tickets SET transcript = ?, updated_at = ? WHERE ticket_id = ?",
-                (tr_json, now, ticket_id),
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(tickets.c.transcript)
+                .where(tickets.c.ticket_id == ticket_id)
+                .with_for_update()
+            ).mappings().first()
+            if row is None:
+                return False
+
+            raw_tr = row.get("transcript")
+            if isinstance(raw_tr, str):
+                try:
+                    transcript = list(json.loads(raw_tr) or [])
+                except (json.JSONDecodeError, TypeError):
+                    transcript = []
+            elif isinstance(raw_tr, list):
+                transcript = list(raw_tr)
+            else:
+                transcript = []
+
+            transcript.append({"role": "user", "content": clean_content})
+            tr_json = json.dumps(transcript, ensure_ascii=False)
+
+            res = conn.execute(
+                update(tickets)
+                .where(tickets.c.ticket_id == ticket_id)
+                .values(transcript=tr_json, updated_at=now)
             )
-            conn.commit()
-            return cursor.rowcount > 0
+            return (res.rowcount or 0) > 0
 
 
 _tickets_repo: TicketsRepository | None = None
@@ -361,11 +322,16 @@ def get_tickets_repository() -> TicketsRepository:
     """Dependency getter for tickets repository singleton."""
     global _tickets_repo
     if _tickets_repo is None:
-        _tickets_repo = TicketsRepository(settings.TICKETS_DB_PATH)
+        target = settings.DATABASE_URL.strip() or settings.TICKETS_DB_PATH
+        _tickets_repo = TicketsRepository(target)
     return _tickets_repo
 
 
 def reset_tickets_repository() -> None:
     """Reset tickets repository singleton."""
     global _tickets_repo
+    if _tickets_repo is not None:
+        engine = getattr(_tickets_repo, "engine", None)
+        if engine is not None:
+            engine.dispose()
     _tickets_repo = None

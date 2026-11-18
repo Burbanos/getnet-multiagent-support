@@ -7,5 +7,6 @@ extend-exclude = ["scripts"]
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "network: tests that need internet",
+    "integration: tests that require Postgres and Redis",
 ]
-addopts = "-m 'not network'"
+addopts = "-m 'not network and not integration'"

@@ -53,11 +53,12 @@ _tokens: dict[str, int] = {"input": 0, "output": 0}
 _guardrail_decisions: dict[str, int] = {}
 _notifications: dict[str, int] = {}
 _answer_checks: dict[str, int] = {}
+_rate_limit_backend_errors_total: int = 0
 
 
 def reset() -> None:
     """Reset all in-memory counters and histogram buckets to zero."""
-    global _latency_sum, _latency_count, _escalations_total, _abstentions_total
+    global _latency_sum, _latency_count, _escalations_total, _abstentions_total, _rate_limit_backend_errors_total
     with _lock:
         _requests.clear()
         _latency_buckets.clear()
@@ -73,6 +74,7 @@ def reset() -> None:
         _guardrail_decisions.clear()
         _notifications.clear()
         _answer_checks.clear()
+        _rate_limit_backend_errors_total = 0
 
 
 def inc_request(status_code: int | str, latency_s: float) -> None:
@@ -132,6 +134,13 @@ def inc_answer_check(status: str) -> None:
     norm = status if status in ANSWER_CHECK_STATUSES else "unknown"
     with _lock:
         _answer_checks[norm] = _answer_checks.get(norm, 0) + 1
+
+
+def inc_rate_limit_error() -> None:
+    """Increment the Redis rate limiter backend error fallback counter."""
+    global _rate_limit_backend_errors_total
+    with _lock:
+        _rate_limit_backend_errors_total += 1
 
 
 def add_tokens(input_tokens: int | None, output_tokens: int | None) -> None:
@@ -203,6 +212,9 @@ def render() -> str:
             "# TYPE getnet_llm_tokens_total counter",
             f'getnet_llm_tokens_total{{direction="input"}} {_tokens["input"]}',
             f'getnet_llm_tokens_total{{direction="output"}} {_tokens["output"]}',
+            "# HELP getnet_rate_limit_backend_errors_total Total number of rate limit backend errors falling back to local memory.",
+            "# TYPE getnet_rate_limit_backend_errors_total counter",
+            f"getnet_rate_limit_backend_errors_total {_rate_limit_backend_errors_total}",
         ])
 
         return "\n".join(lines) + "\n"

@@ -1,15 +1,93 @@
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  environment:
+    - APP_ENV=production
+    - ENVIRONMENT=${ENVIRONMENT:-production}
+    - APP_PORT=${APP_PORT:-8000}
+    - APP_HOST=0.0.0.0
+    - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    - LLM_PROVIDER=${LLM_PROVIDER:-google_genai}
+    - LLM_MODEL=${LLM_MODEL:-gemini-3.5-flash-lite}
+    - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemini-3.1-flash-lite}
+    - LLM_TIMEOUT_S=${LLM_TIMEOUT_S:-30.0}
+    - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-2}
+    - MAX_SUPERVISOR_STEPS=${MAX_SUPERVISOR_STEPS:-6}
+    - MAX_SPECIALIST_STEPS=${MAX_SPECIALIST_STEPS:-4}
+    - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED:-true}
+    - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS:-3}
+    - DDGS_TIMEOUT=${DDGS_TIMEOUT:-8}
+    - PUBLIC_DATA_TIMEOUT_S=${PUBLIC_DATA_TIMEOUT_S:-8.0}
+    - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
+    - GUARDRAIL_CLASSIFIER_ENABLED=${GUARDRAIL_CLASSIFIER_ENABLED:-true}
+    - GUARDRAIL_CLASSIFIER_MODEL=${GUARDRAIL_CLASSIFIER_MODEL:-}
+    - GUARDRAIL_CLASSIFIER_TIMEOUT_S=${GUARDRAIL_CLASSIFIER_TIMEOUT_S:-10.0}
+    - GUARDRAIL_CLASSIFIER_FAIL_MODE=${GUARDRAIL_CLASSIFIER_FAIL_MODE:-open}
+    - GUARDRAIL_ACCOUNT_FAIL_CLOSED=${GUARDRAIL_ACCOUNT_FAIL_CLOSED:-true}
+    - GUARDRAIL_WEB_RESULTS_ENABLED=${GUARDRAIL_WEB_RESULTS_ENABLED:-true}
+    - ANSWER_CHECK_ENABLED=${ANSWER_CHECK_ENABLED:-true}
+    - API_KEYS=${API_KEYS:-}
+    - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
+    - RATE_LIMIT_REDIS_PREFIX=${RATE_LIMIT_REDIS_PREFIX:-getnet:rl:}
+    - DATABASE_URL=postgresql://getnet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/getnet
+    - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+    - REDIS_URL=redis://redis:6379/0
+    - TRACING_EXPORTER=${TRACING_EXPORTER:-none}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-getnet-multiagent}
+    - ESCALATE_AFTER_ABSTENTIONS=${ESCALATE_AFTER_ABSTENTIONS:-2}
+    - OPERATOR_WEBHOOK_URL=${OPERATOR_WEBHOOK_URL:-}
+    - OPERATOR_WEBHOOK_TIMEOUT_S=${OPERATOR_WEBHOOK_TIMEOUT_S:-3.0}
+    - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+    - MAX_HISTORY_MESSAGES=${MAX_HISTORY_MESSAGES:-40}
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\" || exit 1"]
+    interval: 15s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+
 services:
-  getnet-multiagent-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: getnet_multiagent_service
+  postgres:
+    image: postgres:16-alpine
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: getnet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: getnet
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U getnet -d getnet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app-a:
+    <<: *app
+    image: getnet-multiagent-app:local
     ports:
       - "8000:8000"
-    env_file:
-      - path: .env
-        required: false
     environment:
       - APP_ENV=production
       - ENVIRONMENT=${ENVIRONMENT:-production}
@@ -23,24 +101,116 @@ services:
       - LLM_TIMEOUT_S=${LLM_TIMEOUT_S:-30.0}
       - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-2}
       - MAX_SUPERVISOR_STEPS=${MAX_SUPERVISOR_STEPS:-6}
+      - MAX_SPECIALIST_STEPS=${MAX_SPECIALIST_STEPS:-4}
       - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED:-true}
       - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS:-3}
       - DDGS_TIMEOUT=${DDGS_TIMEOUT:-8}
+      - PUBLIC_DATA_TIMEOUT_S=${PUBLIC_DATA_TIMEOUT_S:-8.0}
       - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
+      - GUARDRAIL_CLASSIFIER_ENABLED=${GUARDRAIL_CLASSIFIER_ENABLED:-true}
+      - GUARDRAIL_CLASSIFIER_MODEL=${GUARDRAIL_CLASSIFIER_MODEL:-}
+      - GUARDRAIL_CLASSIFIER_TIMEOUT_S=${GUARDRAIL_CLASSIFIER_TIMEOUT_S:-10.0}
+      - GUARDRAIL_CLASSIFIER_FAIL_MODE=${GUARDRAIL_CLASSIFIER_FAIL_MODE:-open}
+      - GUARDRAIL_ACCOUNT_FAIL_CLOSED=${GUARDRAIL_ACCOUNT_FAIL_CLOSED:-true}
+      - GUARDRAIL_WEB_RESULTS_ENABLED=${GUARDRAIL_WEB_RESULTS_ENABLED:-true}
+      - ANSWER_CHECK_ENABLED=${ANSWER_CHECK_ENABLED:-true}
       - API_KEYS=${API_KEYS:-}
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
-      - CHECKPOINT_DB_PATH=${CHECKPOINT_DB_PATH:-state/checkpoints.db}
-      - TICKETS_DB_PATH=${TICKETS_DB_PATH:-state/tickets.db}
+      - RATE_LIMIT_REDIS_PREFIX=${RATE_LIMIT_REDIS_PREFIX:-getnet:rl:}
+      - DATABASE_URL=postgresql://getnet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/getnet
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+      - REDIS_URL=redis://redis:6379/0
+      - TRACING_EXPORTER=${TRACING_EXPORTER:-none}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-getnet-multiagent}
+      - REPLICA_NAME=app-a
       - ESCALATE_AFTER_ABSTENTIONS=${ESCALATE_AFTER_ABSTENTIONS:-2}
+      - OPERATOR_WEBHOOK_URL=${OPERATOR_WEBHOOK_URL:-}
+      - OPERATOR_WEBHOOK_TIMEOUT_S=${OPERATOR_WEBHOOK_TIMEOUT_S:-3.0}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - MAX_HISTORY_MESSAGES=${MAX_HISTORY_MESSAGES:-40}
+
+  app-b:
+    <<: *app
+    image: getnet-multiagent-app:local
+    ports:
+      - "8001:8000"
+    environment:
+      - APP_ENV=production
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - APP_PORT=${APP_PORT:-8000}
+      - APP_HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-google_genai}
+      - LLM_MODEL=${LLM_MODEL:-gemini-3.5-flash-lite}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemini-3.1-flash-lite}
+      - LLM_TIMEOUT_S=${LLM_TIMEOUT_S:-30.0}
+      - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-2}
+      - MAX_SUPERVISOR_STEPS=${MAX_SUPERVISOR_STEPS:-6}
+      - MAX_SPECIALIST_STEPS=${MAX_SPECIALIST_STEPS:-4}
+      - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED:-true}
+      - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS:-3}
+      - DDGS_TIMEOUT=${DDGS_TIMEOUT:-8}
+      - PUBLIC_DATA_TIMEOUT_S=${PUBLIC_DATA_TIMEOUT_S:-8.0}
+      - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
+      - GUARDRAIL_CLASSIFIER_ENABLED=${GUARDRAIL_CLASSIFIER_ENABLED:-true}
+      - GUARDRAIL_CLASSIFIER_MODEL=${GUARDRAIL_CLASSIFIER_MODEL:-}
+      - GUARDRAIL_CLASSIFIER_TIMEOUT_S=${GUARDRAIL_CLASSIFIER_TIMEOUT_S:-10.0}
+      - GUARDRAIL_CLASSIFIER_FAIL_MODE=${GUARDRAIL_CLASSIFIER_FAIL_MODE:-open}
+      - GUARDRAIL_ACCOUNT_FAIL_CLOSED=${GUARDRAIL_ACCOUNT_FAIL_CLOSED:-true}
+      - GUARDRAIL_WEB_RESULTS_ENABLED=${GUARDRAIL_WEB_RESULTS_ENABLED:-true}
+      - ANSWER_CHECK_ENABLED=${ANSWER_CHECK_ENABLED:-true}
+      - API_KEYS=${API_KEYS:-}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
+      - RATE_LIMIT_REDIS_PREFIX=${RATE_LIMIT_REDIS_PREFIX:-getnet:rl:}
+      - DATABASE_URL=postgresql://getnet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/getnet
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+      - REDIS_URL=redis://redis:6379/0
+      - TRACING_EXPORTER=${TRACING_EXPORTER:-none}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-getnet-multiagent}
+      - REPLICA_NAME=app-b
+      - ESCALATE_AFTER_ABSTENTIONS=${ESCALATE_AFTER_ABSTENTIONS:-2}
+      - OPERATOR_WEBHOOK_URL=${OPERATOR_WEBHOOK_URL:-}
+      - OPERATOR_WEBHOOK_TIMEOUT_S=${OPERATOR_WEBHOOK_TIMEOUT_S:-3.0}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - MAX_HISTORY_MESSAGES=${MAX_HISTORY_MESSAGES:-40}
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    profiles: ["observability"]
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "4318:4318"
+      - "16686:16686"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["observability"]
     volumes:
-      - app_state:/app/state
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\" || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app-a
+      - app-b
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    profiles: ["observability"]
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
 
 volumes:
-  app_state:
-    name: getnet_app_state
+  postgres_data:
+    name: getnet_postgres_data

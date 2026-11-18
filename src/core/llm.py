@@ -18,6 +18,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmb
 
 from src.config import settings
 from src.core.log_context import exc_brief
+from src.core.tracing import set_attributes, span
 
 logger = logging.getLogger("multiagent.llm")
 
@@ -109,6 +110,18 @@ def extract_model_name(model: Any) -> str:
     )
 
 
+def _token_span_attrs(ai_message: Any) -> dict[str, int]:
+    usage = getattr(ai_message, "usage_metadata", None)
+    if not isinstance(usage, dict):
+        return {}
+    attrs: dict[str, int] = {}
+    if usage.get("input_tokens") is not None:
+        attrs["llm.input_tokens"] = int(usage["input_tokens"])
+    if usage.get("output_tokens") is not None:
+        attrs["llm.output_tokens"] = int(usage["output_tokens"])
+    return attrs
+
+
 def invoke_model_with_fallback(
     bound_model: Any,
     bound_fallback: Any | None,
@@ -120,46 +133,78 @@ def invoke_model_with_fallback(
     Invoke bound primary model with automatic failover to bound fallback on transient errors.
     Returns (ai_message, active_model).
     """
-    try:
-        ai_message = bound_model.invoke(messages)
-        return ai_message, bound_model
-    except (LLMNotConfiguredError, LLMConfigurationError):
-        raise
-    except (
-        ModelNotFoundError,
-        ModelAuthenticationError,
-        ModelPermissionDeniedError,
-        ModelInvalidRequestError,
-    ) as exc:
-        logger.error(f"{caller_name} primary model configuration error [trace_id={trace_id}]: {exc_brief(exc)}")
-        raise LLMConfigurationError(str(exc)) from exc
-    except Exception as exc:
-        primary_name = extract_model_name(bound_model)
-        if bound_fallback is not None:
-            logger.warning(
-                f"Primary model '{primary_name}' failed with {exc_brief(exc)}. "
-                f"Failing over to fallback [trace_id={trace_id}]."
+    primary_name = extract_model_name(bound_model)
+    with span(
+        "llm.call",
+        {
+            "llm.caller": caller_name,
+            "llm.model": primary_name,
+            "llm.fallback_used": False,
+        },
+    ):
+        try:
+            ai_message = bound_model.invoke(messages)
+            set_attributes(
+                {
+                    "llm.model": primary_name,
+                    "llm.fallback_used": False,
+                    "llm.status": "ok",
+                    **_token_span_attrs(ai_message),
+                }
             )
-            try:
-                ai_message = bound_fallback.invoke(messages)
-                return ai_message, bound_fallback
-            except (LLMNotConfiguredError, LLMConfigurationError):
-                raise
-            except (
-                ModelNotFoundError,
-                ModelAuthenticationError,
-                ModelPermissionDeniedError,
-                ModelInvalidRequestError,
-            ) as fb_cfg_err:
-                logger.error(f"{caller_name} fallback model configuration error [trace_id={trace_id}]: {exc_brief(fb_cfg_err)}")
-                raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
-            except Exception as fb_exc:
+            return ai_message, bound_model
+        except (LLMNotConfiguredError, LLMConfigurationError):
+            set_attributes({"llm.model": primary_name, "llm.fallback_used": False, "llm.status": "error"})
+            raise
+        except (
+            ModelNotFoundError,
+            ModelAuthenticationError,
+            ModelPermissionDeniedError,
+            ModelInvalidRequestError,
+        ) as exc:
+            logger.error(f"{caller_name} primary model configuration error [trace_id={trace_id}]: {exc_brief(exc)}")
+            set_attributes({"llm.model": primary_name, "llm.fallback_used": False, "llm.status": "error"})
+            raise LLMConfigurationError(str(exc)) from exc
+        except Exception as exc:
+            if bound_fallback is not None:
                 fb_name = extract_model_name(bound_fallback)
-                logger.error(
-                    f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
-                    f"[trace_id={trace_id}]: {exc_brief(fb_exc)}"
+                logger.warning(
+                    f"Primary model '{primary_name}' failed with {exc_brief(exc)}. "
+                    f"Failing over to fallback [trace_id={trace_id}]."
                 )
-                raise LLMUnavailableError(str(fb_exc)) from fb_exc
-        else:
-            logger.error(f"{caller_name} primary model invocation failed [trace_id={trace_id}]: {exc_brief(exc)}")
-            raise LLMUnavailableError(str(exc)) from exc
+                try:
+                    ai_message = bound_fallback.invoke(messages)
+                    set_attributes(
+                        {
+                            "llm.model": fb_name,
+                            "llm.fallback_used": True,
+                            "llm.status": "ok",
+                            **_token_span_attrs(ai_message),
+                        }
+                    )
+                    return ai_message, bound_fallback
+                except (LLMNotConfiguredError, LLMConfigurationError):
+                    set_attributes({"llm.model": fb_name, "llm.fallback_used": True, "llm.status": "error"})
+                    raise
+                except (
+                    ModelNotFoundError,
+                    ModelAuthenticationError,
+                    ModelPermissionDeniedError,
+                    ModelInvalidRequestError,
+                ) as fb_cfg_err:
+                    logger.error(
+                        f"{caller_name} fallback model configuration error [trace_id={trace_id}]: {exc_brief(fb_cfg_err)}"
+                    )
+                    set_attributes({"llm.model": fb_name, "llm.fallback_used": True, "llm.status": "error"})
+                    raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
+                except Exception as fb_exc:
+                    logger.error(
+                        f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
+                        f"[trace_id={trace_id}]: {exc_brief(fb_exc)}"
+                    )
+                    set_attributes({"llm.model": fb_name, "llm.fallback_used": True, "llm.status": "error"})
+                    raise LLMUnavailableError(str(fb_exc)) from fb_exc
+            else:
+                logger.error(f"{caller_name} primary model invocation failed [trace_id={trace_id}]: {exc_brief(exc)}")
+                set_attributes({"llm.model": primary_name, "llm.fallback_used": False, "llm.status": "error"})
+                raise LLMUnavailableError(str(exc)) from exc

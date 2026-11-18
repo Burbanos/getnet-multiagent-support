@@ -70,7 +70,7 @@
         <i class="fa-solid fa-comments text-indigo-400"></i>
         <span class="text-slate-300">Session ID:</span>
         <input id="sessionIdInput" type="text" value="sess-2026-demo" class="bg-slate-900 border border-slate-700 text-indigo-300 font-mono px-2 py-0.5 rounded w-32 text-center text-xs focus:outline-none focus:border-indigo-500">
-        <button onclick="resetSession()" title="Nova Sessão (SqliteSaver)" class="hover:text-red-400 text-slate-400 text-xs px-1">
+        <button onclick="resetSession()" title="Nova Sessão (Memória Persistente)" class="hover:text-red-400 text-slate-400 text-xs px-1">
           <i class="fa-solid fa-rotate-right"></i>
         </button>
       </div>
@@ -407,7 +407,7 @@
       'SupervisorAgent': {
         color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
         icon: 'fa-brain',
-        desc: 'Supervisor LangGraph (Gemini (function calling) & SqliteSaver)'
+        desc: 'Supervisor LangGraph (Gemini function calling & memória persistente)'
       },
       'KnowledgeAgent': {
         color: 'bg-red-500/20 text-red-400 border-red-500/40',
@@ -502,7 +502,7 @@
       stopTicketPolling();
       const newSession = 'sess-' + Math.random().toString(36).substring(2, 9);
       document.getElementById('sessionIdInput').value = newSession;
-      appendMessage('agent', `Sessão de atendimento reiniciada no SqliteSaver: <code>${newSession}</code>. O contexto de memória das mensagens anteriores foi resetado.`, 'SupervisorAgent');
+      appendMessage('agent', `Sessão de atendimento reiniciada na memória persistente: <code>${newSession}</code>. O contexto de memória das mensagens anteriores foi resetado.`, 'SupervisorAgent');
     }
 
     function runScenario(id) {

@@ -22,6 +22,7 @@ from src.core.llm import (
     get_chat_model,
 )
 from src.core.log_context import exc_brief
+from src.core.tracing import set_attributes, span
 
 logger = logging.getLogger("multiagent.rag.reranker")
 
@@ -159,32 +160,50 @@ class LLMReranker:
             else (settings.RAG_RERANK_MODEL or settings.LLM_MODEL)
         )
 
-        try:
-            bound = self._ensure_bound_model()
-            active_model_name = extract_model_name(bound)
-            messages = [
-                SystemMessage(content=self._get_prompt()),
-                HumanMessage(content=format_rerank_input(query, passages)),
-            ]
-            response = bound.invoke(messages)
-        except (LLMNotConfiguredError, LLMConfigurationError):
-            raise
-        except CONFIG_EXCEPTIONS as exc:
-            raise LLMConfigurationError(str(exc)) from exc
-        except Exception as exc:  # noqa: BLE001 - non-config errors degrade cleanly to status='error'
-            latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-            logger.warning(f"Reranker invocation failed: {exc_brief(exc)}")
-            return RerankResult(
-                status="error",
-                relevance=None,
-                error_type=type(exc).__name__,
-                latency_ms=latency_ms,
-                usage=None,
-                model=active_model_name,
-            )
+        with span(
+            "llm.call",
+            {
+                "llm.caller": "Reranker",
+                "llm.model": active_model_name,
+                "llm.fallback_used": False,
+            },
+        ):
+            try:
+                bound = self._ensure_bound_model()
+                active_model_name = extract_model_name(bound)
+                set_attributes({"llm.model": active_model_name})
+                messages = [
+                    SystemMessage(content=self._get_prompt()),
+                    HumanMessage(content=format_rerank_input(query, passages)),
+                ]
+                response = bound.invoke(messages)
+            except (LLMNotConfiguredError, LLMConfigurationError):
+                set_attributes({"llm.model": active_model_name, "llm.status": "error"})
+                raise
+            except CONFIG_EXCEPTIONS as exc:
+                set_attributes({"llm.model": active_model_name, "llm.status": "error"})
+                raise LLMConfigurationError(str(exc)) from exc
+            except Exception as exc:  # noqa: BLE001 - non-config errors degrade cleanly to status='error'
+                latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+                logger.warning(f"Reranker invocation failed: {exc_brief(exc)}")
+                set_attributes({"llm.model": active_model_name, "llm.status": "error"})
+                return RerankResult(
+                    status="error",
+                    relevance=None,
+                    error_type=type(exc).__name__,
+                    latency_ms=latency_ms,
+                    usage=None,
+                    model=active_model_name,
+                )
+
+            usage = _extract_usage(response)
+            ok_attrs: dict[str, Any] = {"llm.model": active_model_name, "llm.status": "ok"}
+            if usage:
+                ok_attrs["llm.input_tokens"] = usage["input_tokens"]
+                ok_attrs["llm.output_tokens"] = usage["output_tokens"]
+            set_attributes(ok_attrs)
 
         latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-        usage = _extract_usage(response)
 
         tool_calls = getattr(response, "tool_calls", None) or []
         matching_call = next(

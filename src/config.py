@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 30
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
     TICKETS_DB_PATH: str = "data/tickets.db"
+    DATABASE_URL: str = ""
+    DB_POOL_SIZE: int = 5
+    REDIS_URL: str = ""
+    RATE_LIMIT_REDIS_PREFIX: str = "getnet:rl:"
+    TRACING_EXPORTER: Literal["none", "console", "otlp"] = "none"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_SERVICE_NAME: str = "getnet-multiagent"
+    REPLICA_NAME: str = ""
     ESCALATE_AFTER_ABSTENTIONS: int = 2
     OPERATOR_WEBHOOK_URL: str = ""
     OPERATOR_WEBHOOK_TIMEOUT_S: float = 3.0
@@ -108,6 +116,15 @@ class JsonFormatter(logging.Formatter):
             raw_uid = record.user_id
             if raw_uid is not None:
                 log_obj["user_hash"] = user_hash(str(raw_uid))
+
+        try:
+            from src.core.tracing import current_trace_id
+
+            otel_tid = current_trace_id()
+            if otel_tid:
+                log_obj["otel_trace_id"] = otel_tid
+        except ImportError:
+            pass
 
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)

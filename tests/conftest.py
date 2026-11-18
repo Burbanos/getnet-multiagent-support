@@ -14,6 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _test_tmp_dir = tempfile.mkdtemp(prefix="getnet_test_tickets_")
 os.environ["TICKETS_DB_PATH"] = str(Path(_test_tmp_dir) / "tickets.db")
 os.environ["CHECKPOINT_DB_PATH"] = str(Path(_test_tmp_dir) / "checkpoints.db")
+os.environ["DATABASE_URL"] = ""
+os.environ["REDIS_URL"] = ""
+os.environ["TRACING_EXPORTER"] = "none"
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["APP_ENV"] = "testing"
 os.environ["ENABLE_GUARDRAILS"] = "true"
@@ -165,12 +168,17 @@ def mock_web_search(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def reset_auth_settings(monkeypatch):
-    """Ensure consistent authentication and rate limiting state across all tests."""
+    """Ensure consistent authentication, rate limiting, and storage settings across unit tests."""
     from src.config import settings
     from src.core.auth import reset_rate_limiter
+    from src.core.tickets_db import reset_tickets_repository
 
     monkeypatch.setattr(settings, "APP_ENV", "development")
     monkeypatch.setattr(settings, "API_KEYS", "")
+    monkeypatch.setattr(settings, "DATABASE_URL", "")
+    monkeypatch.setattr(settings, "REDIS_URL", "")
+    monkeypatch.setattr(settings, "TRACING_EXPORTER", "none")
     reset_rate_limiter()
     yield
     reset_rate_limiter()
+    reset_tickets_repository()

@@ -1,0 +1,132 @@
+{
+  "title": "Getnet Multi-Agent Support",
+  "uid": "getnet-multiagent",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Requests by Status & Replica",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance, status) (rate(getnet_requests_total[5m]))",
+          "legendFormat": "{{instance}} {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Request Latency p50 & p95 (s) by Replica",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le, instance) (rate(getnet_request_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{instance}} p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(getnet_request_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{instance}} p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Tool Calls by Tool, Status & Replica",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance, tool, status) (rate(getnet_tool_calls_total[5m]))",
+          "legendFormat": "{{instance}} {{tool}} ({{status}})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Escalations & Abstentions by Replica",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance) (rate(getnet_escalations_total[5m]))",
+          "legendFormat": "{{instance}} escalations"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (instance) (rate(getnet_abstentions_total[5m]))",
+          "legendFormat": "{{instance}} abstentions"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Guardrail Decisions by Replica",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance, decision) (rate(getnet_guardrail_decisions_total[5m]))",
+          "legendFormat": "{{instance}} {{decision}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "LLM Tokens by Direction & Replica",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance, direction) (rate(getnet_llm_tokens_total[5m]))",
+          "legendFormat": "{{instance}} {{direction}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Answer Checks & Notifications by Status & Replica",
+      "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance, status) (rate(getnet_answer_checks_total[5m]))",
+          "legendFormat": "{{instance}} answer_check={{status}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (instance, status) (rate(getnet_operator_notifications_total[5m]))",
+          "legendFormat": "{{instance}} notify={{status}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Rate Limit Backend Errors by Replica",
+      "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance) (rate(getnet_rate_limit_backend_errors_total[5m]))",
+          "legendFormat": "{{instance}} rl_errors"
+        }
+      ]
+    }
+  ]
+}

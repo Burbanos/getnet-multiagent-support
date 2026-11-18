@@ -23,6 +23,7 @@ from src.core.llm import (
     extract_model_name,
     get_chat_model,
 )
+from src.core.tracing import set_attributes, span
 
 CONFIG_EXCEPTIONS = (
     ModelNotFoundError,
@@ -112,26 +113,46 @@ class InjectionClassifier:
         ]
 
         t0 = time.perf_counter()
-        try:
-            response = self._bound_model.invoke(messages)
-        except (LLMNotConfiguredError, LLMConfigurationError):
-            raise
-        except CONFIG_EXCEPTIONS as exc:
-            raise LLMConfigurationError(type(exc).__name__) from exc
-        except Exception as exc:  # noqa: BLE001
-            latency = round((time.perf_counter() - t0) * 1000, 2)
-            return ClassifierResult(
-                status="error",
-                verdict=None,
-                category=None,
-                error_type=type(exc).__name__,
-                latency_ms=latency,
-                usage=None,
-                model=self._model_name,
-            )
+        caller_name = "WebGuardrailClassifier" if self.prompt_path == WEB_PROMPT_PATH else "InjectionClassifier"
+        with span(
+            "llm.call",
+            {
+                "llm.caller": caller_name,
+                "llm.model": self._model_name,
+                "llm.fallback_used": False,
+            },
+        ):
+            try:
+                response = self._bound_model.invoke(messages)
+            except (LLMNotConfiguredError, LLMConfigurationError):
+                set_attributes({"llm.status": "error"})
+                raise
+            except CONFIG_EXCEPTIONS as exc:
+                set_attributes({"llm.status": "error"})
+                raise LLMConfigurationError(type(exc).__name__) from exc
+            except Exception as exc:  # noqa: BLE001
+                latency = round((time.perf_counter() - t0) * 1000, 2)
+                set_attributes({"llm.status": "error"})
+                return ClassifierResult(
+                    status="error",
+                    verdict=None,
+                    category=None,
+                    error_type=type(exc).__name__,
+                    latency_ms=latency,
+                    usage=None,
+                    model=self._model_name,
+                )
+
+            usage = getattr(response, "usage_metadata", None)
+            span_attrs: dict[str, Any] = {"llm.status": "ok"}
+            if isinstance(usage, dict):
+                if usage.get("input_tokens") is not None:
+                    span_attrs["llm.input_tokens"] = int(usage["input_tokens"])
+                if usage.get("output_tokens") is not None:
+                    span_attrs["llm.output_tokens"] = int(usage["output_tokens"])
+            set_attributes(span_attrs)
 
         latency = round((time.perf_counter() - t0) * 1000, 2)
-        usage = getattr(response, "usage_metadata", None)
 
         tool_calls = getattr(response, "tool_calls", None) or []
         verdict_call = next((tc for tc in tool_calls if tc.get("name") == "GuardrailVerdict"), None)

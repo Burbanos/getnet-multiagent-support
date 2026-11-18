@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "getnet-multiagent"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app-a:8000", "app-b:8000"]

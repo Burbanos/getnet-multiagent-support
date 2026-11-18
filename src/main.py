@@ -15,14 +15,25 @@ from pydantic import BaseModel, Field
 from src.config import logger, settings
 from src.core import metrics
 from src.core.auth import Principal, auth_mode, authenticate, validate_auth_config
+from src.core.checkpointer import checkpoint_backend, checkpointer_label
+from src.core.db import ping, validate_state_config
 from src.core.graph import KNOWLEDGE_TOOLS, SUPPORT_TOOLS, get_orchestrator
 from src.core.llm import (
     LLMConfigurationError,
     LLMNotConfiguredError,
     LLMUnavailableError,
 )
-from src.core.log_context import bind, exc_brief
+from src.core.log_context import bind, exc_brief, user_hash
+from src.core.rate_limit import rate_limit_backend
 from src.core.tickets_db import TicketTransitionError, get_tickets_repository
+from src.core.tracing import (
+    ensure_tracing,
+    extract_context,
+    inject_traceparent,
+    set_attributes,
+    shutdown_tracing,
+    span,
+)
 from src.tools.supervisor_tools import SUPERVISOR_TOOLS
 
 
@@ -85,6 +96,10 @@ class HealthResponse(BaseModel):
     llm_configured: bool
     guardrails_enabled: bool
     auth_mode: str
+    state_backend: str
+    rate_limit_backend: str
+    tracing_exporter: str
+    replica: str | None = None
 
 
 class TicketUpdate(BaseModel):
@@ -95,10 +110,15 @@ class TicketUpdate(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_state_config()
     validate_auth_config()
+    ensure_tracing()
     get_orchestrator()
     get_tickets_repository()
-    yield
+    try:
+        yield
+    finally:
+        shutdown_tracing()
 
 
 app = FastAPI(
@@ -146,7 +166,7 @@ async def root():
     return {
         "service": "Getnet Multi-Agent Support System",
         "version": "2.0.0",
-        "architecture": "Supervisor ReAct with Tool Calling & SqliteSaver (thread user_id:session_id)",
+        "architecture": f"Supervisor ReAct with Tool Calling & {checkpointer_label()}",
         "status": "online",
         "documentation": "/docs",
         "health": "/health",
@@ -170,14 +190,24 @@ async def demo_ui():
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Observability"])
-async def health_check():
+async def health_check(response: Response):
+    try:
+        db_ok = ping(get_tickets_repository().engine)
+    except Exception:  # noqa: BLE001
+        db_ok = False
+    if not db_ok:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HealthResponse(
-        status="healthy",
+        status="healthy" if db_ok else "unhealthy",
         version="2.0.0",
         environment=settings.APP_ENV,
         llm_configured=bool(settings.GEMINI_API_KEY),
         guardrails_enabled=settings.ENABLE_GUARDRAILS,
         auth_mode=auth_mode(),
+        state_backend=checkpoint_backend(),
+        rate_limit_backend=rate_limit_backend(),
+        tracing_exporter=settings.TRACING_EXPORTER,
+        replica=settings.REPLICA_NAME or None,
     )
 
 
@@ -194,7 +224,7 @@ async def list_agents():
     all_tools = [*SUPERVISOR_TOOLS, *KNOWLEDGE_TOOLS, *SUPPORT_TOOLS]
     return {
         "architecture": "LangGraph supervisor with specialist sub-agents",
-        "checkpointer": "SqliteSaver (thread user_id:session_id)",
+        "checkpointer": checkpointer_label(),
         "models": {
             "primary": settings.LLM_MODEL,
             "fallback": settings.LLM_FALLBACK_MODEL or None,
@@ -247,53 +277,55 @@ def patch_ticket_endpoint(
     principal: Annotated[Principal, Depends(authenticate)],
 ):
     """Update ticket status or record operator reply. Operator role only."""
-    if principal.role != "operator":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only operators can update tickets.",
-        )
-
-    if payload.status is None and payload.reply is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Either status or reply must be provided.",
-        )
-
-    try:
-        repo = get_tickets_repository()
-        updated = repo.update_ticket(
-            ticket_id,
-            status=payload.status,
-            reply=payload.reply,
-            operator_id=principal.user_id,
-        )
-        if updated is None:
+    with span("ticket.update", {"ticket.id": ticket_id}):
+        if principal.role != "operator":
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only operators can update tickets.",
             )
-    except TicketTransitionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        ) from exc
 
-    resume_res: dict[str, Any] | None = None
-    if payload.reply is not None:
+        if payload.status is None and payload.reply is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Either status or reply must be provided.",
+            )
+
         try:
-            resume_res = get_orchestrator().resume_after_operator(ticket_id)
-        except Exception as exc:  # noqa: BLE001
-            err_cls = type(exc).__name__
-            logger.error(f"Operator resume failed cleanly in PATCH /tickets: {exc_brief(exc)}")
-            resume_res = {"status": "failed", "error_type": err_cls}
-        updated = repo.get_ticket(ticket_id) or updated
+            repo = get_tickets_repository()
+            updated = repo.update_ticket(
+                ticket_id,
+                status=payload.status,
+                reply=payload.reply,
+                operator_id=principal.user_id,
+            )
+            if updated is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Ticket com protocolo '{ticket_id}' não foi encontrado.",
+                )
+        except TicketTransitionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(exc),
+            ) from exc
 
-    return {**updated, "resume": resume_res}
+        resume_res: dict[str, Any] | None = None
+        if payload.reply is not None:
+            try:
+                resume_res = get_orchestrator().resume_after_operator(ticket_id)
+            except Exception as exc:  # noqa: BLE001
+                err_cls = type(exc).__name__
+                logger.error(f"Operator resume failed cleanly in PATCH /tickets: {exc_brief(exc)}")
+                resume_res = {"status": "failed", "error_type": err_cls}
+            updated = repo.get_ticket(ticket_id) or updated
+
+        set_attributes({"ticket.status": updated.get("status")})
+        return {**updated, "resume": resume_res}
 
 
 @app.get("/tickets/{ticket_id}", tags=["Tickets"])
@@ -359,6 +391,7 @@ def get_session_messages_endpoint(
 @app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
 @app.post("/api/v1/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])
 def chat_endpoint(
+    request: Request,
     payload: ChatRequest,
     response: Response,
     principal: Annotated[Principal, Depends(authenticate)],
@@ -366,95 +399,119 @@ def chat_endpoint(
     trace_id = f"trc-{uuid.uuid4().hex[:12]}"
     response.headers["X-Trace-Id"] = trace_id
 
-    if payload.user_id is not None and payload.user_id != principal.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="user_id does not match the authenticated credential.",
-        )
+    parent_ctx = extract_context(request.headers)
+    span_attrs: dict[str, Any] = {
+        "app.trace_id": trace_id,
+        "user.hash": user_hash(principal.user_id),
+        "http.route": request.url.path,
+        "rate_limit.backend": rate_limit_backend(),
+    }
+    if settings.REPLICA_NAME:
+        span_attrs["service.replica"] = settings.REPLICA_NAME
 
-    active_session = payload.session_id or uuid.uuid4().hex
-    with bind(trace_id, active_session, principal.user_id):
-        try:
-            orchestrator = get_orchestrator()
-            state = orchestrator.run_sync(
-                user_id=principal.user_id,
-                message=payload.message,
-                session_id=active_session,
-                trace_id=trace_id,
+    with span("chat.request", span_attrs, context=parent_ctx):
+        inject_traceparent(response.headers)
+        tp_out = response.headers.get("traceparent")
+        err_headers = {"X-Trace-Id": trace_id}
+        if tp_out:
+            err_headers["traceparent"] = tp_out
+
+        if payload.user_id is not None and payload.user_id != principal.user_id:
+            set_attributes({"http.status_code": status.HTTP_403_FORBIDDEN})
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="user_id does not match the authenticated credential.",
+                headers=err_headers,
             )
 
-            handoff_data = getattr(state, "handoff", None)
-            handoff_status = (handoff_data or {}).get("status")
-            agent_type = "HumanHandoff" if handoff_status in ("pending", "delivered") else "SupervisorAgent"
+        active_session = payload.session_id or uuid.uuid4().hex
+        with bind(trace_id, active_session, principal.user_id):
+            try:
+                orchestrator = get_orchestrator()
+                state = orchestrator.run_sync(
+                    user_id=principal.user_id,
+                    message=payload.message,
+                    session_id=active_session,
+                    trace_id=trace_id,
+                )
 
-            metadata = AgentMetadata(
-                agent=agent_type,
-                agent_type=agent_type,
-                routed_by="SupervisorAgent",
-                session_id=state.session_id or active_session,
-                trace_id=trace_id,
-                llm_model=getattr(state, "llm_model", None),
-                agents_used=getattr(state, "agents_used", ["SupervisorAgent"]),
-                tools_used=state.tools_used,
-                tool_calls=state.tool_calls,
-                execution_time_ms=state.execution_time_ms,
-                sources=state.sources,
-                retrieved_docs=state.retrieved_docs,
-                ticket=state.ticket,
-                handoff=handoff_data,
-                guardrail=getattr(state, "guardrail", None),
-                tokens=getattr(state, "tokens", None),
-                tokens_by_agent=getattr(state, "tokens_by_agent", None),
-                estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
-                web_results=getattr(state, "web_results", []) or [],
-                api_results=getattr(state, "api_results", []) or [],
-                answer_check=getattr(state, "answer_check", None),
-                web_guardrail=getattr(state, "web_guardrail", []) or [],
-                error=getattr(state, "error", None),
-                debug_details={
-                    "session_id": state.session_id or active_session,
-                    "trace_id": trace_id,
-                    "is_safe": state.is_safe,
-                    "safety_violations": state.safety_violations,
-                    "escalate_to_human": state.escalate_to_human,
-                    "ticket_id": state.escalation_ticket_id,
-                    "tools_used": state.tools_used,
-                    "handoff": handoff_data,
-                },
-            )
+                handoff_data = getattr(state, "handoff", None)
+                handoff_status = (handoff_data or {}).get("status")
+                agent_type = "HumanHandoff" if handoff_status in ("pending", "delivered") else "SupervisorAgent"
 
-            return ChatResponse(
-                response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
-                agent=agent_type,
-                user_id=principal.user_id,
-                metadata=metadata,
-            )
+                metadata = AgentMetadata(
+                    agent=agent_type,
+                    agent_type=agent_type,
+                    routed_by="SupervisorAgent",
+                    session_id=state.session_id or active_session,
+                    trace_id=trace_id,
+                    llm_model=getattr(state, "llm_model", None),
+                    agents_used=getattr(state, "agents_used", ["SupervisorAgent"]),
+                    tools_used=state.tools_used,
+                    tool_calls=state.tool_calls,
+                    execution_time_ms=state.execution_time_ms,
+                    sources=state.sources,
+                    retrieved_docs=state.retrieved_docs,
+                    ticket=state.ticket,
+                    handoff=handoff_data,
+                    guardrail=getattr(state, "guardrail", None),
+                    tokens=getattr(state, "tokens", None),
+                    tokens_by_agent=getattr(state, "tokens_by_agent", None),
+                    estimated_cost_usd=getattr(state, "estimated_cost_usd", None),
+                    web_results=getattr(state, "web_results", []) or [],
+                    api_results=getattr(state, "api_results", []) or [],
+                    answer_check=getattr(state, "answer_check", None),
+                    web_guardrail=getattr(state, "web_guardrail", []) or [],
+                    error=getattr(state, "error", None),
+                    debug_details={
+                        "session_id": state.session_id or active_session,
+                        "trace_id": trace_id,
+                        "is_safe": state.is_safe,
+                        "safety_violations": state.safety_violations,
+                        "escalate_to_human": state.escalate_to_human,
+                        "ticket_id": state.escalation_ticket_id,
+                        "tools_used": state.tools_used,
+                        "handoff": handoff_data,
+                    },
+                )
 
-        except LLMConfigurationError as exc:
-            logger.error(f"LLM misconfigured: {type(exc).__name__}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM misconfigured: check LLM_PROVIDER, LLM_MODEL and the provider API key.",
-                headers={"X-Trace-Id": trace_id},
-            ) from exc
-        except LLMNotConfiguredError as exc:
-            logger.error(f"LLM not configured: {type(exc).__name__}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM not configured: set GEMINI_API_KEY.",
-                headers={"X-Trace-Id": trace_id},
-            ) from exc
-        except LLMUnavailableError as exc:
-            logger.error(f"LLM provider unavailable: {type(exc).__name__}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="LLM provider unavailable, please retry.",
-                headers={"X-Trace-Id": trace_id},
-            ) from exc
-        except Exception as exc:
-            logger.error(f"Unhandled error processing message: {exc_brief(exc)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Internal error. Reference: {trace_id}",
-                headers={"X-Trace-Id": trace_id},
-            ) from exc
+                set_attributes({"http.status_code": status.HTTP_200_OK})
+                return ChatResponse(
+                    response=state.agent_response or "Não foi possível processar sua solicitação no momento.",
+                    agent=agent_type,
+                    user_id=principal.user_id,
+                    metadata=metadata,
+                )
+
+            except LLMConfigurationError as exc:
+                logger.error(f"LLM misconfigured: {type(exc).__name__}")
+                set_attributes({"http.status_code": status.HTTP_503_SERVICE_UNAVAILABLE})
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="LLM misconfigured: check LLM_PROVIDER, LLM_MODEL and the provider API key.",
+                    headers=err_headers,
+                ) from exc
+            except LLMNotConfiguredError as exc:
+                logger.error(f"LLM not configured: {type(exc).__name__}")
+                set_attributes({"http.status_code": status.HTTP_503_SERVICE_UNAVAILABLE})
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="LLM not configured: set GEMINI_API_KEY.",
+                    headers=err_headers,
+                ) from exc
+            except LLMUnavailableError as exc:
+                logger.error(f"LLM provider unavailable: {type(exc).__name__}")
+                set_attributes({"http.status_code": status.HTTP_503_SERVICE_UNAVAILABLE})
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="LLM provider unavailable, please retry.",
+                    headers=err_headers,
+                ) from exc
+            except Exception as exc:
+                logger.error(f"Unhandled error processing message: {exc_brief(exc)}")
+                set_attributes({"http.status_code": status.HTTP_500_INTERNAL_SERVER_ERROR})
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Internal error. Reference: {trace_id}",
+                    headers=err_headers,
+                ) from exc

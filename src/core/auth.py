@@ -6,13 +6,13 @@ import hashlib
 import hmac
 import math
 import sys
-import time
-from collections.abc import Callable
 from dataclasses import dataclass
 
+import redis
 from fastapi import Header, HTTPException
 
 from src.config import settings
+from src.core.rate_limit import RateLimiter, RedisRateLimiter
 
 ROLES = ("customer", "operator")
 
@@ -116,50 +116,27 @@ def get_principal_table() -> dict[str, Principal]:
     return table
 
 
-class RateLimiter:
-    """Sliding-window rate limiter per key_id."""
-
-    def __init__(
-        self,
-        limit_per_minute: int,
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None:
-        self.limit_per_minute = limit_per_minute
-        self.clock = clock
-        self._hits: dict[str, list[float]] = {}
-
-    def hit(self, key_id: str) -> float | None:
-        """
-        Record a request hit for key_id.
-        Returns None if permitted, or remaining seconds until permitted if limit exceeded.
-        limit_per_minute <= 0 disables the limiter.
-        """
-        if self.limit_per_minute <= 0:
-            return None
-
-        now = self.clock()
-        window_start = now - 60.0
-
-        timestamps = [t for t in self._hits.get(key_id, []) if t > window_start]
-        if len(timestamps) >= self.limit_per_minute:
-            self._hits[key_id] = timestamps
-            oldest = timestamps[0]
-            wait = 60.0 - (now - oldest)
-            return max(wait, 0.0)
-
-        timestamps.append(now)
-        self._hits[key_id] = timestamps
-        return None
+_rate_limiter_instance: RateLimiter | RedisRateLimiter | None = None
 
 
-_rate_limiter_instance: RateLimiter | None = None
-
-
-def get_rate_limiter() -> RateLimiter:
-    """Return the global RateLimiter singleton."""
+def get_rate_limiter() -> RateLimiter | RedisRateLimiter:
+    """Return the global rate limiter singleton (Redis when REDIS_URL is set, else local memory)."""
     global _rate_limiter_instance
     if _rate_limiter_instance is None:
-        _rate_limiter_instance = RateLimiter(limit_per_minute=settings.RATE_LIMIT_PER_MINUTE)
+        redis_url = settings.REDIS_URL.strip()
+        if redis_url:
+            client = redis.Redis.from_url(
+                redis_url,
+                socket_timeout=0.5,
+                socket_connect_timeout=0.5,
+            )
+            _rate_limiter_instance = RedisRateLimiter(
+                client,
+                settings.RATE_LIMIT_PER_MINUTE,
+                prefix=settings.RATE_LIMIT_REDIS_PREFIX,
+            )
+        else:
+            _rate_limiter_instance = RateLimiter(limit_per_minute=settings.RATE_LIMIT_PER_MINUTE)
     return _rate_limiter_instance
 
 
