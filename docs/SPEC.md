@@ -56,6 +56,15 @@ because out-of-scope turns had tokens but no `llm_model`; median turn 8.2 s, pla
 tokens. Fixed in 13C (supervisor sees goals only; planner prompt; model recorded). **Holdout 3 is no longer clean** for
 `t07`, `t24`, `t25`: the planner prompt was changed after seeing them; the README must say so.
 
+**13C done** (`d7d18a2`, CI green; index rebuilt by the author in `5a2ff9b`: 103 chunks from 32 pages): reviewer run of
+`verify_phase13c.py` with Postgres and Redis: 32/32 (481 offline tests, 12 integration). Write action with proposal,
+confirmation in a later turn, idempotency and audit; `/operator`; the three empty pages collected (the extractor took the
+first short `<article>`); mock `not_found` for a foreign serial. Review findings carried to 13D-1: ticket audit events were
+written outside the ticket transaction (best effort); the abstention auto-escalation was audited as `merchant`; a database
+error in confirm/decline became the generic instability message. Found while planning 13D: every action case uses the same
+serial, and the eval runner shares one tickets/actions database per run, so the second action case of a run would get
+`already_requested`; the corpus text now includes time-bound promotional copy (Black Friday) and a maintenance notice.
+
 ### Before Phase 13 (HEAD `431eb1f`, phase 12F, CI green)
 
 Reviewer rerun of `scripts/verify_phase12f.py` on Python 3.11.18 before retiring the verifier chain: **75/75** (it re-ran the 58
@@ -219,10 +228,39 @@ topic change after a proposal; no deadline promises).
 
 ### 13D — Close: one round of real runs, annotator, integration evidence, README (items 7, 9)
 
-Runs `v2-10..12` (judge), holdouts 1–3 and the 13C cases × 3, `rerank-4..6` if the corpus changed; the annotator's answers and agreement
-(author × annotator, annotator × labels, annotator × judge); `reports/integration/` from a Codespaces Compose run (two replicas,
-a real conversation continued across replicas, shared 429, PII scan of Postgres, one exported trace); README rewritten shorter,
-claims table pointing to tests and reports; `docs/history.md` decision.
+Split in two Antigravity runs with the author's round in between, because the README may only cite committed numbers.
+
+**13D-1** (`scripts/verify_phase13d1.py`, prompt `docs/phase-prompts/13D-1.md`): no change to graph behaviour, prompts,
+records or README.
+- Ticket audit events (`ticket_created`, `ticket_updated`, `ticket_replied`, `ticket_reply_delivered`) are written in the
+  same transaction as the ticket change (`insert_audit(conn, ...)`); an audit failure rolls the change back.
+- The automatic escalation after repeated abstentions is audited as `system`.
+- A database error in `confirm`/`decline` is fail-closed: `action.status = "error"`, nothing executed, the turn continues
+  with the supervisor's answer, no error detail reaches the merchant or the logs.
+- The eval runner gives every case its own tickets/actions database and ignores `DATABASE_URL` during a run (cases are
+  independent conversations; the action cases share one serial).
+- `python -m src.eval human-import` reads the annotator's `.xlsx` with the standard library (no new dependency) into
+  `answers.csv`, `comments.csv` and `declaration.json` (name only if the annotator authorised it; the `.xlsx` is not
+  committed); `human-raters` compares two answer files (agreement, Wilson interval, Cohen's kappa per field; groundedness
+  exact and within one).
+- `python -m src.eval context` appends the author's tier declaration for new run ids (never rewrites existing entries).
+- `python -m src.rag.hybrid_eval report --name` writes a new report instead of overwriting `reports/retrieval_hybrid.*`.
+- `scripts/compose_evidence.py run --run-id compose-1` (author, Codespaces): Compose with two replicas and the observability
+  profile, a conversation whose proposal is made on `app-a` and confirmed on `app-b`, a ticket answered by the operator on
+  one replica and delivered on the other, the shared 429, a scan of a `pg_dump` and of the container logs for raw card/CPF
+  and a marker, and one exported trace summarised from Jaeger; writes `reports/integration/compose-1.{json,md}`.
+
+**Author's round** (after the 13D-1 commit; product model, judge `gemini-3.6-flash`; pre-registered here):
+`v2-10..12` (v2 × 3, with judge), `rh-7..9` (holdout 1 × 3), `rh2-4..6` (holdout 2 × 3), `h3-1..3` (holdout 3 × 3),
+`act-1..3` (action cases × 3), `rerank-4..6` (retrieval, corpus changed); comparison reports `eval_v2_phase13`,
+`eval_routing_holdout_phase13`, `eval_routing_holdout2_phase13`, `eval_holdout3`, `eval_actions`,
+`retrieval_hybrid_phase13`; tier declaration via `context`; `compose-1` in Codespaces; annotator import and agreement when
+the spreadsheet arrives. No code or prompt changes between the 13D-1 commit and the end of the round; any failure is
+reported as it came out.
+
+**13D-2** (after the round and the annotator): README rewritten shorter, every claim pointing to a test, record or report
+(no retired verifier); holdout 3 cases `t07`, `t24`, `t25` disclosed as no longer clean; the reviewer never called
+independent; `docs/history.md` decision; the 13D-1 prompt and verifier leave the tree.
 
 ### Acceptance (Phase 13)
 

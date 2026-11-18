@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.config import settings
 from src.core.llm import LLMConfigurationError, LLMNotConfiguredError
+from src.eval.annotator import compare_raters, import_annotator_xlsx
 from src.eval.cases import load_cases
 from src.eval.checks import evaluate_case
 from src.eval.compare import write_comparison
@@ -35,6 +36,7 @@ from src.eval.human_validation import (
 from src.eval.judge import load_judgments, run_judge
 from src.eval.offline import run_offline
 from src.eval.report import write_report
+from src.eval.run_context import DEFAULT_RUN_CONTEXT_PATH, TIER_LABELS, update_run_context
 from src.eval.runner import load_results, run_eval
 
 DEFAULT_CASES_PATH = Path("data/eval/cases.jsonl")
@@ -156,6 +158,56 @@ def _cmd_human_agreement(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_human_import(args: argparse.Namespace) -> int:
+    try:
+        res = import_annotator_xlsx(
+            xlsx_path=args.xlsx,
+            out_dir=args.out_dir,
+            sample_dir=args.sample_dir,
+        )
+        print(
+            f"human-import: {res['n_items']} answers and {res['comments_count']} comments written to {res['out_dir']}"
+        )
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error importing annotator workbook:\n{exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_human_raters(args: argparse.Namespace) -> int:
+    try:
+        rep = compare_raters(
+            a_path=args.a,
+            b_path=args.b,
+            a_name=args.a_name,
+            b_name=args.b_name,
+            out_dir=args.out_dir,
+            sample_dir=args.sample_dir,
+        )
+        r = rep["fields"]["rota"]
+        print(f"human-raters: {rep['a']} vs {rep['b']} ({rep['n_items']} items, rota agree={r['agree']}/{r['n']})")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error comparing rater answers: {exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_context(args: argparse.Namespace) -> int:
+    try:
+        run_ids = [r.strip() for r in args.run_ids.split(",") if r.strip()]
+        updated = update_run_context(
+            run_ids=run_ids,
+            tier=args.tier,
+            date_str=args.date,
+            path=args.file,
+        )
+        print(f"context: added {len(run_ids)} run(s); total={len(updated)}")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error updating run context: {exc}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     """Parse arguments and dispatch to evaluation subcommands."""
     parser = argparse.ArgumentParser(description="Evaluation harness and runner CLI")
@@ -239,6 +291,28 @@ def main() -> int:
     p_ha.add_argument("--cases", default=HV_CASES_FILE, help="Path to evaluation cases JSONL")
     p_ha.add_argument("--out-dir", default="reports", help="Output directory for agreement reports")
 
+    # 12. human-import
+    p_hi = subparsers.add_parser("human-import", help="Import external annotator .xlsx into CSV and declaration JSON")
+    p_hi.add_argument("--xlsx", required=True, help="Path to annotator .xlsx file")
+    p_hi.add_argument("--out-dir", required=True, help="Output directory for answers.csv, comments.csv, declaration.json")
+    p_hi.add_argument("--sample-dir", default=HV_SAMPLE_DIR, help="Directory containing sample.json")
+
+    # 13. human-raters
+    p_hr = subparsers.add_parser("human-raters", help="Compare two annotator answers CSV files on the same sample")
+    p_hr.add_argument("--a", required=True, help="Path to first rater answers CSV")
+    p_hr.add_argument("--b", required=True, help="Path to second rater answers CSV")
+    p_hr.add_argument("--a-name", required=True, help="Label for first rater")
+    p_hr.add_argument("--b-name", required=True, help="Label for second rater")
+    p_hr.add_argument("--out-dir", required=True, help="Output directory for raters.json and raters.md")
+    p_hr.add_argument("--sample-dir", default=HV_SAMPLE_DIR, help="Directory containing sample.json")
+
+    # 14. context
+    p_ctx = subparsers.add_parser("context", help="Declare account tier and date for new run IDs")
+    p_ctx.add_argument("--run-ids", required=True, help="Comma-separated run IDs to append")
+    p_ctx.add_argument("--tier", required=True, choices=list(TIER_LABELS), help="Gemini account tier")
+    p_ctx.add_argument("--date", default=None, help="Run date YYYY-MM-DD (default: UTC today)")
+    p_ctx.add_argument("--file", default=str(DEFAULT_RUN_CONTEXT_PATH), help="Path to run_context.json")
+
     args = parser.parse_args()
 
     if args.subcommand == "offline":
@@ -249,6 +323,15 @@ def main() -> int:
 
     if args.subcommand == "human-agreement":
         return _cmd_human_agreement(args)
+
+    if args.subcommand == "human-import":
+        return _cmd_human_import(args)
+
+    if args.subcommand == "human-raters":
+        return _cmd_human_raters(args)
+
+    if args.subcommand == "context":
+        return _cmd_context(args)
 
     if args.subcommand == "guardrail-patterns":
         try:

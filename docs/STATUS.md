@@ -1,30 +1,24 @@
 # STATUS DO REPOSITÓRIO
 
-**Subfase:** 13C — Correções do smoke, troca de maquininha com confirmação e auditoria, console do operador e corpus
-**Base:** `96d6894` (13B + smoke do holdout 3) | **Python:** 3.13.3
+**Subfase:** 13D-1 — Auditoria transacional, isolamento da avaliação, importação do anotador e script de evidência do Compose
+**Base:** `5a2ff9b` (13C + índice reconstruído) | **Python:** 3.13.3
 
 ## O que mudou
 
-- **Aposentadoria da 13B:** removidos via `git rm` `docs/phase-prompts/13B.md` e `scripts/verify_phase13b.py`; adicionados `docs/phase-prompts/13C.md`, `scripts/verify_phase13c.py`, `data/eval/cases_actions.jsonl` e os prompts atualizados em `src/prompts/`.
-- **Correções do smoke ([planner.py](src/agents/planner.py), [graph.py](src/core/graph.py), [terminal_tools.py](src/tools/terminal_tools.py)):** `[Plan for this turn]` agora passa só o objetivo (`N. <goal>`) sem `delegate`; turnos `out_of_scope` (e qualquer turno com tokens sem `llm_model`) registram o modelo do planner para calcular `estimated_cost_usd`; `diagnose_terminal_connectivity` devolve `{"status": "not_found", "error": "terminal_not_found"}` quando `terminal_serial` não pertence ao lojista.
-- **Troca de maquininha com confirmação, idempotência e auditoria ([db.py](src/core/db.py), [actions_db.py](src/core/actions_db.py), [tickets_db.py](src/core/tickets_db.py), [agent_tools.py](src/tools/agent_tools.py), [supervisor_tools.py](src/tools/supervisor_tools.py), [specialists.py](src/agents/specialists.py), [state.py](src/core/state.py), [runner.py](src/eval/runner.py), [cases.py](src/eval/cases.py), [metrics.py](src/core/metrics.py)):**
-  - `TurnPlan` ganha `action_confirmation` (`none|confirmed|declined`); tabelas `pending_actions`, `terminal_replacements` (com índice único parcial `status = 'requested'` em `serial_number`) e `audit_events` (ator em `actor_hash` e `details` restrito à allowlist).
-  - `ActionsRepository` com `propose_terminal_replacement`, `confirm` (`SELECT ... FOR UPDATE`, guarda `same_turn`, expiração e `already_requested`), `decline` (chamado deterministicamente no `planner`), `list_replacements`, `list_audit` e `record_audit`.
-  - `request_terminal_replacement` (Support Agent, `sanitize_pii` e limite de 300 chars) e `confirm_pending_action` (Supervisor, portão fail-closed no `_tools_node`). Campo `action` em `AgentState`, `AgentMetadata` e `observe_turn`. Auditoria completa do ciclo de vida dos chamados (`ticket_created` `merchant`/`system`, `ticket_updated`, `ticket_replied`, `ticket_reply_delivered`).
-- **API e Console do operador ([main.py](src/main.py), [operator.html](src/static/operator.html), [demo.html](src/static/demo.html)):** novos `GET /audit`, `GET /replacements` e `GET /operator` (arquivo único sem dependências externas, chave só em memória, DOM via `createElement`/`textContent`, atualização a cada 15 s) com link em `/` e `/demo`.
-- **Corpus ([ingest.py](src/rag/ingest.py), [pages.jsonl](data/corpus/pages.jsonl), [manifest.json](data/corpus/manifest.json), [README.md](data/corpus/README.md)):** adicionados `--only URL`, status `redirect_duplicate` em `STATUSES`, extração corrigida e recoleta parcial das três URLs (`ok: 32`, `redirect_duplicate: 1`).
-- **Testes:** novos [test_actions_repository.py](tests/test_actions_repository.py) (10), [test_write_action_flow.py](tests/test_write_action_flow.py) (8), [test_audit_and_operator.py](tests/test_audit_and_operator.py) (8), [test_ingest_extract.py](tests/test_ingest_extract.py) (4), [test_smoke_fixes.py](tests/test_smoke_fixes.py) (3), 2 testes Postgres novos em [test_postgres_redis_integration.py](tests/integration/test_postgres_redis_integration.py) e ajustes mínimos permitidos nos 3 arquivos existentes.
-
-## Causa do texto vazio no corpus
-
-- As páginas `https://site.getnet.com.br/` e `https://site.getnet.com.br/link-de-pagamento/` são WordPress renderizado no servidor sem tag `<main>` e com múltiplos `<article>` curtos usadas apenas em cards auxiliares (3 cards de 123–229 caracteres na home e 4 cards de 76–111 caracteres no Link de Pagamento), enquanto o conteúdo principal (6.383 caracteres na home e 3.351 no Link de Pagamento após remover menus, cabeçalhos e rodapés) fica no restante do `<body>`. O seletor antigo (`main or article or body`) escolhia o primeiro pequeno `<article>`, gerando menos de 300 caracteres (`no_content`). Já `.../pagamentos-pelo-whatsapp/` retorna HTTP 301 para `.../link-de-pagamento/` e passou a ser registrado como `redirect_duplicate`.
+- **Aposentadoria da 13C:** removidos via `git rm` `docs/phase-prompts/13C.md` e `scripts/verify_phase13c.py`; incluído `*.xlsx` em `.gitignore`.
+- **Auditoria transacional e fail-closed ([actions_db.py](src/core/actions_db.py), [tickets_db.py](src/core/tickets_db.py), [graph.py](src/core/graph.py)):** criada `insert_audit(conn, ...)` usada por `ActionsRepository.record_audit` e dentro das transações de `create_ticket`, `update_ticket` e `mark_delivered` (sem `try/except`, desfazendo a operação se a auditoria falhar); `_abstention_check_node` agora envia `actor_type="system"` no escalonamento automático; falhas de `ActionsRepository.confirm`/`decline` agora são fail-closed (`action.status == "error"`, `action_unavailable`, `confirm_pending_action` fora de `tools_used`, log apenas com `type(exc).__name__`).
+- **Isolamento por caso na avaliação ([runner.py](src/eval/runner.py)):** `run_eval` isola cada caso em arquivo SQLite próprio, zera `settings.DATABASE_URL`, reinicia os repositórios de chamados e ações antes/depois de cada caso e restaura `TICKETS_DB_PATH` e `DATABASE_URL` no `finally`.
+- **Planilha do anotador e concordância ([annotator.py](src/eval/annotator.py), [__main__.py](src/eval/__main__.py)):** leitura de `.xlsx` apenas com biblioteca padrão (`zipfile` + XML), validação completa com coleta de todos os erros sem gravar nada, exportação de `answers.csv`, `comments.csv` e `declaration.json` via `human-import`, e cálculo de concordância/kappa/divergências em `raters.json` e `raters.md` via `human-raters`.
+- **Declaração de execuções e relatório nomeado ([run_context.py](src/eval/run_context.py), [__main__.py](src/eval/__main__.py), [hybrid_eval.py](src/rag/hybrid_eval.py)):** subcomando `context` acrescentando entradas novas sem alterar existentes; `hybrid_eval report --name` gravando `reports/<NOME>.{json,md}` sem sobrescrever `retrieval_hybrid.*`.
+- **Evidência do Compose ([compose_evidence.py](scripts/compose_evidence.py)):** `scan_pii`, `summarize_trace` e subcomando `run --run-id` com fluxo multi-réplica, PII, rate limit compartilhado, Jaeger e relatório em `reports/integration/`.
+- **Testes:** novos [test_audit_transactions.py](tests/test_audit_transactions.py) (4), [test_eval_isolation.py](tests/test_eval_isolation.py) (3), [test_annotator_import.py](tests/test_annotator_import.py) (6), [test_raters_and_context.py](tests/test_raters_and_context.py) (4), [test_compose_evidence.py](tests/test_compose_evidence.py) (3) e 1 teste de rollback Postgres em [test_postgres_redis_integration.py](tests/integration/test_postgres_redis_integration.py).
 
 ## Verificações
 
 - `python -m ruff check .`: `All checks passed!`
-- `python -m pytest -q -p no:cacheprovider`: `481 passed, 12 deselected in 46.26s`
-- `python scripts/verify_phase13c.py`: `SUMMARY: 31/31 passed` (`PASS A0`–`A8`, `PASS S1.status`, `PASS C1`–`C3`, `PASS G1`–`G6`, `PASS E1`–`E3`, `PASS R1`–`R3`, `PASS Q1`–`Q6`, `INFO Q7.integration_suite`)
+- `python -m pytest -q -p no:cacheprovider`: `501 passed, 13 deselected in 66.73s`
+- `python scripts/verify_phase13d1.py`: `SUMMARY: 29/29 passed` (`PASS A0`–`A5`, `PASS S1.status`, `PASS T1`–`T10`, `PASS G1`–`G2`, `PASS R1`–`R4`, `PASS Q1`–`Q6`, `INFO Q7.integration_suite`)
 
 ## Perguntas / divergências
 
-Nenhuma divergência identificada com `docs/SPEC.md` ou `docs/phase-prompts/13C.md`.
+Nenhuma divergência identificada com `docs/SPEC.md` ou `docs/phase-prompts/13D-1.md`.

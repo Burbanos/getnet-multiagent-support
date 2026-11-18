@@ -698,6 +698,7 @@ class OrchestrationGraph:
                                 "user_id": state["user_id"],
                                 "session_id": state["session_id"],
                                 "transcript": transcript_snapshot(state["messages"]),
+                                "actor_type": "system",
                             }
                         },
                     )
@@ -777,17 +778,26 @@ class OrchestrationGraph:
             "tokens": tokens,
         }
         if result.status == "ok" and plan_meta.get("action_confirmation") == "declined":
-            dec_res = get_actions_repository().decline(
-                state["user_id"],
-                state["session_id"],
-                trace_id=state.get("trace_id"),
-            )
-            out["action"] = {
-                "tool": "decline_pending_action",
-                "status": dec_res.get("status"),
-                "action_id": dec_res.get("action_id"),
-                "request_id": None,
-            }
+            try:
+                dec_res = get_actions_repository().decline(
+                    state["user_id"],
+                    state["session_id"],
+                    trace_id=state.get("trace_id"),
+                )
+                out["action"] = {
+                    "tool": "decline_pending_action",
+                    "status": dec_res.get("status"),
+                    "action_id": dec_res.get("action_id"),
+                    "request_id": None,
+                }
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Error declining pending action: {type(exc).__name__}")
+                out["action"] = {
+                    "tool": "decline_pending_action",
+                    "status": "error",
+                    "action_id": None,
+                    "request_id": None,
+                }
         return out
 
     def _planner_condition(self, state: SupervisorState) -> str:
@@ -1530,19 +1540,30 @@ class OrchestrationGraph:
                             "request_id": None,
                         }
                     else:
-                        conf_res = get_actions_repository().confirm(
-                            user_id,
-                            state["session_id"],
-                            trace_id,
-                        )
-                        if conf_res.get("status") in ("executed", "already_requested"):
-                            tools_used.append("confirm_pending_action")
-                        action = {
-                            "tool": "confirm_pending_action",
-                            "status": conf_res.get("status"),
-                            "action_id": conf_res.get("action_id"),
-                            "request_id": conf_res.get("request_id"),
-                        }
+                        try:
+                            conf_res = get_actions_repository().confirm(
+                                user_id,
+                                state["session_id"],
+                                trace_id,
+                            )
+                            if conf_res.get("status") in ("executed", "already_requested"):
+                                tools_used.append("confirm_pending_action")
+                            action = {
+                                "tool": "confirm_pending_action",
+                                "status": conf_res.get("status"),
+                                "action_id": conf_res.get("action_id"),
+                                "request_id": conf_res.get("request_id"),
+                            }
+                        except Exception as exc:  # noqa: BLE001
+                            call_status = "error"
+                            logger.error(f"Error confirming pending action: {type(exc).__name__}")
+                            conf_res = {"status": "error", "error": "action_unavailable"}
+                            action = {
+                                "tool": "confirm_pending_action",
+                                "status": "error",
+                                "action_id": None,
+                                "request_id": None,
+                            }
                         result_str = json.dumps(conf_res, ensure_ascii=False)
                         t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
                         tool_messages.append(t_msg)

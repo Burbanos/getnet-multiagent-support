@@ -9,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import src.core.actions_db as adb
 import src.core.tickets_db as tdb
 from src.config import settings
 from src.core.graph import OrchestrationGraph
@@ -217,14 +218,10 @@ def run_eval(
     only_set = set(only) if only is not None else None
 
     existing = load_results(p)
-    factory = orchestrator_factory or OrchestrationGraph
-    orchestrator = factory()
 
     orig_tickets_path = settings.TICKETS_DB_PATH
+    orig_database_url = settings.DATABASE_URL
     tmp_dir = tempfile.mkdtemp(prefix="eval_tickets_")
-    tmp_tickets_path = str(Path(tmp_dir) / "tickets.db")
-    settings.TICKETS_DB_PATH = tmp_tickets_path
-    tdb.reset_tickets_repository()
 
     attempted = 0
     ok = 0
@@ -234,6 +231,14 @@ def run_eval(
     consecutive_unavailable_errors = 0
 
     try:
+        settings.DATABASE_URL = ""
+        settings.TICKETS_DB_PATH = str(Path(tmp_dir) / "tickets.db")
+        tdb.reset_tickets_repository()
+        adb.reset_actions_repository()
+
+        factory = orchestrator_factory or OrchestrationGraph
+        orchestrator = factory()
+
         with open(p, "a", encoding="utf-8") as f:
             for case in cases:
                 cid = case["id"]
@@ -247,7 +252,19 @@ def run_eval(
                 if max_cases is not None and attempted >= max_cases:
                     break
 
-                res = run_case(case, orchestrator, run_id)
+                safe_cid = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(cid))
+                case_dir = Path(tmp_dir) / f"case_{attempted:04d}_{safe_cid}"
+                case_dir.mkdir(parents=True, exist_ok=True)
+                settings.DATABASE_URL = ""
+                settings.TICKETS_DB_PATH = str(case_dir / "tickets.db")
+                tdb.reset_tickets_repository()
+                adb.reset_actions_repository()
+                try:
+                    res = run_case(case, orchestrator, run_id)
+                finally:
+                    tdb.reset_tickets_repository()
+                    adb.reset_actions_repository()
+
                 f.write(json.dumps(res, ensure_ascii=False) + "\n")
                 f.flush()
 
@@ -269,7 +286,9 @@ def run_eval(
                     time.sleep(delay)
     finally:
         settings.TICKETS_DB_PATH = orig_tickets_path
+        settings.DATABASE_URL = orig_database_url
         tdb.reset_tickets_repository()
+        adb.reset_actions_repository()
         gc.collect()
         shutil.rmtree(tmp_dir, ignore_errors=True)
 

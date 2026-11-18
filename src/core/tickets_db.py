@@ -14,7 +14,7 @@ from sqlalchemy import and_, insert, select, update
 
 from src.config import settings
 from src.core import metrics
-from src.core.actions_db import get_actions_repository, reset_actions_repository
+from src.core.actions_db import insert_audit, reset_actions_repository
 from src.core.db import ensure_schema, make_engine, tickets
 
 logger = logging.getLogger("multiagent.tickets_db")
@@ -131,15 +131,12 @@ class TicketsRepository:
             created_at=now,
             updated_at=now,
         )
-        with self.engine.begin() as conn:
-            conn.execute(stmt)
-
-        logger.info(f"Persisted escalation ticket {ticket_id}")
-        metrics.inc_escalation()
         audit_actor = "system" if actor_type == "system" else "merchant"
         audit_actor_id = "system" if audit_actor == "system" else clean_user_id
-        try:
-            get_actions_repository().record_audit(
+        with self.engine.begin() as conn:
+            conn.execute(stmt)
+            insert_audit(
+                conn,
                 actor_type=audit_actor,
                 actor_id=audit_actor_id,
                 action="ticket_created",
@@ -148,8 +145,9 @@ class TicketsRepository:
                 outcome="open",
                 details={"status": "open", "priority": priority},
             )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Audit record failed for ticket_created: {type(exc).__name__}")
+
+        logger.info(f"Persisted escalation ticket {ticket_id}")
+        metrics.inc_escalation()
 
         message = (
             f"Chamado registrado com sucesso sob o protocolo **{ticket_id}**. "
@@ -270,10 +268,8 @@ class TicketsRepository:
                 raise TicketTransitionError(
                     f"Ticket {ticket_id} status changed concurrently (expected '{curr_status}')"
                 )
-
-        try:
-            actions_repo = get_actions_repository()
-            actions_repo.record_audit(
+            insert_audit(
+                conn,
                 actor_type="operator",
                 actor_id=operator_id,
                 action="ticket_updated",
@@ -283,7 +279,8 @@ class TicketsRepository:
                 details={"status": str(new_status)},
             )
             if clean_reply is not None:
-                actions_repo.record_audit(
+                insert_audit(
+                    conn,
                     actor_type="operator",
                     actor_id=operator_id,
                     action="ticket_replied",
@@ -292,8 +289,6 @@ class TicketsRepository:
                     outcome="answered",
                     details={"status": "answered"},
                 )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Audit record failed for ticket update: {type(exc).__name__}")
 
         return self.get_ticket(ticket_id)
 
@@ -308,9 +303,9 @@ class TicketsRepository:
         with self.engine.begin() as conn:
             res = conn.execute(stmt)
             marked = (res.rowcount or 0) > 0
-        if marked:
-            try:
-                get_actions_repository().record_audit(
+            if marked:
+                insert_audit(
+                    conn,
                     actor_type="system",
                     actor_id="system",
                     action="ticket_reply_delivered",
@@ -319,8 +314,6 @@ class TicketsRepository:
                     outcome="delivered",
                     details={"status": "delivered"},
                 )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(f"Audit record failed for ticket_reply_delivered: {type(exc).__name__}")
         return marked
 
     def record_notification(self, ticket_id: str, status: str) -> bool:

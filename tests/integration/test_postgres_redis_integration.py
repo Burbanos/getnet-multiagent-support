@@ -438,3 +438,26 @@ def test_postgres_actions_tables_and_audit_no_raw_pii(pg_test_url: str) -> None:
             conn.execute(text("DELETE FROM terminal_replacements WHERE serial_number = :s"), {"s": serial})
             conn.execute(text("DELETE FROM pending_actions WHERE serial_number = :s"), {"s": serial})
         repo.engine.dispose()
+
+
+def test_postgres_ticket_audit_failure_rolls_back_creation(
+    pg_test_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import src.core.actions_db as adb
+
+    repo = TicketsRepository(pg_test_url)
+    unique_reason = f"pg rollback audit {uuid.uuid4().hex[:10]}"
+    try:
+        monkeypatch.setattr(adb, "user_hash", lambda _u: (_ for _ in ()).throw(RuntimeError("pg audit boom")))
+        with pytest.raises(RuntimeError, match="pg audit boom"):
+            repo.create_ticket(user_id="pg-user-rollback", reason=unique_reason, session_id="pg-sess-rb")
+
+        with repo.engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT ticket_id FROM tickets WHERE reason = :r"),
+                {"r": unique_reason},
+            ).all()
+        assert rows == []
+    finally:
+        monkeypatch.undo()
+        repo.engine.dispose()

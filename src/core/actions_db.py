@@ -63,6 +63,22 @@ def _audit_values(
     }
 
 
+def insert_audit(
+    conn: Any,
+    actor_type: str,
+    actor_id: str,
+    action: str,
+    target_type: str,
+    target_id: str,
+    outcome: str,
+    details: Mapping[str, Any] | None = None,
+    trace_id: str | None = None,
+) -> None:
+    """Insert a hashed, allowlisted audit event row using an existing database connection."""
+    vals = _audit_values(actor_type, actor_id, action, target_type, target_id, outcome, details, trace_id)
+    conn.execute(insert(audit_events).values(**vals))
+
+
 class ActionsRepository:
     """Manages pending action proposals, confirmed terminal replacements, and audit events."""
 
@@ -84,9 +100,8 @@ class ActionsRepository:
         trace_id: str | None = None,
     ) -> None:
         """Persist a hashed, allowlisted audit event row."""
-        vals = _audit_values(actor_type, actor_id, action, target_type, target_id, outcome, details, trace_id)
         with self.engine.begin() as conn:
-            conn.execute(insert(audit_events).values(**vals))
+            insert_audit(conn, actor_type, actor_id, action, target_type, target_id, outcome, details, trace_id)
 
     def get_open_replacement(self, serial_number: str) -> dict[str, Any] | None:
         """Return an open ('requested') replacement record for serial_number, or None."""

@@ -558,6 +558,7 @@ def main(argv: list[str] | None = None) -> int:
 
     rep_p = sub.add_parser("report", help="Generate comparison report from recorded hybrid runs.")
     rep_p.add_argument("--runs", required=True, help="Comma-separated run IDs (e.g. rerank-1,rerank-2,rerank-3).")
+    rep_p.add_argument("--name", default=None, help="Output base name under reports/ (default: retrieval_hybrid).")
 
     args = parser.parse_args(argv)
 
@@ -581,8 +582,16 @@ def main(argv: list[str] | None = None) -> int:
         if not run_ids:
             print("Error: --runs must include at least one run ID.", file=sys.stderr)
             return 1
+        out_name = (args.name or "").strip() or "retrieval_hybrid"
+        if "/" in out_name or "\\" in out_name or ".." in out_name:
+            print("Error: --name must not contain path separators.", file=sys.stderr)
+            return 1
         try:
-            report = hybrid_report(run_ids)
+            report = hybrid_report(
+                run_ids,
+                out_json=f"reports/{out_name}.json",
+                out_md=f"reports/{out_name}.md",
+            )
         except FileNotFoundError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
