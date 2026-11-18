@@ -1,0 +1,215 @@
+{
+  "name": "actions",
+  "generated_at": "2026-11-18T23:27:48.388014+00:00",
+  "cases_sha256": "965946fdaadd1e2b81cd1a0ea39e9d85b90d276325a42121f4b1668750e18f6d",
+  "groups": [
+    {
+      "label": "13D",
+      "runs": [
+        "act-1",
+        "act-2",
+        "act-3"
+      ],
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "complete": true,
+      "metrics": {
+        "pass_rate": {
+          "values": [
+            1.0,
+            0.875,
+            1.0
+          ],
+          "mean": 0.9583333333333334,
+          "min": 0.875,
+          "max": 1.0
+        },
+        "official_pass_rate": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "routing_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "tools_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "escalation_rate": {
+          "values": [
+            1.0,
+            0.875,
+            1.0
+          ],
+          "mean": 0.9583333333333334,
+          "min": 0.875,
+          "max": 1.0
+        },
+        "facts_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "sources_rate": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "language_rate": {
+          "values": [
+            1.0,
+            0.875,
+            1.0
+          ],
+          "mean": 0.9583333333333334,
+          "min": 0.875,
+          "max": 1.0
+        },
+        "judge_grounded_mean": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_answers_mean": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_precision": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_recall": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "latency_ms_p50": {
+          "values": [
+            7770.5,
+            10916.5,
+            10794.7
+          ],
+          "mean": 9827.233333333334,
+          "min": 7770.5,
+          "max": 10916.5
+        },
+        "latency_ms_p95": {
+          "values": [
+            18302.6,
+            18116.4,
+            23576.8
+          ],
+          "mean": 19998.600000000002,
+          "min": 18116.4,
+          "max": 23576.8
+        },
+        "tokens_total": {
+          "values": [
+            103273,
+            116669,
+            120427
+          ],
+          "mean": 113456.33333333333,
+          "min": 103273,
+          "max": 120427
+        },
+        "estimated_cost_usd": {
+          "values": [
+            0.03813,
+            0.042808,
+            0.04429
+          ],
+          "mean": 0.04174266666666667,
+          "min": 0.03813,
+          "max": 0.04429
+        }
+      },
+      "failed_in_all_runs": [],
+      "judge_abstention_errors_in_all_runs": []
+    }
+  ],
+  "runs_context": [
+    {
+      "run_id": "act-1",
+      "group": "13D",
+      "date": "2026-11-18",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    },
+    {
+      "run_id": "act-2",
+      "group": "13D",
+      "date": "2026-11-18",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    },
+    {
+      "run_id": "act-3",
+      "group": "13D",
+      "date": "2026-11-18",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    }
+  ]
+}
