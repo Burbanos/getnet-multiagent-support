@@ -1,0 +1,332 @@
+{
+  "run_id": "compose-1",
+  "timestamp_utc": "2026-11-18T20:46:31.694302+00:00",
+  "git_commit": "14f795b016ac81447d71dc3ff849fb5cec241110",
+  "git_dirty": false,
+  "compose_ps": [
+    {
+      "service": "app-a",
+      "image": "getnet-multiagent-app:local",
+      "state": "running"
+    },
+    {
+      "service": "app-b",
+      "image": "getnet-multiagent-app:local",
+      "state": "running"
+    },
+    {
+      "service": "grafana",
+      "image": "grafana/grafana:11.3.1",
+      "state": "running"
+    },
+    {
+      "service": "jaeger",
+      "image": "jaegertracing/jaeger:2.6.0",
+      "state": "running"
+    },
+    {
+      "service": "postgres",
+      "image": "postgres:16-alpine",
+      "state": "running"
+    },
+    {
+      "service": "prometheus",
+      "image": "prom/prometheus:v2.55.1",
+      "state": "running"
+    },
+    {
+      "service": "redis",
+      "image": "redis:7-alpine",
+      "state": "running"
+    }
+  ],
+  "health": {
+    "app_a": {
+      "port": 8000,
+      "http_status": 200,
+      "replica": "app-a",
+      "environment": "production",
+      "state_backend": "postgres",
+      "rate_limit_backend": "redis",
+      "tracing_exporter": "otlp"
+    },
+    "app_b": {
+      "port": 8001,
+      "http_status": 200,
+      "replica": "app-b",
+      "environment": "production",
+      "state_backend": "postgres",
+      "rate_limit_backend": "redis",
+      "tracing_exporter": "otlp"
+    }
+  },
+  "conversation_across_replicas": {
+    "session_id": "compose-conv-compose-1-1e41f84b",
+    "turn1": {
+      "port": 8000,
+      "http_status": 200,
+      "x_trace_id": "trc-a42efa78f6e0",
+      "traceparent": "00-0c3c1d771f423b7dd9bba0d30819893e-84d8da7f9347f6c1-03",
+      "action": {
+        "tool": "request_terminal_replacement",
+        "status": "pending_confirmation",
+        "action_id": "ACT-20261118-41F426ADC4",
+        "request_id": null
+      },
+      "ticket_id": null,
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent",
+        "SupportAgent"
+      ],
+      "tools_used": [
+        "request_terminal_replacement"
+      ],
+      "response": "Recebi a sua solicitação de troca da maquininha Get Smart com o número de série GET-883921 devido à tela quebrada. \n\nPara prosseguirmos com o pedido de substituição do equipamento, você confirma a troca desta maquininha?"
+    },
+    "turn2": {
+      "port": 8001,
+      "http_status": 200,
+      "x_trace_id": "trc-7dc19eb35184",
+      "traceparent": "00-18206c515765518377d7df60938eeb82-24e3c47d415d748e-03",
+      "action": {
+        "tool": "confirm_pending_action",
+        "status": "executed",
+        "action_id": "ACT-20261118-41F426ADC4",
+        "request_id": "GET-TRC-20261118-0163DB0013"
+      },
+      "ticket_id": null,
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent"
+      ],
+      "tools_used": [
+        "confirm_pending_action"
+      ],
+      "response": "A troca da maquininha GET-883921 foi solicitada com sucesso. O número do pedido de substituição é GET-TRC-20261118-0163DB0013."
+    },
+    "session_messages_http_status": 200,
+    "session_message_count": 4,
+    "replacements_http_status_a": 200,
+    "replacements_http_status_b": 200,
+    "replacements_seen_a": true,
+    "replacements_seen_b": true,
+    "request_id": "GET-TRC-20261118-0163DB0013",
+    "audit_http_status": 200,
+    "audit_event_count": 1,
+    "audit_actions": [
+      "replacement_executed"
+    ]
+  },
+  "ticket_across_replicas": {
+    "session_id": "compose-tkt-compose-1-f23d9fc9",
+    "ticket_id": "GET-TKT-20261118-1C173FD790",
+    "turn1": {
+      "port": 8001,
+      "http_status": 200,
+      "x_trace_id": "trc-e4a342901981",
+      "traceparent": "00-43258cdd7f2f59760c8608429fe9c277-9ca366d225c52b8b-03",
+      "action": null,
+      "ticket_id": "GET-TKT-20261118-1C173FD790",
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent"
+      ],
+      "tools_used": [
+        "escalate_to_human"
+      ],
+      "response": "Sua solicitação foi registrada para o nosso time de atendimento humano sob o protocolo **GET-TKT-20261118-1C173FD790**. A resposta aparecerá aqui assim que o atendimento for realizado."
+    },
+    "patch_http_status": 200,
+    "patch_status": "answered",
+    "patch_resume_status": "resumed",
+    "messages_after_patch_http_status": 200,
+    "messages_after_patch_count": 3,
+    "turn2": {
+      "port": 8001,
+      "http_status": 200,
+      "x_trace_id": "trc-d94a1b749ff3",
+      "traceparent": "00-91e8ee0c66be630f3e353c6e00dc0aae-12292444c3f43221-03",
+      "action": null,
+      "ticket_id": null,
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent",
+        "SupportAgent"
+      ],
+      "tools_used": [
+        "diagnose_declined_transaction"
+      ],
+      "response": "Não consegui confirmar essa resposta nas fontes disponíveis, então prefiro não respondê-la. Se quiser, posso abrir um chamado para a equipe de atendimento humano."
+    },
+    "audit_http_status": 200,
+    "audit_event_count": 4,
+    "audit_actions": [
+      "ticket_reply_delivered",
+      "ticket_replied",
+      "ticket_updated",
+      "ticket_created"
+    ]
+  },
+  "pii": {
+    "http_status": 200,
+    "pg_dump_bytes": 818067,
+    "pg_bytea_values": 630,
+    "pg_marker_count": 28,
+    "pg_pii": {
+      "card_spaced": 0,
+      "card_digits": 0,
+      "cpf_formatted": 0,
+      "cpf_digits": 0
+    },
+    "logs_bytes": 45634,
+    "logs_marker_count": 0,
+    "logs_pii": {
+      "card_spaced": 0,
+      "card_digits": 0,
+      "cpf_formatted": 0,
+      "cpf_digits": 0
+    }
+  },
+  "rate_limit": {
+    "initial_ports": [
+      8000,
+      8001,
+      8000,
+      8001,
+      8000,
+      8001
+    ],
+    "initial_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "seventh_port": 8001,
+    "seventh_status": 429,
+    "seventh_retry_after": "43"
+  },
+  "traces": {
+    "conversation_turn1": {
+      "found": true,
+      "trace_id": "0c3c1d771f423b7dd9bba0d30819893e",
+      "summary": {
+        "trace_id": "0c3c1d771f423b7dd9bba0d30819893e",
+        "span_count": 21,
+        "span_names": [
+          "chat.request",
+          "graph.node.abstention_check",
+          "graph.node.answer_check",
+          "graph.node.guardrail",
+          "graph.node.guardrail_classifier",
+          "graph.node.handoff_gate",
+          "graph.node.language_check",
+          "graph.node.planner",
+          "graph.node.supervisor",
+          "graph.node.tools",
+          "graph.node.verifier",
+          "llm.call",
+          "tool.call"
+        ],
+        "attribute_keys": [
+          "agent.name",
+          "app.trace_id",
+          "graph.node",
+          "http.route",
+          "http.status_code",
+          "llm.caller",
+          "llm.fallback_used",
+          "llm.input_tokens",
+          "llm.model",
+          "llm.output_tokens",
+          "llm.status",
+          "otel.scope.name",
+          "rate_limit.backend",
+          "service.replica",
+          "span.kind",
+          "tool.name",
+          "tool.status",
+          "user.hash"
+        ],
+        "services": [
+          "getnet-multiagent"
+        ],
+        "marker_in_attributes": false
+      },
+      "scan_pii": {
+        "card_spaced": 0,
+        "card_digits": 0,
+        "cpf_formatted": 0,
+        "cpf_digits": 0
+      }
+    },
+    "pii_turn": {
+      "found": true,
+      "trace_id": "0653418de54fadeacba882db28fa3168",
+      "summary": {
+        "trace_id": "0653418de54fadeacba882db28fa3168",
+        "span_count": 21,
+        "span_names": [
+          "chat.request",
+          "graph.node.abstention_check",
+          "graph.node.answer_check",
+          "graph.node.guardrail",
+          "graph.node.guardrail_classifier",
+          "graph.node.handoff_gate",
+          "graph.node.language_check",
+          "graph.node.planner",
+          "graph.node.supervisor",
+          "graph.node.tools",
+          "graph.node.verifier",
+          "llm.call",
+          "tool.call"
+        ],
+        "attribute_keys": [
+          "agent.name",
+          "app.trace_id",
+          "graph.node",
+          "http.route",
+          "http.status_code",
+          "llm.caller",
+          "llm.fallback_used",
+          "llm.input_tokens",
+          "llm.model",
+          "llm.output_tokens",
+          "llm.status",
+          "otel.scope.name",
+          "rate_limit.backend",
+          "service.replica",
+          "span.kind",
+          "tool.name",
+          "tool.status",
+          "user.hash"
+        ],
+        "services": [
+          "getnet-multiagent"
+        ],
+        "marker_in_attributes": false
+      },
+      "scan_pii": {
+        "card_spaced": 0,
+        "card_digits": 0,
+        "cpf_formatted": 0,
+        "cpf_digits": 0
+      }
+    }
+  },
+  "checks": {
+    "replicas_healthy": true,
+    "conversation_across_replicas": true,
+    "ticket_across_replicas": true,
+    "reply_delivered": true,
+    "rate_limit_shared": true,
+    "pii_absent_postgres": true,
+    "pii_absent_logs": true,
+    "trace_exported": true,
+    "trace_private": true
+  },
+  "error": null
+}
