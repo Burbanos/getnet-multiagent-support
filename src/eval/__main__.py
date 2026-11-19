@@ -164,6 +164,7 @@ def _cmd_human_import(args: argparse.Namespace) -> int:
             xlsx_path=args.xlsx,
             out_dir=args.out_dir,
             sample_dir=args.sample_dir,
+            omit_name=args.omit_name,
         )
         print(
             f"human-import: {res['n_items']} answers and {res['comments_count']} comments written to {res['out_dir']}"
@@ -296,6 +297,12 @@ def main() -> int:
     p_hi.add_argument("--xlsx", required=True, help="Path to annotator .xlsx file")
     p_hi.add_argument("--out-dir", required=True, help="Output directory for answers.csv, comments.csv, declaration.json")
     p_hi.add_argument("--sample-dir", default=HV_SAMPLE_DIR, help="Directory containing sample.json")
+    p_hi.add_argument(
+        "--omit-name",
+        action="store_true",
+        default=False,
+        help="Omit annotator name from declaration.json even when authorized",
+    )
 
     # 13. human-raters
     p_hr = subparsers.add_parser("human-raters", help="Compare two annotator answers CSV files on the same sample")

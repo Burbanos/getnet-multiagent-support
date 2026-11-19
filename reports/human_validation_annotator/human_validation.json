@@ -1,0 +1,375 @@
+{
+  "source_run": "v2-1",
+  "seed": "getnet-human-validation-2026-11-12",
+  "sample_sha256": "0e01065203b90bbc3a253ee33aab0c003fb7c75e13e5e53badd9a9ba4e4643a2",
+  "answers_sha256": "381fa1123ad359186ddb8a228f343db78d8698b913e1e09fa5bc5834a8b7dd6f",
+  "n_items": 30,
+  "comparisons": {
+    "route_vs_label": {
+      "n": 27,
+      "agree": 24,
+      "rate": 0.8888888888888888,
+      "wilson_low": 0.7194219901786143,
+      "wilson_high": 0.9614796520175526,
+      "kappa": 0.7990074441687344,
+      "disagreements": [
+        {
+          "hid": "h06",
+          "case_id": "m03",
+          "human": "conhecimento",
+          "other": "conta"
+        },
+        {
+          "hid": "h12",
+          "case_id": "s01",
+          "human": "conhecimento",
+          "other": "conta"
+        },
+        {
+          "hid": "h24",
+          "case_id": "x02",
+          "human": "conta",
+          "other": "ambos"
+        }
+      ]
+    },
+    "abstain_vs_label": {
+      "n": 26,
+      "agree": 24,
+      "rate": 0.9230769230769231,
+      "wilson_low": 0.7585844605936842,
+      "wilson_high": 0.9786449117205875,
+      "kappa": 0.7078651685393259,
+      "disagreements": [
+        {
+          "hid": "h03",
+          "case_id": "u03",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h17",
+          "case_id": "u01",
+          "human": false,
+          "other": true
+        }
+      ]
+    },
+    "acceptable_vs_checks": {
+      "n": 30,
+      "agree": 25,
+      "rate": 0.8333333333333334,
+      "wilson_low": 0.6643564934133498,
+      "wilson_high": 0.9266345767456822,
+      "kappa": 0.19354838709677435,
+      "disagreements": [
+        {
+          "hid": "h02",
+          "case_id": "e04",
+          "human": true,
+          "other": false
+        },
+        {
+          "hid": "h03",
+          "case_id": "u03",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h06",
+          "case_id": "m03",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h11",
+          "case_id": "k16",
+          "human": true,
+          "other": false
+        },
+        {
+          "hid": "h23",
+          "case_id": "m05",
+          "human": false,
+          "other": true
+        }
+      ]
+    },
+    "acceptable_vs_judge": {
+      "n": 30,
+      "agree": 25,
+      "rate": 0.8333333333333334,
+      "wilson_low": 0.6643564934133498,
+      "wilson_high": 0.9266345767456822,
+      "kappa": -0.05633802816901448,
+      "disagreements": [
+        {
+          "hid": "h03",
+          "case_id": "u03",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h06",
+          "case_id": "m03",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h07",
+          "case_id": "m01",
+          "human": true,
+          "other": false
+        },
+        {
+          "hid": "h23",
+          "case_id": "m05",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h30",
+          "case_id": "u08",
+          "human": false,
+          "other": true
+        }
+      ]
+    },
+    "abstained_vs_judge": {
+      "n": 30,
+      "agree": 25,
+      "rate": 0.8333333333333334,
+      "wilson_low": 0.6643564934133498,
+      "wilson_high": 0.9266345767456822,
+      "kappa": 0.38016528925619836,
+      "disagreements": [
+        {
+          "hid": "h01",
+          "case_id": "e02",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h08",
+          "case_id": "o03",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h22",
+          "case_id": "o01",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h27",
+          "case_id": "off04",
+          "human": false,
+          "other": true
+        },
+        {
+          "hid": "h30",
+          "case_id": "u08",
+          "human": false,
+          "other": true
+        }
+      ]
+    }
+  },
+  "grounded_vs_judge": {
+    "n": 30,
+    "exact": 28,
+    "exact_rate": 0.9333333333333333,
+    "within_one": 28,
+    "within_one_rate": 0.9333333333333333,
+    "human_mean": 4.866666666666666,
+    "judge_mean": 5.0,
+    "human_lower": 2,
+    "human_higher": 0,
+    "pairs": [
+      {
+        "hid": "h01",
+        "case_id": "e02",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h02",
+        "case_id": "e04",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h03",
+        "case_id": "u03",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h04",
+        "case_id": "k07",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h05",
+        "case_id": "k06",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h06",
+        "case_id": "m03",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h07",
+        "case_id": "m01",
+        "human": 3,
+        "judge": 5
+      },
+      {
+        "hid": "h08",
+        "case_id": "o03",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h09",
+        "case_id": "w02",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h10",
+        "case_id": "off08",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h11",
+        "case_id": "k16",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h12",
+        "case_id": "s01",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h13",
+        "case_id": "off05",
+        "human": 3,
+        "judge": 5
+      },
+      {
+        "hid": "h14",
+        "case_id": "w01",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h15",
+        "case_id": "k08",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h16",
+        "case_id": "d07",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h17",
+        "case_id": "u01",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h18",
+        "case_id": "k17",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h19",
+        "case_id": "off07",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h20",
+        "case_id": "k04",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h21",
+        "case_id": "k01",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h22",
+        "case_id": "o01",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h23",
+        "case_id": "m05",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h24",
+        "case_id": "x02",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h25",
+        "case_id": "d04",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h26",
+        "case_id": "k03",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h27",
+        "case_id": "off04",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h28",
+        "case_id": "s05",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h29",
+        "case_id": "p01",
+        "human": 5,
+        "judge": 5
+      },
+      {
+        "hid": "h30",
+        "case_id": "u08",
+        "human": 5,
+        "judge": 5
+      }
+    ]
+  },
+  "pass_rate_checks": 0.9,
+  "acceptable_rate_human": 0.8666666666666667,
+  "generated_at": "2026-11-19T02:36:15.456223+00:00"
+}

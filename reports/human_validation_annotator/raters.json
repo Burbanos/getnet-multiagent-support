@@ -1,0 +1,196 @@
+{
+  "a": "autor",
+  "b": "anotador",
+  "a_sha256": "5141628f1dd8eebac4b6612e9d6900a418f33cec7a24c5d96d145e4a28856ab3",
+  "b_sha256": "381fa1123ad359186ddb8a228f343db78d8698b913e1e09fa5bc5834a8b7dd6f",
+  "sample_sha256": "0e01065203b90bbc3a253ee33aab0c003fb7c75e13e5e53badd9a9ba4e4643a2",
+  "n_items": 30,
+  "fields": {
+    "rota": {
+      "n": 30,
+      "agree": 26,
+      "rate": 0.8666666666666667,
+      "wilson_low": 0.7031867316460598,
+      "wilson_high": 0.9469034455288754,
+      "kappa": 0.7551020408163265,
+      "disagreements": [
+        {
+          "hid": "h03",
+          "case_id": "u03",
+          "a": "conhecimento",
+          "b": "conta"
+        },
+        {
+          "hid": "h06",
+          "case_id": "m03",
+          "a": "conta",
+          "b": "conhecimento"
+        },
+        {
+          "hid": "h12",
+          "case_id": "s01",
+          "a": "conta",
+          "b": "conhecimento"
+        },
+        {
+          "hid": "h13",
+          "case_id": "off05",
+          "a": "conhecimento",
+          "b": "conta"
+        }
+      ]
+    },
+    "deveria_abster": {
+      "n": 30,
+      "agree": 25,
+      "rate": 0.8333333333333334,
+      "wilson_low": 0.6643564934133498,
+      "wilson_high": 0.9266345767456822,
+      "kappa": 0.46808510638297907,
+      "disagreements": [
+        {
+          "hid": "h01",
+          "case_id": "e02",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h02",
+          "case_id": "e04",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h03",
+          "case_id": "u03",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h11",
+          "case_id": "k16",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h27",
+          "case_id": "off04",
+          "a": true,
+          "b": false
+        }
+      ]
+    },
+    "aceitavel": {
+      "n": 30,
+      "agree": 25,
+      "rate": 0.8333333333333334,
+      "wilson_low": 0.6643564934133498,
+      "wilson_high": 0.9266345767456822,
+      "kappa": -0.05633802816901448,
+      "disagreements": [
+        {
+          "hid": "h02",
+          "case_id": "e04",
+          "a": false,
+          "b": true
+        },
+        {
+          "hid": "h03",
+          "case_id": "u03",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h06",
+          "case_id": "m03",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h23",
+          "case_id": "m05",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h30",
+          "case_id": "u08",
+          "a": true,
+          "b": false
+        }
+      ]
+    },
+    "absteve": {
+      "n": 30,
+      "agree": 24,
+      "rate": 0.8,
+      "wilson_low": 0.6269430343619583,
+      "wilson_high": 0.9049489287811706,
+      "kappa": 0.3283582089552241,
+      "disagreements": [
+        {
+          "hid": "h01",
+          "case_id": "e02",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h02",
+          "case_id": "e04",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h08",
+          "case_id": "o03",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h22",
+          "case_id": "o01",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h27",
+          "case_id": "off04",
+          "a": true,
+          "b": false
+        },
+        {
+          "hid": "h30",
+          "case_id": "u08",
+          "a": true,
+          "b": false
+        }
+      ]
+    },
+    "fundamentacao": {
+      "n": 30,
+      "exact": 28,
+      "exact_rate": 0.9333333333333333,
+      "within_one": 28,
+      "within_one_rate": 0.9333333333333333,
+      "a_mean": 5.0,
+      "b_mean": 4.866666666666666,
+      "a_lower": 0,
+      "a_higher": 2,
+      "disagreements": [
+        {
+          "hid": "h07",
+          "case_id": "m01",
+          "a": 5,
+          "b": 3
+        },
+        {
+          "hid": "h13",
+          "case_id": "off05",
+          "a": 5,
+          "b": 3
+        }
+      ]
+    }
+  },
+  "generated_at": "2026-11-19T02:36:32.763987+00:00"
+}

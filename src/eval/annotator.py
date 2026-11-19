@@ -451,6 +451,7 @@ def import_annotator_xlsx(
     xlsx_path: str | Path,
     out_dir: str | Path,
     sample_dir: str | Path = SAMPLE_DIR,
+    omit_name: bool = False,
 ) -> dict[str, Any]:
     """Validate and convert an external annotator .xlsx into answers.csv, comments.csv and declaration.json."""
     sample_path = Path(sample_dir) / "sample.json"
@@ -477,6 +478,10 @@ def import_annotator_xlsx(
 
     if errors:
         raise AnnotatorImportError(errors)
+
+    if omit_name:
+        declaration["name"] = None
+    declaration["name_withheld_by_author"] = bool(omit_name)
 
     xlsx_sha = hashlib.sha256(xlsx_p.read_bytes()).hexdigest()
     declaration["xlsx_sha256"] = xlsx_sha

@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "occupation": "Tecnologia da Informação",
+  "part1_start": "2026-11-18 21:00",
+  "part1_end": "2026-11-18 21:30",
+  "part2_end": "2026-11-18 23:00",
+  "hours": 2.0,
+  "no_access": "S",
+  "no_discussion": "S",
+  "route_before_part2": "S",
+  "name_authorized": "S",
+  "questions": null,
+  "name_withheld_by_author": true,
+  "xlsx_sha256": "5903bad00b325dbe844e31fe717d143b47a014f211f8e165641005ab35219181",
+  "imported_at": "2026-11-19T02:35:59.138011+00:00"
+}

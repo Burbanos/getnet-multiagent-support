@@ -73,6 +73,44 @@ was blind to checkpoints; the rate limit counts every authenticated request per 
 within a minute against a limit of 6; the operator reply is delivered at the `PATCH` (`resume_after_operator`), not in the
 customer's next turn. The temporary `.env` also stops carrying the Gemini key.
 
+**Compose evidence** (`8994c1e`, Codespaces, at `14f795b`): `reports/integration/compose-1.{json,md}`, 9/9 checks (proposal on
+`app-a` executed on `app-b`, ticket answered on one replica and resumed, shared 429, 630 `bytea` values decoded with the
+marker found 28 times and no raw card/CPF, two exported traces with 21 spans and no marker in attributes). After the
+delivered operator reply, the customer's "Alguma novidade?" got the verifier's fixed abstention.
+
+**Round results** (`a6a1175`, at `8994c1e`; all runs complete, no errors): v2 95.7% (93.6-97.4) vs 95.3% at 12E, language
+100%, escalation 100%, judge abstention coverage 91.1% and precision 86.3%, official scenarios 86.7% (11G 96.7%), expected
+facts 92.3% (12E 99.1%), median latency 8.4 s (12E 5.5 s), US$ 0.392 per run (12E 0.288); holdout 1 95.8%; holdout 2 80.6%
+(`n05`, `n06` fail tools in every run, as at 12E); holdout 3 97.8%, routing 100%; actions 95.8%; retrieval rerank-4..6
+hit@1 1.000, uncovered abstention 1.000. Findings: (1) the verifier sees only the specialists' summaries
+(supervisor-level `ToolMessage`s), not the raw tool results nor the conversation, so it withheld correct PTAX answers
+(`d04` 2/3, `d05` 1/3) and context-only follow-ups (`m04` turn 2 1/3, the Compose follow-up); (2) `off01` (official) failed
+3/3: the recollected home page competes in retrieval and the price chunk is not found; (3) planner + verifier + language
+check cost latency and tokens; (4) `a05` 1/3 ended in a forced escalation after two proposals (an unrequested ticket), `t21`
+1/3 gave the catalogue meaning with a hedge.
+
+**Decision (reviewer, delegated by the author):** no fix round. The round is pre-registered and single; 13D-2 publishes it as
+it came out and the README states the four findings as known limitations with their records and the general fix for the
+verifier (pass raw tool results and the turn's conversation as evidence). Not fixing `off01` by tuning against the case.
+
+**Annotator:** two spreadsheets received earlier on 2026-11-18 were not filled by a person and are not used anywhere. The
+valid one (sha256 `5903bad0...9181`, Microsoft Excel, saved by the annotator; the author opened and saved it once without
+changes to the answers) came from a friend of the author working in IT, with no AI background and no access to the project,
+who filled the route column before opening Part 2 (declared). The author asked for corrections only in the declaration
+(occupation, dates, total time, and the two independence statements, which the annotator had answered `N` while meaning
+"true"); the answers did not change. The annotator authorised his name; the author chose not to publish it
+(`--omit-name`). Agreement (author's blind answers from 12F vs annotator): route 26/30, should-abstain 25/30, acceptable
+25/30, abstained 24/30, groundedness exact 28/30; annotator vs checks 25/30 (he rejected 3 of the 27 check-approved
+answers: `u03`, `m03`, `m05`).
+
+**13D-2** (`scripts/verify_phase13d2.py`, prompt `docs/phase-prompts/13D-2.md`, Orchestrator (Neon)): `--omit-name` in
+`human-import`; import, agreement and rater reports in `reports/human_validation_annotator/`; the README is dictated by the
+reviewer (`docs/phase-prompts/13D-2-README.md`, copied byte for byte and deleted; README sha256 pinned); the 13D-1 prompt,
+fix prompt and verifier leave the tree. The 13D-2 verifier re-runs every 13D-1 check and the cross-cutting checks of
+13A-13C, and adds: annotator files pinned by sha256 (spreadsheet, answers, comments), agreement reproducible from the
+committed answers, the annotator's name absent from every tracked file (by hash), the omit-name flag, README paths existing
+and the reviewer never called independent.
+
 ### Before Phase 13 (HEAD `431eb1f`, phase 12F, CI green)
 
 Reviewer rerun of `scripts/verify_phase12f.py` on Python 3.11.18 before retiring the verifier chain: **75/75** (it re-ran the 58
@@ -269,6 +307,10 @@ reported as it came out.
 **13D-2** (after the round and the annotator): README rewritten shorter, every claim pointing to a test, record or report
 (no retired verifier); holdout 3 cases `t07`, `t24`, `t25` disclosed as no longer clean; the reviewer never called
 independent; `docs/history.md` decision; the 13D-1 prompt and verifier leave the tree.
+Implementer model: from 13D-2 on, Antigravity runs in Orchestrator (Neon) mode (phase prompts say so at the top); 13D-1-fix
+and every earlier Phase 12E-13 subphase ran in Orchestrator (Argon). The README section "Autoria e revisão" lists which
+subphases used each model: Gemini 3.8 Flash up to 11G; Gemini 4 Hydrogen 12A-12D; Orchestrator (Argon) 12E, 12F, 13A,
+13A-fix, 13B, 13C, 13D-1 and 13D-1-fix; Orchestrator (Neon) from 13D-2.
 
 ### Acceptance (Phase 13)
 
