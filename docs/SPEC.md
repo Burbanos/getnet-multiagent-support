@@ -40,20 +40,29 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 ## Current state (2026-11-19)
 
-**Phase 13 closed** (`1a6df5c`, 13D-2, CI green). Every item of the feedback v2 "Caminho para 9,0" is implemented: planner and
-pre-send verifier, language enforcement, escalation only on request, decline-catalogue applicability, confirmed terminal
-replacement with audit, operator console, Postgres/Redis state shared by two replicas (Compose evidence `compose-1`),
-OpenTelemetry tracing and a Grafana dashboard, outside annotator. The single pre-registered round (`a6a1175`, code at
-`14f795b`) showed regressions against 11G, published as they came out in the README "Limitações conhecidas":
+**Phase 14: 14A done** (`10548ed`, verifier 32/32, CI green), index rebuilt (`45a6047`), round committed (`d95d55f`; the five
+comparison reports regenerate byte-identical from the records). **The pre-registered success criterion was not met**:
 
-| v2, mean of three runs | 11G (`v2-1..3`) | 12E (`v2-7..9`) | 13D (`v2-10..12`) |
-| :--- | :--- | :--- | :--- |
-| Official scenarios | 96.7% | 83.3% | 86.7% (`off01` fails 3/3) |
-| Expected facts | 94.9% | 99.1% | 92.3% |
-| Routing / tools / escalation | 95.4 / 95.7 / 98.6% | 100.0 / 99.0 / 98.1% | 99.5 / 99.5 / 100.0% |
-| Median latency, cost per run | 5.1 s, US$ 0.253 | 5.5 s, US$ 0.288 | 8.4 s, US$ 0.392 |
+| v2, mean of three runs | 11G | 13D | 14 (`v2-13..15`) | Criterion |
+| :--- | :--- | :--- | :--- | :--- |
+| Official scenarios | 96.7% | 86.7% | 96.7% | ≥ 96.7: met |
+| Expected facts | 94.9% | 92.3% | 99.1% | ≥ 94.9: met |
+| Routing / tools | 95.4 / 95.7% | 99.5 / 99.5% | 97.4 / 98.1% | ≥ 99.5: not met (both) |
+| Escalation | 98.6% | 100.0% | 100.0% | 100: met |
+| Median / p95 latency, cost per run | 5.1 s / 9.3 s, US$ 0.253 | 8.4 s / 18.3 s, US$ 0.392 | 7.4 s / 14.7 s, US$ 0.401 | reported |
 
-Next: **Phase 14**, short (two sub-phases, one round), only to fix these regressions in a general way, then resubmit.
+Fixed: `off01` 3/3 (0/3 in 13D), `d04`/`d05` 3/3, verifier abstentions 5 → 2 (both `u03`, the expected abstention). Routing
+drop: `m04` 2/3 (follow-up answered from the conversation, no KB call: the direct trade-off of 14A), `s03`/`off05`/`s01` 1/3
+each. `u02` (central phone) is now answered 3/3 because the block rule restored the line; its label (uncovered) is stale and
+was not changed. Holdouts, one run each: rh 100%, rh2 75% (`n05`, `n06`, `n07`), h3 96.8% (`t20`), actions 87.5% (`a05`);
+`rerank-7` hit@1 1.000, uncovered abstention 0.900 (`u02`).
+
+**Deviation in the round (reviewer's error):** the commands given to the author did not set `EVAL_JUDGE_MODEL`, so `v2-13..15`
+were judged by the code default `gemini-3.1-flash-lite`, not `gemini-3.6-flash`. No criterion depends on the judge. Decision
+(delegated by the author): the judge is not re-run (records are immutable, and re-judging would pick a result); the README
+marks the judge rows of column 14 as another model.
+
+Next: **14B** (README with the round, then resubmission). No further round or fix sub-phase in Phase 14.
 
 ---
 
@@ -177,7 +186,7 @@ Tests (new files; existing test files only grow): `tests/test_verifier_evidence.
    - `rh-10` (`cases_routing_holdout.jsonl`), `rh2-7` (`cases_routing_holdout2.jsonl`), `h3-4` (`cases_holdout3.jsonl`),
      `act-4` (`cases_actions.jsonl`), one `run` each, no judge;
    - `rerank-7` (`python -m src.rag.hybrid_eval run --run-id rerank-7`), one run: the index changes, and the README's retrieval
-     table describes the current index (reviewer's addition; the author confirms before the round);
+     table describes the current index (reviewer's addition, confirmed by delegation of the author before the round);
    - `python -m src.eval context` for every new run id;
    - comparison reports (new names; 13D reports are not regenerated): `compare --name v2_phase14` with groups
      `11G=v2-1,v2-2,v2-3`, `12E=v2-7,v2-8,v2-9`, `13D=v2-10,v2-11,v2-12`, `14=v2-13,v2-14,v2-15`;
@@ -195,15 +204,16 @@ Met only if all five hold. The README states, criterion by criterion, whether it
 judge metrics, latency, cost, holdouts, action cases and retrieval are reported, not criteria. The four cases that motivated
 14A (`d04`, `d05`, `m04`, `off01`) belong to v2; no holdout case influenced 14A.
 
-### 14B — README with the round (prompt and verifier written by the reviewer after the round is committed)
+### 14B — README with the round (`scripts/verify_phase14b.py`, prompt `docs/phase-prompts/14B.md`)
 
-README changes, and nothing else, as decided by the author: a "14" column next to 11G/12E/13D in the v2 table (latency and cost
-rows included); the bullets under that table and "Limitações conhecidas" revised (remove what the round shows fixed, keep the
-rest, add what the round shows); the success criterion and its outcome; "Autoria e revisão" with Orchestrator (Neon) for 14A
-and 14B. Reviewer's recommendations pending the author's decision (each keeps a README claim true after 14A): the first
-paragraph of "Resultados" (it describes the Phase 13 round and code `14f795b` as the current one); a "14" column in the
-holdouts table; the retrieval table ("Busca") with `rerank-7`, since the index changes; the evidence rows of the verifier and
-chunking claims (new test files). 14B also updates this section's "Current state" (reviewer) and `docs/STATUS.md`.
+The README text is dictated by the reviewer (`docs/phase-prompts/14B-README.md`, a temporary reviewer file copied byte for
+byte and deleted; the verifier pins the README's SHA-256). Changes, decided by the author and, where he delegated, by the
+reviewer (2026-11-19): the "Resultados" opening paragraph (round 14, code `10548ed`, index `45a6047`, the judge deviation);
+the v2 table with column "14" (latency and cost rows included), the success criterion and its outcome, and the bullets under
+the table; column "14" in the holdouts table and its bullets; the retrieval table with `rerank-7`; "Limitações conhecidas"
+revised; "Autoria e revisão" with Orchestrator (Neon) for 14A and 14B; the evidence rows of the verifier, chunking, decline
+context and results claims. Nothing else in the README changes. 14B also retires the 14A prompt and verifier, and rewrites
+`docs/STATUS.md`. No code, record, label or prompt changes.
 
 ### Acceptance (Phase 14)
 

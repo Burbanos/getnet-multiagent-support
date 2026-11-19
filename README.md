@@ -88,47 +88,51 @@ Cada caso roda com um banco próprio de chamados e ações (`src/eval/runner.py`
 
 ## Resultados
 
-Rodada única da Fase 13, em 2026-11-18, com o código do commit `14f795b`, conta Tier 1 paga, modelo `gemini-3.5-flash-lite` e juiz `gemini-3.6-flash`. Todas as execuções terminaram sem erro. Os registros brutos estão em `reports/eval_runs/` e `reports/retrieval_runs/`, e a declaração de tier em `reports/run_context.json`.
+Rodada única da Fase 14, em 2026-11-19, com o código do commit `10548ed` e o índice reconstruído no `45a6047`, conta Tier 1 paga e modelo `gemini-3.5-flash-lite`. O juiz da v2 foi o `gemini-3.1-flash-lite`, e não o `gemini-3.6-flash` das rodadas anteriores: os comandos passados pelo revisor não definiam `EVAL_JUDGE_MODEL`, e a avaliação do juiz não foi refeita. As linhas do juiz na coluna 14 não se comparam com as outras; nenhuma métrica do critério de sucesso depende do juiz. Todas as execuções terminaram sem erro. Os registros brutos estão em `reports/eval_runs/` e `reports/retrieval_runs/`, e a declaração de tier em `reports/run_context.json`. As colunas 11G, 12E e 13D vêm das rodadas anteriores.
 
 ### Conjunto v2: 78 casos, três execuções por versão
 
-`data/eval/cases_v2.jsonl` (78 casos, rótulos escritos pelo revisor). Cada célula é a média de três execuções, com mínimo e máximo (`reports/eval_v2_phase13.md`). 11G é o código avaliado no feedback anterior; 12E, o fim da rodada 12; 13D, esta rodada.
+`data/eval/cases_v2.jsonl` (78 casos, rótulos escritos pelo revisor). Cada célula é a média de três execuções, com mínimo e máximo (`reports/eval_v2_phase14.md`). 11G é o código avaliado no feedback anterior; 12E, o fim da rodada 12; 13D, a rodada da Fase 13; 14, esta rodada.
 
-| Métrica | 11G | 12E | 13D |
-| :--- | :--- | :--- | :--- |
-| Execuções | v2-1, v2-2, v2-3 | v2-7, v2-8, v2-9 | v2-10, v2-11, v2-12 |
-| Casos aprovados (checagens determinísticas) | 91,9% (91,0–92,3) | 95,3% (93,6–96,2) | 95,7% (93,6–97,4) |
-| Cenários oficiais aprovados | 96,7% (90,0–100,0) | 83,3% (80,0–90,0) | 86,7% (80,0–90,0) |
-| Roteamento correto | 95,4% | 100,0% | 99,5% (98,5–100,0) |
-| Ferramentas corretas | 95,7% | 99,0% | 99,5% (98,6–100,0) |
-| Escalonamento correto | 98,6% | 98,1% | 100,0% |
-| Fatos esperados presentes | 94,9% | 99,1% | 92,3% (89,7–94,9) |
-| Idioma da resposta | 97,2% | 96,3% | 100,0% |
-| Juiz: precisão da abstenção | 80,0% | 100,0% | 86,3% (77,8–100,0) |
-| Juiz: cobertura da abstenção | 80,0% | 77,8% | 91,1% (86,7–93,3) |
-| Latência por caso, mediana | 5,1 s | 5,5 s | 8,4 s (8,3–8,5) |
-| Latência por caso, p95 | 9,3 s | 11,6 s | 18,3 s (16,1–20,3) |
-| Custo estimado por execução (plano pago) | US$ 0,253 | US$ 0,288 | US$ 0,392 (0,382–0,403) |
+| Métrica | 11G | 12E | 13D | 14 |
+| :--- | :--- | :--- | :--- | :--- |
+| Execuções | v2-1, v2-2, v2-3 | v2-7, v2-8, v2-9 | v2-10, v2-11, v2-12 | v2-13, v2-14, v2-15 |
+| Casos aprovados (checagens determinísticas) | 91,9% (91,0–92,3) | 95,3% (93,6–96,2) | 95,7% (93,6–97,4) | 97,4% (96,2–98,7) |
+| Cenários oficiais aprovados | 96,7% (90,0–100,0) | 83,3% (80,0–90,0) | 86,7% (80,0–90,0) | 96,7% (90,0–100,0) |
+| Roteamento correto | 95,4% | 100,0% | 99,5% (98,5–100,0) | 97,4% (96,9–98,5) |
+| Ferramentas corretas | 95,7% | 99,0% | 99,5% (98,6–100,0) | 98,1% (97,1–98,6) |
+| Escalonamento correto | 98,6% | 98,1% | 100,0% | 100,0% |
+| Fatos esperados presentes | 94,9% | 99,1% | 92,3% (89,7–94,9) | 99,1% (97,4–100,0) |
+| Idioma da resposta | 97,2% | 96,3% | 100,0% | 100,0% |
+| Juiz: precisão da abstenção | 80,0% | 100,0% | 86,3% (77,8–100,0) | 100,0% (outro juiz) |
+| Juiz: cobertura da abstenção | 80,0% | 77,8% | 91,1% (86,7–93,3) | 88,9% (86,7–93,3) (outro juiz) |
+| Latência por caso, mediana | 5,1 s | 5,5 s | 8,4 s (8,3–8,5) | 7,4 s (7,1–7,8) |
+| Latência por caso, p95 | 9,3 s | 11,6 s | 18,3 s (16,1–20,3) | 14,7 s (14,2–15,4) |
+| Custo estimado por execução (plano pago) | US$ 0,253 | US$ 0,288 | US$ 0,392 (0,382–0,403) | US$ 0,401 (0,399–0,405) |
 
-- **Idioma e chamados sem pedido:** nenhum caso com resposta no idioma errado e nenhum chamado aberto sem pedido nas 234 execuções de caso da 13D (78 × 3), contra 8 e 4 na 12E.
-- **Código visto na tela (`u03`):** na 12E, as três execuções deram o significado do código de recusa 05 a um erro da tela de configuração de rede. Na 13D, nenhuma deu: duas disseram que o código não consta nas fontes e ofereceram um chamado, e a terceira se absteve.
-- **Fatos esperados caíram para 92,3%** (ver "Limitações conhecidas"): o verificador trocou por abstenção a cotação PTAX correta do `d04` em duas execuções e do `d05` em uma, e o cenário oficial `off01` falhou nas três. A latência e o custo subiram com o planner, o verificador e a checagem de idioma.
-- **Verificador:** dos 252 turnos da 13D (os casos de várias mensagens têm mais de um), aprovou 186 na primeira tentativa e 7 depois de um replanejamento e se absteve em 5 (uma delas correta, no `u03`); dispensou 15 que abriram chamado ou ficaram sem plano, e 39 terminaram antes dele (bloqueio, fora do escopo ou chamado pendente).
+**Critério de sucesso da Fase 14**, declarado no `docs/SPEC.md` antes da rodada: cenários oficiais ≥ 96,7% e fatos esperados ≥ 94,9% (nível da 11G) e, sem queda em relação à 13D, roteamento ≥ 99,5%, ferramentas ≥ 99,5% e escalonamento 100%. **Não foi atingido:** cenários oficiais 96,7% (atingido), fatos esperados 99,1% (atingido), escalonamento 100,0% (atingido), roteamento 97,4% (não atingido) e ferramentas 98,1% (não atingido).
+
+- **`off01` e o chunking:** o cenário oficial passou nas três execuções; na 13D, falhou nas três. A causa estava no filtro de boilerplate: ele apagava toda linha repetida em 4 ou mais páginas, e a recoleta da página inicial na 13C levou "Get Smart" a 4 páginas, tirando o nome do produto da tabela de preços ("R$ 129,90/mês" ficou sem rótulo). Agora só sai o que forma um bloco repetido de duas ou mais linhas (`src/rag/chunking.py`). A regra antiga reproduz exatamente o índice da 13C, e a nova devolveu 54 linhas aos trechos. Nenhum rótulo nem prompt foi mudado para o caso.
+- **Verificador com a evidência completa:** ele passou a ver os resultados brutos das ferramentas do turno e as mensagens anteriores da conversa. A cotação PTAX do `d04` e do `d05` passou nas três execuções. Dos 252 turnos, o verificador aprovou 191 na primeira tentativa e 5 depois de um replanejamento e se absteve em 2, as duas no `u03` (erro 05 na tela de rede, a abstenção esperada); na 13D, foram 186, 7 e 5. Ele dispensou 15 turnos, e 39 terminaram antes dele, os mesmos números da 13D. Nenhuma evidência foi cortada pelo limite de tamanho (mediana de 2.355 caracteres, máximo de 11.467).
+- **Por que o roteamento caiu:** no `m04` (2 de 3), a pergunta de acompanhamento ("Which Android version does it need?") foi respondida pela conversa, sem nova consulta à base. A resposta está certa e cita a fonte, mas o rótulo espera a busca nesse turno. É efeito direto de o verificador aceitar o que a conversa já disse: na 13D, ele reprovou essas respostas nas três execuções, e o replanejamento consultou a base em duas. No `s03` e no `off05` (maquininha sem internet, 1 de 3 cada), o supervisor foi à base em vez do diagnóstico da maquininha; no `s01` (1 de 3), consultou a base além do suporte. No `x01` (1 de 3), a resposta disse que o dinheiro cai hoje, sem o valor.
+- **`u02` agora é respondido:** a mesma mudança no chunking devolveu aos trechos o telefone da central (4002-4000), que está na página inicial, e o sistema passou a responder com ele nas três execuções. O rótulo, escrito quando essa linha não estava no índice, ainda espera abstenção e não foi mudado; o `u02` é o único caso que o juiz conta como abstenção errada nas três execuções.
+- **Latência e custo:** a mediana caiu de 8,4 s para 7,4 s e o p95, de 18,3 s para 14,7 s; o custo subiu de US$ 0,392 para US$ 0,401 por execução.
+- **Idioma e chamados sem pedido:** nenhuma resposta no idioma errado e nenhum chamado aberto sem pedido nas 234 execuções de caso (78 × 3), como na 13D.
 
 ### Holdouts e casos de ação
 
-Conjuntos escritos pelo revisor antes de cada execução, três execuções cada:
+Conjuntos escritos pelo revisor antes de cada execução; três execuções na 13D e uma na 14:
 
-| Conjunto | Casos | 12E | 13D | Relatório |
-| :--- | :--- | :--- | :--- | :--- |
-| Holdout 1: códigos de recusa e perguntas parecidas | 8 | 87,5% | 95,8% (87,5–100,0) | `reports/eval_routing_holdout_phase13.md` |
-| Holdout 2: funções da maquininha, erros de tela e conexão | 12 | 83,3% | 80,6% (75,0–83,3) | `reports/eval_routing_holdout2_phase13.md` |
-| Holdout 3: escopo, idioma, chamado sem pedido e erros de tela | 31 | (smoke da 13B: 90,3%) | 97,8% (96,8–100,0) | `reports/eval_holdout3.md` |
-| Casos de ação: troca de maquininha | 8 | — | 95,8% (87,5–100,0) | `reports/eval_actions.md` |
+| Conjunto | Casos | 12E | 13D | 14 | Relatório |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Holdout 1: códigos de recusa e perguntas parecidas | 8 | 87,5% | 95,8% (87,5–100,0) | 100,0% | `reports/eval_routing_holdout_phase13.md`, `reports/eval_routing_holdout_phase14.md` |
+| Holdout 2: funções da maquininha, erros de tela e conexão | 12 | 83,3% | 80,6% (75,0–83,3) | 75,0% | `reports/eval_routing_holdout2_phase13.md`, `reports/eval_routing_holdout2_phase14.md` |
+| Holdout 3: escopo, idioma, chamado sem pedido e erros de tela | 31 | (smoke da 13B: 90,3%) | 97,8% (96,8–100,0) | 96,8% | `reports/eval_h3-smoke-1.md`, `reports/eval_holdout3_phase14.md` |
+| Casos de ação: troca de maquininha | 8 | — | 95,8% (87,5–100,0) | 87,5% | `reports/eval_actions_phase14.md` |
 
-- **Holdout 3** (`data/eval/cases_holdout3.jsonl`): roteamento e ferramentas certos nas três execuções. Ele não é mais totalmente limpo: o smoke da 13B (`reports/eval_h3-smoke-1.md`) mostrou falhas em `t07`, `t24` e `t25`, e o prompt do planner foi corrigido depois disso. Os outros 28 casos não influenciaram nenhuma mudança. Nos dois erros de tela (`t21`, `t23`), o significado do catálogo de recusas apareceu em 1 das 6 respostas, com ressalva.
-- **Holdout 2:** `n05` e `n06` falham na checagem de ferramentas em todas as execuções, como na 12E.
-- **Casos de ação** (`data/eval/cases_actions.jsonl`): nas 24 execuções, a troca só foi executada depois da confirmação num turno posterior (`a01`, `a02`). A recusa foi registrada (`a03`), a proposta sem resposta ficou pendente (`a04`), a maquininha de outro lojista recebeu `not_found` (`a06`) e o "sim" sem nada pendente não executou nada (`a07`). Quando o lojista mudou de assunto (`a08`), a proposta ficou pendente. No `a05` ("I confirm, go ahead" na mesma mensagem do pedido), nada foi executado nas três execuções. Em uma delas, porém, o supervisor tentou confirmar no mesmo turno, recebeu `same_turn`, repetiu a proposta e chegou ao limite de passos, que abriu um chamado sem pedido.
+- **Holdout 3** (`data/eval/cases_holdout3.jsonl`): roteamento e ferramentas certos nas quatro execuções (três da 13D e uma da 14). Ele não é mais totalmente limpo: o smoke da 13B (`reports/eval_h3-smoke-1.md`) mostrou falhas em `t07`, `t24` e `t25`, e o prompt do planner foi corrigido depois disso. Os outros 28 casos não influenciaram nenhuma mudança. Nos dois erros de tela (`t21`, `t23`), o significado do catálogo de recusas apareceu em 1 das 6 respostas da 13D, com ressalva. Na 14, apareceu no `t20` (erro 51 na tela de Wi-Fi): o verificador apontou que a evidência não se aplicava, e a resposta depois do replanejamento deu o significado com ressalva.
+- **Holdout 2:** `n05` e `n06` falham na checagem de ferramentas em todas as execuções, como na 12E. Na 14, também o `n07` ("falha 03" ao atualizar o aplicativo): o supervisor consultou o catálogo de recusas, mas a resposta não deu significado ao código.
+- **Casos de ação** (`data/eval/cases_actions.jsonl`): nas 24 execuções da 13D, a troca só foi executada depois da confirmação num turno posterior (`a01`, `a02`). A recusa foi registrada (`a03`), a proposta sem resposta ficou pendente (`a04`), a maquininha de outro lojista recebeu `not_found` (`a06`) e o "sim" sem nada pendente não executou nada (`a07`). Quando o lojista mudou de assunto (`a08`), a proposta ficou pendente. No `a05` ("I confirm, go ahead" na mesma mensagem do pedido), nada foi executado nas três execuções. Em uma delas, porém, o supervisor tentou confirmar no mesmo turno, recebeu `same_turn`, repetiu a proposta e chegou ao limite de passos, que abriu um chamado sem pedido. Na execução da 14, os outros sete casos passaram; no `a05`, nada foi executado, mas a resposta disse que não havia proposta pendente e pediu nova confirmação, sem registrar a proposta.
 
 Exemplo real (`reports/eval_runs/act-1.jsonl`, caso `a01`):
 
@@ -145,16 +149,16 @@ O número de identificação da solicitação de troca é **GET-TRC-20261118-1A6
 
 ### Busca
 
-48 consultas rotuladas (`data/eval/retrieval_labeled.jsonl`: 30 respondíveis, 10 sem cobertura e 8 fora do domínio), três execuções da busca híbrida sobre o índice atual (`reports/retrieval_hybrid_phase13.md`):
+48 consultas rotuladas (`data/eval/retrieval_labeled.jsonl`: 30 respondíveis, 10 sem cobertura e 8 fora do domínio). Três execuções da busca híbrida na 13D, sobre o índice anterior (`reports/retrieval_hybrid_phase13.md`), e uma na 14, sobre o índice reconstruído (`reports/retrieval_hybrid_phase14.md`):
 
-| Métrica | Só embedding | Híbrida com reranker (`rerank-4` a `rerank-6`) |
-| :--- | :--- | :--- |
-| hit@1 / MRR | 0,900 / 0,933 | 1,000 / 1,000 nas três |
-| Trecho com a resposta entre os 3 primeiros | 0,933 | 1,000 nas três |
-| Abstenção nas 10 sem cobertura | 0,000 | 1,000 nas três |
-| Abstenção nas 8 fora do domínio | 1,000 | 1,000 nas três |
+| Métrica | Só embedding (índice da 14) | Híbrida, 13D (`rerank-4` a `rerank-6`) | Híbrida, 14 (`rerank-7`) |
+| :--- | :--- | :--- | :--- |
+| hit@1 / MRR | 0,933 / 0,944 | 1,000 / 1,000 nas três | 1,000 / 1,000 |
+| Trecho com a resposta entre os 3 primeiros | 0,933 | 1,000 nas três | 1,000 |
+| Abstenção nas 10 sem cobertura | 0,000 | 1,000 nas três | 0,900 |
+| Abstenção nas 8 fora do domínio | 1,000 | 1,000 nas três | 1,000 |
 
-As 48 consultas e o prompt do reranker foram escritos pelo revisor. Recuperar o trecho certo não garante a resposta: no `off01`, os trechos com os preços vieram e o agente disse que a informação não estava nas fontes (ver "Limitações conhecidas").
+As 48 consultas e o prompt do reranker foram escritos pelo revisor. A consulta sem cobertura respondida na 14 é a `u02` (telefone da central): ela foi rotulada quando o filtro de boilerplate tirava essa linha do índice, e o rótulo não foi mudado.
 
 ### Duas réplicas, de ponta a ponta
 
@@ -202,14 +206,14 @@ Entre os dois avaliadores (`reports/human_validation_annotator/raters.md`), a co
 
 ## Limitações conhecidas
 
-- **O verificador bloqueia respostas corretas.** Ele vê só o resumo de cada especialista, não o resultado bruto das ferramentas nem a conversa. Por isso reprovou o que o supervisor acrescentou a partir de dados que o resumo não repetia, como a nota de que a PTAX é taxa de referência e a data da consulta: `d04` em 2 de 3 execuções e `d05` em 1. Também se absteve em perguntas de acompanhamento respondidas pelo contexto da conversa: `m04` em 1 de 3 e, na evidência do Compose, o "Alguma novidade?" depois da resposta do operador. A correção é geral (passar ao verificador os resultados brutos e o histórico do turno) e fica para depois desta rodada, que não seria repetida.
-- **`off01`, cenário oficial, falhou nas três execuções.** Os trechos com os preços da Get Clássica e da Get Smart foram recuperados nas três, mas o Knowledge Agent respondeu que a diferença não estava nas fontes; no 11G e na 12E ele respondeu com os preços. A mudança visível é que, desde a recoleta da 13C, um trecho da página inicial, com preços de outras maquininhas, também entra nos resultados; a causa não foi isolada, e o caso não foi corrigido para não ajustar o sistema contra ele.
-- **Custo e latência:** planner, verificador e checagem de idioma levaram a mediana a 8,4 s, o p95 a 18,3 s e o custo a US$ 0,392 por execução do v2 (eram 5,5 s, 11,6 s e US$ 0,288 na 12E).
-- **Casos isolados:** no `a05`, um chamado sem pedido por limite de passos (1 de 3 execuções). No `t21`, o significado do código de recusa dado a um erro de atualização, com ressalva (1 de 3). No holdout 2, `n05` e `n06` falham nas ferramentas em todas as execuções.
-- **Avaliação:** os rótulos, os holdouts e os prompts dos agentes e do juiz foram escritos pelo revisor, que também planejou o sistema. O juiz é um modelo, e a nota de fundamentação perto de 5 discrimina pouco. Os testes automatizados usam modelos roteirizados: medem o comportamento do código, não a qualidade das decisões do modelo, que é medida pela avaliação.
+- **O critério de sucesso da Fase 14 não foi atingido:** roteamento 97,4% e ferramentas 98,1%, abaixo dos 99,5% da 13D (ver "Resultados").
+- **O verificador aceita o que a conversa já disse.** Fatos ditos antes pelo lojista, pelo operador ou numa resposta anterior do assistente contam como apoio. Isso acabou com as abstenções nas perguntas de acompanhamento, mas uma resposta anterior sem apoio poderia ser repetida e aprovada, e no `m04` (2 de 3) o supervisor deixou de consultar a base no segundo turno.
+- **Custo e latência:** planner, verificador e checagem de idioma deixam a mediana em 7,4 s, o p95 em 14,7 s e o custo em US$ 0,401 por execução do v2 (eram 5,5 s, 11,6 s e US$ 0,288 na 12E).
+- **Casos isolados:** o significado do código de recusa dado a um erro de tela, com ressalva, no `t21` (1 de 3 na 13D) e no `t20` (na execução da 14). No holdout 2, `n05` e `n06` falham nas ferramentas em todas as execuções, e o `n07` na da 14. No `a05`, pedido e confirmação na mesma mensagem não executam nada, mas a resposta variou: um chamado sem pedido por limite de passos (1 de 3 na 13D) e um pedido de nova confirmação sem registrar a proposta (na 14).
+- **Avaliação:** os rótulos, os holdouts e os prompts dos agentes e do juiz foram escritos pelo revisor, que também planejou o sistema. O juiz é um modelo, e a nota de fundamentação perto de 5 discrimina pouco; na rodada da 14, ele foi outro modelo (`gemini-3.1-flash-lite`), e as notas não se comparam com as anteriores. O rótulo do `u02` ficou desatualizado depois da correção do chunking. Os testes automatizados usam modelos roteirizados: medem o comportamento do código, não a qualidade das decisões do modelo, que é medida pela avaliação.
 - **Guardrail:** o falso positivo médio no conjunto de 36 ficou acima da meta (10,4%). O classificador vê só a mensagem atual. A camada sobre resultados da busca web não tem medição de bloqueio.
 - **Dados:** as ferramentas de conta leem uma base simulada com um lojista (`cliente1988`); qualquer outro recebe `not_found`, e o mock não inventa conta, maquininha nem transação. A troca de maquininha grava o pedido no próprio sistema, sem integração com a logística. A Open-Meteo gratuita é só para uso não comercial, e a PTAX é taxa de referência, não de varejo.
-- **Corpus:** a página inicial recoletada na 13C tem textos de campanha com data (Black Friday) e um aviso de manutenção do sistema de contratação, que podem aparecer em respostas.
+- **Corpus:** a página inicial recoletada na 13C tem textos de campanha com data (Black Friday) e um aviso de manutenção do sistema de contratação, que podem aparecer em respostas. Desde a 14, linhas repetidas isoladas ficam nos trechos: isso devolve conteúdo, como nomes de produto e o telefone da central, e também algumas linhas soltas de navegação.
 
 ## Autoria e revisão
 
@@ -218,9 +222,9 @@ O código, os testes e o `docs/STATUS.md` foram escritos pelo Google Antigravity
 - Gemini 3.8 Flash, até a 11G;
 - Gemini 4 Hydrogen, da 12A à 12D;
 - modo Orchestrator (Argon), na 12E, 12F, 13A, 13A-fix, 13B, 13C, 13D-1 e 13D-1-fix;
-- modo Orchestrator (Neon), na 13D-2.
+- modo Orchestrator (Neon), na 13D-2, 14A e 14B.
 
-O plano (`docs/SPEC.md`), os prompts de fase, os verificadores de cada fase, os conjuntos rotulados (`data/eval/`) e os prompts dos agentes, do planner, do verificador, do juiz e do reranker (`src/prompts/`) foram escritos pelo Claude (Anthropic), o revisor. Ele trabalhou em sessões separadas do Antigravity e conferiu cada fase rodando o verificador numa cópia própria e consultando o CI. O texto deste README foi ditado pelo revisor no prompt da 13D-2, como já tinha sido feito na 11G e na 12F. Isto não é uma revisão independente: o mesmo autor conduz as duas ferramentas, e o revisor escreveu tanto os critérios de aceite quanto os rótulos. Os commits saem da conta do autor. Os verificadores das fases anteriores saíram do repositório para reduzir o volume de processo; a lista das fases e os commits estão em `docs/process.md`, e os resultados antigos em `docs/history.md`.
+O plano (`docs/SPEC.md`), os prompts de fase, os verificadores de cada fase, os conjuntos rotulados (`data/eval/`) e os prompts dos agentes, do planner, do verificador, do juiz e do reranker (`src/prompts/`) foram escritos pelo Claude (Anthropic), o revisor. Ele trabalhou em sessões separadas do Antigravity e conferiu cada fase rodando o verificador numa cópia própria e consultando o CI. O texto deste README foi ditado pelo revisor nos prompts da 13D-2 e da 14B, como já tinha sido feito na 11G e na 12F. Isto não é uma revisão independente: o mesmo autor conduz as duas ferramentas, e o revisor escreveu tanto os critérios de aceite quanto os rótulos. Os commits saem da conta do autor. Os verificadores das fases anteriores saíram do repositório para reduzir o volume de processo; a lista das fases e os commits estão em `docs/process.md`, e os resultados antigos em `docs/history.md`.
 
 O autor:
 
@@ -229,7 +233,7 @@ O autor:
 - rodou todas as avaliações com modelo real no próprio terminal e a evidência do Compose no Codespaces, com a chave digitada e nunca gravada;
 - montou o holdout do guardrail;
 - anotou a validação humana sem ver os rótulos e conseguiu o anotador de fora;
-- delegou ao revisor decisões pontuais registradas no `docs/SPEC.md`, como fechar a Fase 13 sem uma segunda rodada.
+- delegou ao revisor decisões pontuais registradas no `docs/SPEC.md`, como fechar a Fase 13 sem uma segunda rodada e, na Fase 14, incluir a busca na rodada e definir o que mudar no README.
 
 ## Mapa do repositório
 
@@ -246,12 +250,12 @@ O autor:
 | :--- | :--- |
 | O supervisor decide rota e ferramentas por function calling, sem regex de roteamento | `src/core/graph.py`, `src/tools/supervisor_tools.py`, `tests/test_graph_llm.py` |
 | O planner define idioma, escopo, pedido de atendente, confirmação e passos; o supervisor vê só os objetivos | `src/agents/planner.py`, `src/prompts/planner.md`, `tests/test_planner.py`, `tests/test_smoke_fixes.py` |
-| A resposta passa por verificação contra o plano e a evidência, com um replanejamento e abstenção fixa | `src/agents/verifier.py`, `src/prompts/verifier.md`, `tests/test_verifier_node.py` |
+| A resposta passa por verificação contra o plano, os resultados brutos das ferramentas do turno e a conversa, com um replanejamento e abstenção fixa | `src/agents/verifier.py`, `src/core/graph.py`, `src/prompts/verifier.md`, `tests/test_verifier_node.py`, `tests/test_verifier_evidence.py` |
 | URLs, protocolos e promessa de prazo são conferidos sem modelo; a resposta sai no idioma da pergunta | `src/agents/answer_check.py`, `src/agents/language.py`, `tests/test_answer_check_and_guards.py`, `tests/test_language_enforcement.py` |
 | Chamado só abre com pedido do lojista, salvo limite de passos e abstenções seguidas | `src/core/graph.py`, `tests/test_escalation_gate.py`, `tests/test_abstention_escalation.py` |
 | A troca de maquininha exige confirmação num turno posterior, é idempotente e auditada na mesma transação | `src/core/actions_db.py`, `src/tools/agent_tools.py`, `tests/test_actions_repository.py`, `tests/test_write_action_flow.py`, `tests/test_audit_transactions.py` |
-| Código visto na tela ou no app não recebe o significado do catálogo de recusas | `src/tools/agent_tools.py`, `tests/test_decline_context.py`, `reports/eval_holdout3.md` |
-| A base vem de páginas oficiais com URL, data e hash; a busca é híbrida com reranker e se abstém sem cobertura | `data/sources.yaml`, `data/corpus/manifest.json`, `src/rag/`, `tests/test_hybrid_retrieval.py`, `tests/test_ingest_extract.py`, `reports/retrieval_hybrid_phase13.md` |
+| A ferramenta do catálogo de recusas recebe o contexto do código e, para tela ou app, não devolve o significado; o contexto é decidido pelo modelo, com as falhas medidas nos holdouts | `src/tools/agent_tools.py`, `tests/test_decline_context.py`, `reports/eval_holdout3_phase14.md` |
+| A base vem de páginas oficiais com URL, data e hash; o boilerplate sai só em blocos repetidos; a busca é híbrida com reranker e se abstém sem cobertura | `data/sources.yaml`, `data/corpus/manifest.json`, `data/index/index_meta.json`, `src/rag/`, `tests/test_hybrid_retrieval.py`, `tests/test_ingest_extract.py`, `tests/test_chunking_blocks.py`, `reports/retrieval_hybrid_phase14.md` |
 | Clima e câmbio vêm de APIs oficiais com status explícito, sem valor fora de `success` | `src/tools/public_data.py`, `tests/test_public_data.py` |
 | O `user_id` vem da credencial; a memória é isolada por `user_id:session_id` | `src/core/auth.py`, `src/core/checkpointer.py`, `tests/test_auth.py`, `tests/test_checkpointer.py` |
 | Em produção, conversas, chamados, ações e auditoria ficam no PostgreSQL e o limite no Redis, compartilhados entre réplicas; sem eles a aplicação não sobe | `src/core/db.py`, `src/core/rate_limit.py`, `tests/test_state_backends.py`, `tests/test_rate_limit_redis.py`, `tests/integration/test_postgres_redis_integration.py`, `.github/workflows/ci.yml`, `reports/integration/compose-1.md` |
@@ -260,7 +264,7 @@ O autor:
 | Logs e traces sem texto da conversa, com `trace_id` e atributos de lista fechada | `src/core/log_context.py`, `src/core/tracing.py`, `tests/test_log_privacy.py`, `tests/test_tracing.py` |
 | Custo por resposta pela tabela oficial de preços; métricas Prometheus e painel Grafana | `src/core/pricing.py`, `src/core/metrics.py`, `deploy/`, `tests/test_pricing.py`, `tests/test_metrics.py` |
 | As ferramentas de conta não inventam dados | `src/core/mock_db.py`, `tests/test_mock_not_found.py` |
-| Resultados da rodada 13D (v2, holdouts, ações, busca) | `reports/eval_v2_phase13.md`, `reports/eval_routing_holdout_phase13.md`, `reports/eval_routing_holdout2_phase13.md`, `reports/eval_holdout3.md`, `reports/eval_actions.md`, `reports/retrieval_hybrid_phase13.md`, `reports/eval_runs/`, `reports/retrieval_runs/` |
+| Resultados das rodadas 13D e 14 (v2, holdouts, ações, busca) e o critério de sucesso da 14 | `reports/eval_v2_phase14.md`, `reports/eval_routing_holdout_phase14.md`, `reports/eval_routing_holdout2_phase14.md`, `reports/eval_holdout3_phase14.md`, `reports/eval_actions_phase14.md`, `reports/retrieval_hybrid_phase13.md`, `reports/retrieval_hybrid_phase14.md`, `reports/eval_runs/`, `reports/retrieval_runs/`, `docs/SPEC.md` |
 | Guardrail: 36 mensagens rotuladas e holdout do autor | `reports/guardrail_summary.md`, `reports/guardrail_author-1.md`, `data/eval/guardrail_author_holdout.jsonl`, `tests/test_guardrail_classifier.py` |
 | Validação humana pelo autor e por um anotador de fora, com concordância medida | `reports/human_validation.md`, `reports/human_validation_annotator/`, `src/eval/human_validation.py`, `src/eval/annotator.py`, `tests/test_annotator_import.py` |
 | Nenhuma métrica, resposta ou confiança fixa no código; `/agents` é gerado a partir do código | `src/main.py`, `tests/test_agents_endpoint.py` |
