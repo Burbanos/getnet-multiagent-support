@@ -206,6 +206,38 @@
     "rerank-6": {
       "date": "2026-11-18",
       "tier": "paid_tier_1"
+    },
+    "v2-13": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "v2-14": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "v2-15": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "rh-10": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "rh2-7": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "h3-4": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "act-4": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
+    },
+    "rerank-7": {
+      "date": "2026-11-19",
+      "tier": "paid_tier_1"
     }
   }
 }

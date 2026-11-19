@@ -1,0 +1,374 @@
+{
+  "name": "routing_holdout2_phase14",
+  "generated_at": "2026-11-19T05:34:53.865866+00:00",
+  "cases_sha256": "5d3887d56e0c4ce960058cfd096e6c696ff70b7d4cc48d7c7cea75e158272d0e",
+  "groups": [
+    {
+      "label": "13D",
+      "runs": [
+        "rh2-4",
+        "rh2-5",
+        "rh2-6"
+      ],
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "complete": true,
+      "metrics": {
+        "pass_rate": {
+          "values": [
+            0.75,
+            0.8333333333333334,
+            0.8333333333333334
+          ],
+          "mean": 0.8055555555555557,
+          "min": 0.75,
+          "max": 0.8333333333333334
+        },
+        "official_pass_rate": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "routing_rate": {
+          "values": [
+            0.8888888888888888,
+            1.0,
+            1.0
+          ],
+          "mean": 0.9629629629629629,
+          "min": 0.8888888888888888,
+          "max": 1.0
+        },
+        "tools_rate": {
+          "values": [
+            0.8333333333333334,
+            0.8333333333333334,
+            0.8333333333333334
+          ],
+          "mean": 0.8333333333333334,
+          "min": 0.8333333333333334,
+          "max": 0.8333333333333334
+        },
+        "escalation_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "facts_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "sources_rate": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "language_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "judge_grounded_mean": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_answers_mean": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_precision": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_recall": {
+          "values": [
+            null,
+            null,
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "latency_ms_p50": {
+          "values": [
+            9385.9,
+            10982.7,
+            9180.9
+          ],
+          "mean": 9849.833333333334,
+          "min": 9180.9,
+          "max": 10982.7
+        },
+        "latency_ms_p95": {
+          "values": [
+            23702.5,
+            19396.0,
+            20022.6
+          ],
+          "mean": 21040.366666666665,
+          "min": 19396.0,
+          "max": 23702.5
+        },
+        "tokens_total": {
+          "values": [
+            178985,
+            175932,
+            178136
+          ],
+          "mean": 177684.33333333334,
+          "min": 175932,
+          "max": 178985
+        },
+        "estimated_cost_usd": {
+          "values": [
+            0.06969,
+            0.067883,
+            0.068124
+          ],
+          "mean": 0.06856566666666668,
+          "min": 0.067883,
+          "max": 0.06969
+        }
+      },
+      "failed_in_all_runs": [
+        "n05",
+        "n06"
+      ],
+      "judge_abstention_errors_in_all_runs": []
+    },
+    {
+      "label": "14",
+      "runs": [
+        "rh2-7"
+      ],
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "complete": true,
+      "metrics": {
+        "pass_rate": {
+          "values": [
+            0.75
+          ],
+          "mean": 0.75,
+          "min": 0.75,
+          "max": 0.75
+        },
+        "official_pass_rate": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "routing_rate": {
+          "values": [
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "tools_rate": {
+          "values": [
+            0.75
+          ],
+          "mean": 0.75,
+          "min": 0.75,
+          "max": 0.75
+        },
+        "escalation_rate": {
+          "values": [
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "facts_rate": {
+          "values": [
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "sources_rate": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "language_rate": {
+          "values": [
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "judge_grounded_mean": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_answers_mean": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_precision": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_recall": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "latency_ms_p50": {
+          "values": [
+            8042.7
+          ],
+          "mean": 8042.7,
+          "min": 8042.7,
+          "max": 8042.7
+        },
+        "latency_ms_p95": {
+          "values": [
+            19166.4
+          ],
+          "mean": 19166.4,
+          "min": 19166.4,
+          "max": 19166.4
+        },
+        "tokens_total": {
+          "values": [
+            187755
+          ],
+          "mean": 187755.0,
+          "min": 187755,
+          "max": 187755
+        },
+        "estimated_cost_usd": {
+          "values": [
+            0.071836
+          ],
+          "mean": 0.071836,
+          "min": 0.071836,
+          "max": 0.071836
+        }
+      },
+      "failed_in_all_runs": [
+        "n05",
+        "n06",
+        "n07"
+      ],
+      "judge_abstention_errors_in_all_runs": []
+    }
+  ],
+  "runs_context": [
+    {
+      "run_id": "rh2-4",
+      "group": "13D",
+      "date": "2026-11-18",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    },
+    {
+      "run_id": "rh2-5",
+      "group": "13D",
+      "date": "2026-11-18",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    },
+    {
+      "run_id": "rh2-6",
+      "group": "13D",
+      "date": "2026-11-18",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    },
+    {
+      "run_id": "rh2-7",
+      "group": "14",
+      "date": "2026-11-19",
+      "tier": "paid_tier_1",
+      "answer_models": [
+        "gemini-3.5-flash-lite"
+      ],
+      "judge_models": []
+    }
+  ]
+}
