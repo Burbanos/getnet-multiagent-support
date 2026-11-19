@@ -1,28 +1,23 @@
 # STATUS DO REPOSITÓRIO
 
-**Subfase:** 13D-2 — README final, importação do anotador de fora e concordância (encerramento da Fase 13)
-**Base:** `a6a1175` (rodada 13D) | **Python:** 3.13.3
+**Subfase:** 14A — Verificador com a evidência completa do turno e filtro de boilerplate só em blocos
+**Base:** `1a6df5c` (13D-2) | **Python:** 3.13.3
 
-## Estado final da Fase 13
+## O que mudou (14A)
 
-- **Arquitetura distribuída e observabilidade:** checkpoints, chamados e auditoria em Postgres; rate limit compartilhado em Redis; tracing OpenTelemetry (jaeger) e painel Prometheus/Grafana; evidência em Compose (`compose-1`, `8994c1e`) com 9/9 checks aprovados.
-- **Rodada com modelo produto (`a6a1175`):** v2 95.7% (93.6–97.4%), idioma 100%, escalonamento 100%, cobertura de abstenção pelo juiz 91.1% e precisão 86.3%, cenários oficiais 86.7%, fatos esperados 92.3%, latência mediana 8.4 s e US$ 0.392/execução; holdout 1 95.8%, holdout 2 80.6%, holdout 3 97.8% (roteamento 100%), ações 95.8% e busca híbrida `rerank-4..6` com `hit@1` 1.000 e abstenção em não cobertas 1.000.
-- **Anotador externo (`--omit-name`):** 30 respostas e 1 comentário importados em `reports/human_validation_annotator/` sem nome publicado (`name: null`, `name_withheld_by_author: true`). Concordância autor × anotador: rota 26/30, deveria abster 25/30, aceitável 25/30, absteve 24/30, fundamentação exata 28/30; anotador × checks determinísticos: 25/30 (`acceptable_rate_human 0.8667`, `pass_rate_checks 0.9000`).
-
-## O que mudou (13D-2)
-
-- **Aposentadoria da 13D-1:** removidos via `git rm` `docs/phase-prompts/13D-1.md`, `docs/phase-prompts/13D-1-fix.md` e `scripts/verify_phase13d1.py`.
-- **Opção `--omit-name` ([annotator.py](src/eval/annotator.py), [__main__.py](src/eval/__main__.py)):** `import_annotator_xlsx(..., omit_name=...)` e CLI `human-import --omit-name` permitem omitir o nome em `declaration.json` (`"name": null` e `"name_withheld_by_author": true`) mesmo quando autorizado pelo anotador, mantendo `name_authorized`.
-- **Artefatos do anotador ([reports/human_validation_annotator/](reports/human_validation_annotator/)):** gerados pelos comandos `human-import --omit-name`, `human-agreement` e `human-raters` (`answers.csv`, `comments.csv`, `declaration.json`, `human_validation.json`, `human_validation.md`, `raters.json`, `raters.md`).
-- **README final ([README.md](README.md)):** atualizado a partir de `docs/phase-prompts/13D-2-README.md` (removido em seguida).
-- **Testes ([test_annotator_omit_name.py](tests/test_annotator_omit_name.py)):** 2 testes cobrindo `--omit-name` (via CLI, nome omitido em todos os arquivos gerados) e execução padrão (`name_withheld_by_author: false`).
+- **Aposentadoria da 13D-2:** removidos via `git rm` `docs/phase-prompts/13D-2.md` e `scripts/verify_phase13d2.py`.
+- **Saídas brutas dos especialistas ([specialists.py](src/agents/specialists.py)):** `SpecialistAgent.run` passa a retornar `"tool_outputs"` (lista `{"tool", "content"}` em ordem de chamada, já após a triagem da busca web ou registro de erro/ferramenta indisponível).
+- **Evidência completa e conversa no verificador ([state.py](src/core/state.py), [graph.py](src/core/graph.py), [verifier.py](src/agents/verifier.py)):** adicionado `SupervisorState.turn_evidence` (zerado a cada turno e acumulado em `_tools_node` inclusive no replanejamento); limites aumentados (`MAX_EVIDENCE_ITEM_CHARS=6000`, `MAX_EVIDENCE_TOTAL_CHARS=24000`); novas funções `build_verifier_evidence` e `build_verifier_conversation` (até 8 mensagens anteriores, 1500 chars/entrada e 6000 total, ignorando `ToolMessage`s e chamadas de ferramenta); `format_verifier_input` e `Verifier.verify` incluem `<conversation>`, mantendo compatibilidade com 4 argumentos; `verification` registra `evidence_chars` e `evidence_truncated`.
+- **Boilerplate só em blocos ([chunking.py](src/rag/chunking.py), [index.py](src/rag/index.py)):** `build_chunks(..., boilerplate_min_run=2)` remove linhas frequentes apenas quando formam sequência contígua ≥ `boilerplate_min_run` após os filtros de linha vazia/sem alfanuméricos, restaurando **54 linhas isoladas** (`C3.fix_only_restores_isolated_lines :: 54 lines restored`) nos trechos do corpus atual; `build_index(..., chunking=...)` grava os parâmetros em `index_meta.json`.
+- **Índice atual:** o índice em `data/index/` continua sendo o da 13C até o autor reconstruí-lo após este commit com `python -m src.rag.index`.
+- **Testes:** novos [test_verifier_evidence.py](tests/test_verifier_evidence.py) (7) e [test_chunking_blocks.py](tests/test_chunking_blocks.py) (3).
 
 ## Verificações
 
 - `python -m ruff check .`: `All checks passed!`
-- `python -m pytest -q -p no:cacheprovider`: `506 passed, 13 deselected in 77.36s`
-- `python scripts/verify_phase13d2.py`: `SUMMARY: 36/36 passed` (`PASS A0`–`A5`, `PASS S1.status`, `PASS T1`–`T11`, `PASS G1`–`G2`, `PASS D1`–`D6`, `PASS R1`–`R4`, `PASS Q1`–`Q6`, `INFO Q7.integration_suite`)
+- `python -m pytest -q -p no:cacheprovider`: `516 passed, 13 deselected in 81.72s`
+- `python scripts/verify_phase14a.py`: `SUMMARY: 32/32 passed` (`PASS A0`–`A6`, `PASS S1.status`, `PASS V1`–`V8`, `PASS C1`–`C4` com `54 lines restored`, `PASS G1`–`G2`, `PASS R1`–`R4`, `PASS Q1`–`Q6` e `INFO Q7.integration_suite`)
 
 ## Perguntas / divergências
 
-Nenhuma divergência identificada com `docs/SPEC.md` ou `docs/phase-prompts/13D-2.md`.
+Nenhuma divergência identificada com `docs/SPEC.md` ou `docs/phase-prompts/14A.md`.

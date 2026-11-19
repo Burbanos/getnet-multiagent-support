@@ -58,6 +58,7 @@ class SupervisorState(TypedDict):
     verification: dict[str, Any] | None
     verification_feedback: str | None
     replans: int
+    turn_evidence: list[dict[str, Any]]
     language: dict[str, Any] | None
     escalation_gate: dict[str, Any] | None
     action: dict[str, Any] | None

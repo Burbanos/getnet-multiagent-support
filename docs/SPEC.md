@@ -2,8 +2,8 @@
 
 Owner (the author): Burbanos · Planner/reviewer: Claude (external, Anthropic) · Implementer: Antigravity (Gemini)
 Rubric: the evaluator's "Régua V4". Latest real feedback: v2, **8.0/10** on `d2de4ff`. Target: **≥ 9.5** (the latest
-submission counts). Phases 1–12 (plan, prompts, verifiers, per-phase log) live in git history: `git show 431eb1f:docs/SPEC.md`,
-and `docs/process.md` maps every sub-phase to its commit.
+submission counts). Phases 1–12 (plan, prompts, verifiers, per-phase log) live in git history: `git show 431eb1f:docs/SPEC.md`;
+the full Phase 13 plan: `git show 1a6df5c:docs/SPEC.md`. `docs/process.md` maps the sub-phases of phases 1–12 to their commits.
 
 This document is the contract for every phase. A sub-phase is **done** when its verifier (`scripts/verify_phase<id>.py`) passes
 on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md` shows the real command output.
@@ -38,108 +38,26 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 ---
 
-## Current state (2026-11-18)
+## Current state (2026-11-19)
 
-**13A done** (`66add08` + fix `3a175bd`, CI green on `test`, `integration` and `docker`): checkpoints and tickets in Postgres
-(SQLAlchemy Core; SQLite only for dev and tests), schema setup serialised across replicas by a Postgres advisory lock, Redis
-sliding-window rate limit shared by replicas (per-process fallback, flagged), OpenTelemetry spans per request, node, LLM call
-and tool (attribute allowlist), Compose with two replicas and an `observability` profile (Jaeger, Prometheus, Grafana). The
-reviewer ran `verify_phase13a.py` with real Postgres 16 and Redis 7: 40/40. The verifiers and prompts of phases 1–12 left the
-tree; 13A's leave in 13B.
+**Phase 13 closed** (`1a6df5c`, 13D-2, CI green). Every item of the feedback v2 "Caminho para 9,0" is implemented: planner and
+pre-send verifier, language enforcement, escalation only on request, decline-catalogue applicability, confirmed terminal
+replacement with audit, operator console, Postgres/Redis state shared by two replicas (Compose evidence `compose-1`),
+OpenTelemetry tracing and a Grafana dashboard, outside annotator. The single pre-registered round (`a6a1175`, code at
+`14f795b`) showed regressions against 11G, published as they came out in the README "Limitações conhecidas":
 
-**13B done** (`9c0b2a4`, CI green): planner, pre-send verifier with one replan, language enforcement, escalation gate,
-decline-catalogue applicability; reviewer run of `verify_phase13b.py`: 33/33. **Smoke** (`h3-smoke-1`, holdout 3 × 1,
-committed in `96d6894`): 28/31; language 100%; escalation precision and recall 100% (6 requested tickets, none unrequested);
-no screen error got the catalogue meaning; failures: `t07` (weather labelled out of scope by the planner) and `t24`/`t25`
-(the planner suggested the knowledge agent for a decline code and the supervisor followed the plan); report cost null
-because out-of-scope turns had tokens but no `llm_model`; median turn 8.2 s, planner ≈ 1 s, planner + verifier 14.6 % of
-tokens. Fixed in 13C (supervisor sees goals only; planner prompt; model recorded). **Holdout 3 is no longer clean** for
-`t07`, `t24`, `t25`: the planner prompt was changed after seeing them; the README must say so.
+| v2, mean of three runs | 11G (`v2-1..3`) | 12E (`v2-7..9`) | 13D (`v2-10..12`) |
+| :--- | :--- | :--- | :--- |
+| Official scenarios | 96.7% | 83.3% | 86.7% (`off01` fails 3/3) |
+| Expected facts | 94.9% | 99.1% | 92.3% |
+| Routing / tools / escalation | 95.4 / 95.7 / 98.6% | 100.0 / 99.0 / 98.1% | 99.5 / 99.5 / 100.0% |
+| Median latency, cost per run | 5.1 s, US$ 0.253 | 5.5 s, US$ 0.288 | 8.4 s, US$ 0.392 |
 
-**13C done** (`d7d18a2`, CI green; index rebuilt by the author in `5a2ff9b`: 103 chunks from 32 pages): reviewer run of
-`verify_phase13c.py` with Postgres and Redis: 32/32 (481 offline tests, 12 integration). Write action with proposal,
-confirmation in a later turn, idempotency and audit; `/operator`; the three empty pages collected (the extractor took the
-first short `<article>`); mock `not_found` for a foreign serial. Review findings carried to 13D-1: ticket audit events were
-written outside the ticket transaction (best effort); the abstention auto-escalation was audited as `merchant`; a database
-error in confirm/decline became the generic instability message. Found while planning 13D: every action case uses the same
-serial, and the eval runner shares one tickets/actions database per run, so the second action case of a run would get
-`already_requested`; the corpus text now includes time-bound promotional copy (Black Friday) and a maintenance notice.
-
-**13D-1 done** (`ce0ceec`, CI green): reviewer run of `verify_phase13d1.py` with Postgres and Redis: 30/30 (501 offline
-tests, 13 integration). The review of `scripts/compose_evidence.py` (which no verifier can run: it needs Docker and the API
-key) found three defects, fixed in **13D-1-fix** before the author's Compose run: the `pg_dump` text hides checkpoint
-messages in `bytea` hex (reproduced: the marker appears 0 times in the dump text and 6 times after decoding), so the PII scan
-was blind to checkpoints; the rate limit counts every authenticated request per key, and one customer key made 8 requests
-within a minute against a limit of 6; the operator reply is delivered at the `PATCH` (`resume_after_operator`), not in the
-customer's next turn. The temporary `.env` also stops carrying the Gemini key.
-
-**Compose evidence** (`8994c1e`, Codespaces, at `14f795b`): `reports/integration/compose-1.{json,md}`, 9/9 checks (proposal on
-`app-a` executed on `app-b`, ticket answered on one replica and resumed, shared 429, 630 `bytea` values decoded with the
-marker found 28 times and no raw card/CPF, two exported traces with 21 spans and no marker in attributes). After the
-delivered operator reply, the customer's "Alguma novidade?" got the verifier's fixed abstention.
-
-**Round results** (`a6a1175`, at `8994c1e`; all runs complete, no errors): v2 95.7% (93.6-97.4) vs 95.3% at 12E, language
-100%, escalation 100%, judge abstention coverage 91.1% and precision 86.3%, official scenarios 86.7% (11G 96.7%), expected
-facts 92.3% (12E 99.1%), median latency 8.4 s (12E 5.5 s), US$ 0.392 per run (12E 0.288); holdout 1 95.8%; holdout 2 80.6%
-(`n05`, `n06` fail tools in every run, as at 12E); holdout 3 97.8%, routing 100%; actions 95.8%; retrieval rerank-4..6
-hit@1 1.000, uncovered abstention 1.000. Findings: (1) the verifier sees only the specialists' summaries
-(supervisor-level `ToolMessage`s), not the raw tool results nor the conversation, so it withheld correct PTAX answers
-(`d04` 2/3, `d05` 1/3) and context-only follow-ups (`m04` turn 2 1/3, the Compose follow-up); (2) `off01` (official) failed
-3/3: the recollected home page competes in retrieval and the price chunk is not found; (3) planner + verifier + language
-check cost latency and tokens; (4) `a05` 1/3 ended in a forced escalation after two proposals (an unrequested ticket), `t21`
-1/3 gave the catalogue meaning with a hedge.
-
-**Decision (reviewer, delegated by the author):** no fix round. The round is pre-registered and single; 13D-2 publishes it as
-it came out and the README states the four findings as known limitations with their records and the general fix for the
-verifier (pass raw tool results and the turn's conversation as evidence). Not fixing `off01` by tuning against the case.
-
-**Annotator:** two spreadsheets received earlier on 2026-11-18 were not filled by a person and are not used anywhere. The
-valid one (sha256 `5903bad0...9181`, Microsoft Excel, saved by the annotator; the author opened and saved it once without
-changes to the answers) came from a friend of the author working in IT, with no AI background and no access to the project,
-who filled the route column before opening Part 2 (declared). The author asked for corrections only in the declaration
-(occupation, dates, total time, and the two independence statements, which the annotator had answered `N` while meaning
-"true"); the answers did not change. The annotator authorised his name; the author chose not to publish it
-(`--omit-name`). Agreement (author's blind answers from 12F vs annotator): route 26/30, should-abstain 25/30, acceptable
-25/30, abstained 24/30, groundedness exact 28/30; annotator vs checks 25/30 (he rejected 3 of the 27 check-approved
-answers: `u03`, `m03`, `m05`).
-
-**13D-2** (`scripts/verify_phase13d2.py`, prompt `docs/phase-prompts/13D-2.md`, Orchestrator (Neon)): `--omit-name` in
-`human-import`; import, agreement and rater reports in `reports/human_validation_annotator/`; the README is dictated by the
-reviewer (`docs/phase-prompts/13D-2-README.md`, copied byte for byte and deleted; README sha256 pinned); the 13D-1 prompt,
-fix prompt and verifier leave the tree. The 13D-2 verifier re-runs every 13D-1 check and the cross-cutting checks of
-13A-13C, and adds: annotator files pinned by sha256 (spreadsheet, answers, comments), agreement reproducible from the
-committed answers, the annotator's name absent from every tracked file (by hash), the omit-name flag, README paths existing
-and the reviewer never called independent.
-
-### Before Phase 13 (HEAD `431eb1f`, phase 12F, CI green)
-
-Reviewer rerun of `scripts/verify_phase12f.py` on Python 3.11.18 before retiring the verifier chain: **75/75** (it re-ran the 58
-earlier verifiers with their superseded lists). That is the last run of the old chain; see "Retired verifiers" below.
-
-Measured with the product model (raw records in `reports/eval_runs/`, reports in `reports/`):
-- v2 set (78 cases × 3): pass 91.9% (11G) → 94.4% (12D) → **95.3%** (12E, `v2-7..9`); official scenarios 96.7% → 80.0% →
-  **83.3%**; routing 95.4% → 98.5% → 100%; judge abstention precision 100%, recall 77.8%; p50 5.5 s, p95 11.6 s; US$ 0.288/run.
-- Retrieval (48 labeled queries, `rerank-1..3`): hybrid BM25 + dense + LLM reranker; hit@1 0.900 → 1.000; uncovered abstention
-  0.000 → 1.000.
-- Routing holdouts: holdout 1 routing 24/24; holdout 2 30/36 (screen errors used the decline catalogue in 5/9).
-- Human validation (author, blind, 30 cases of `v2-1`): route κ 0.87 vs labels; no answer passed by the checks was rejected.
-  An outside annotator gets the same 30 cases (packet sent 2026-11-18, outside the repository) for author × annotator agreement.
-
-Open items (Phase 13 targets, by weight in the rubric):
-1. `u03` ("erro 05" on a network screen answered with the decline catalogue's 05) wrong in all six Phase 12 runs.
-2. English questions answered in Portuguese (6/7/8 per group; `off08` 6/6); official scenarios 83.3%.
-3. Tickets opened without the merchant asking (3/3/4 per group; `off04`, `o04`).
-4. State in local SQLite and an in-process rate limit (the feedback names both for 9.0).
-5. No write action in the support domain.
-6. No distributed tracing, no dashboard; metrics per process.
-7. Labels and judge validated only by the author.
-8. No explicit planning or verification step in the supervisor ("planner adaptativo"); no operator console.
-9. Process volume (discounted in Engineering Judgment); three empty official pages in the corpus (home, Link de Pagamento,
-   Pagamentos pelo WhatsApp).
+Next: **Phase 14**, short (two sub-phases, one round), only to fix these regressions in a general way, then resubmit.
 
 ---
 
-## 1. Target architecture (after Phase 13)
+## 1. Target architecture (after Phase 14)
 
 ```text
 POST /chat (X-API-Key → principal; user_id from the credential) ── W3C traceparent in/out, span per node, LLM call and tool
@@ -151,12 +69,13 @@ planner (13B: structured plan — reply language, sub-tasks, out-of-scope)
    ▼
 supervisor (function calling) ⇄ ask_knowledge_agent | ask_support_agent | escalate_to_human | confirm_pending_action (13C)
    ▼
-verifier (13B: per sub-task answered / evidence does not apply / unsupported; one replan) → answer_check (URLs, ticket ids,
-time promises) → language enforcement (13B) → answer
+verifier (13B: per sub-task answered / evidence does not apply / unsupported; one replan; 14A: sees the turn's raw tool
+outputs and the earlier conversation) → answer_check (URLs, ticket ids, time promises) → language enforcement (13B) → answer
    │
    └─ checkpoints (PostgresSaver), tickets and audit events (Postgres via SQLAlchemy Core); SQLite only for dev and tests
 
-Knowledge Agent: hybrid KB search (BM25 + dense + reranker, abstains), weather (Open-Meteo), FX (PTAX), web search (news only).
+Knowledge Agent: hybrid KB search (BM25 + dense + reranker, abstains; 14A: boilerplate removed only in repeated blocks),
+                 weather (Open-Meteo), FX (PTAX), web search (news only).
 Support Agent: settlement, declined transactions (catalogue applies only to declined sales, 13B), terminal diagnosis,
                request_terminal_replacement (13C: proposal → merchant confirmation → execution, idempotent, audited).
 Operator: webhook notification, /operator console (13C), PATCH /tickets/{id} resumes the thread.
@@ -165,161 +84,134 @@ Deployment: compose with Postgres, Redis, two app replicas; profile `observabili
 
 ---
 
-## 2. Phase 13 — close every open item of feedback v2
+## 2. Phase 13 (closed)
 
-Four sub-phases. One round of real-model runs, at the end (13D), plus one small pre-registered smoke at the end of 13B (decided
-by the reviewer, delegated by the author: without it a regression of the planner would only show up in 13D). Each sub-phase has
-one verifier; `docs/STATUS.md` is rewritten (not appended) at the end of each.
+Four sub-phases and one round: 13A (Postgres/Redis state, tracing, dashboard), 13B (planner, verifier, language, escalation
+gate, decline context; holdout 3), 13C (smoke fixes, confirmed terminal replacement, operator console, corpus pages),
+13D-1 (+ fix) and 13D-2 (round, annotator, README). Guarantees of the retired verifiers continue as the test suite (no test
+removed or renamed; test files only grow), frozen records, the cross-cutting invariants re-checked by every verifier (no raw
+card/CPF in any persisted state, no conversation text in logs or spans, `user_id` only from the credential, offline eval 6/6,
+ruff clean, no network in tests) and CI. Acceptance AC13.1–AC13.6 met; the regressions are the subject of Phase 14.
+Implementer models: Gemini 3.8 Flash up to 11G; Gemini 4 Hydrogen 12A–12D; Orchestrator (Argon) 12E, 12F, 13A, 13A-fix, 13B,
+13C, 13D-1 and 13D-1-fix; Orchestrator (Neon) from 13D-2.
 
-### Retired verifiers (decided 2026-11-18)
+---
 
-The verifiers and prompts of phases 1–12 leave the tree in 13A (decision (c) of the Phase 13 plan, moved from 13D to 13A because
-13A rewrites storage, Compose and CI, which dozens of earlier checks pin as text). Their guarantees continue as:
-- **the test suite:** no test function present at `431eb1f` may be removed or renamed, and existing test files only gain lines
-  (exception: `tests/conftest.py`); the offline suite must pass with at least as many tests;
-- **frozen records:** `reports/`, `data/eval/`, `data/corpus/`, `data/index/`, `src/prompts/`, `README.md`,
-  `docs/DECISIONS.md` and `docs/history.md` are byte-identical to `431eb1f` until a sub-phase explicitly changes them;
-- **cross-cutting invariants** re-checked by every Phase 13 verifier: no raw card/CPF in any persisted state, no conversation
-  text in logs or span attributes, `user_id` only from the credential, offline eval 6/6, ruff clean, no network in tests;
-- **CI** (lint, tests, integration against Postgres/Redis, compose build with two replicas).
-The README still cites the retired verifiers until 13D rewrites the claims table to point at tests and reports.
+## 3. Phase 14 — fix the Phase 13 regressions before resubmission
 
-### 13A — Distributed state, shared rate limit, tracing, dashboard (items 4, 6)
+Two sub-phases and one round of real runs, no fix sub-phase planned in advance. 14A changes code; the author rebuilds the
+index and runs the round; 14B writes the results into the README. Implementer: Antigravity, Orchestrator (Neon). Nothing is
+tuned against a case: no change to labels, to the agents' prompts other than the verifier's input description, or to code
+that names a case or its strings.
 
-Checked by `scripts/verify_phase13a.py`. No change to graph behaviour, prompts, README or records.
-- **Dependencies (one lock regeneration for the whole phase):** `langgraph-checkpoint-postgres`, `psycopg[binary]`,
-  `psycopg-pool`, `sqlalchemy`, `redis`, `opentelemetry-api/-sdk/-exporter-otlp-proto-http`, `langdetect` (used in 13B);
-  dev: `fakeredis`. Lock regenerated by the author in Codespaces; `langgraph==1.2.20` and `langgraph-checkpoint==4.3.1` unchanged.
-- **Settings:** `DATABASE_URL` (empty → SQLite at `TICKETS_DB_PATH`/`CHECKPOINT_DB_PATH`), `DB_POOL_SIZE=5`, `REDIS_URL`
-  (empty → in-process limiter), `RATE_LIMIT_REDIS_PREFIX=getnet:rl:`, `TRACING_EXPORTER=none|console|otlp`,
-  `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME=getnet-multiagent`, `REPLICA_NAME`. `APP_ENV=production` without a
-  `postgresql://` `DATABASE_URL` or without `REDIS_URL` fails at startup.
-- **Storage:** `src/core/db.py` (SQLAlchemy Core engine for a path or a Postgres URL, `tickets` table with the current columns,
-  `ensure_schema` = create + add missing columns, `ping`); `TicketsRepository` keeps its public API and return shapes on both
-  backends; `append_customer_message` locks the row (`FOR UPDATE`) inside one transaction; conditional updates stay conditional.
-  `build_checkpointer()` → `PostgresSaver` over a `psycopg_pool.ConnectionPool` (`setup()` at startup) or `SqliteSaver`.
-- **Rate limit:** `src/core/rate_limit.py` with the in-process `RateLimiter` (moved from `auth.py`, re-exported) and
-  `RedisRateLimiter` (sorted-set sliding window in a MULTI/EXEC pipeline; a rejected hit is removed, so it does not count; wall
-  clock; on Redis error it falls back to a per-process limiter for 5 s, counts `getnet_rate_limit_backend_errors_total` and
-  reports `redis_degraded`).
-- **Tracing:** `src/core/tracing.py` with its own `TracerProvider` (always installed, exporter by setting), attribute allowlist,
-  exception status without the message, W3C `traceparent` extraction and injection. Spans: `chat.request` (root, continues an
-  incoming `traceparent`), `ticket.update`, `graph.node.<name>`, `llm.call` (caller, model, tokens, fallback), `tool.call`
-  (name, status), `notifier.webhook`. Log records carry `otel_trace_id`. `X-Trace-Id` keeps its `trc-` format.
-- **Health:** `/health` adds `state_backend`, `rate_limit_backend`, `tracing_exporter`, `replica`; returns 503 when the database
-  ping fails. `/` and `/agents` name the real checkpointer.
-- **Compose:** `postgres`, `redis`, `app-a` (port 8000), `app-b` (port 8001) sharing one app definition; `POSTGRES_PASSWORD`
-  required; profile `observability` with Jaeger, Prometheus (scrapes both replicas) and Grafana (provisioned datasource and one
-  dashboard over the existing metrics). Fixed image tags, never `latest`.
-- **CI:** new `integration` job (Postgres and Redis service containers, `pytest -m integration`); the `docker` job builds with
-  Compose, checks both replicas' health and production defaults, a ticket created on one replica read and updated on the other,
-  the rate limit shared across replicas (429 with `Retry-After`), survival of a replica restart, and that the image alone (no
-  `DATABASE_URL`) refuses to start.
-- **Process volume:** the old verifiers, phase prompts and `docs/status-history.md` leave the tree.
+### Diagnosis (reviewer, from the 13D records and the committed corpus)
 
-### 13B — Planner, pre-send verification, language, escalation only on request, decline-catalogue applicability (items 1, 2, 3, 8a)
+1. **The verifier judges with less evidence than the supervisor had.** `_verifier_node` passes only the current turn's
+   supervisor-level `ToolMessage`s, that is, each specialist's summary; the raw tool outputs stay inside
+   `SpecialistAgent.run`, and the earlier conversation is not passed at all. Records: `d04` (`v2-10`, `v2-12`) was rejected
+   for "a general disclaimer about bank exchange rates" and then for "a collection date not present", while the raw PTAX result
+   carries both (`rate_note`: "a reference rate, not a retail or tourism rate"; `retrieved_at`), and the knowledge agent's
+   summary kept only "(taxa de referência)"; `d05` (`v2-10`) the same for the date; `m04` turn 2 (`v2-12`) was rejected with
+   "empty evidence" although "Android 12 or higher" was in the assistant's turn-1 answer; in `compose-1`, "Alguma novidade?"
+   after a delivered operator reply got the fixed abstention.
+2. **`off01`: a chunking defect, not retrieval or the agent prompt.** `build_chunks` drops, as boilerplate, every line whose
+   normalized form appears in at least `boilerplate_min_pages=4` ok pages. At 12F the line "Get Smart" was in 3 pages
+   (`in-person-payments`, `todas-as-maquininhas`, `get-tap`); the 13C re-collection of the home page made it 4, so it left every
+   chunk, including the price tables. `data/corpus/pages.jsonl` has "Get Clássica / R$ 79,90/mês / Get Smart / R$ 129,90/mês";
+   the committed chunk `590a78a70a4e-001` (and the home and Get Tap chunks) has "Get Clássica / R$ 79,90/mês / R$ 129,90/mês",
+   with no label for the second price. Reproducible offline: `build_chunks(ok_pages, max_chars=900, boilerplate_min_pages=4,
+   min_chars=RAG_MIN_CHUNK_CHARS)` returns the committed `chunks.jsonl` exactly. At 12E the chunk still had the label (index of
+   `431eb1f`) and the agent gave both prices in 3/3 runs; in 13D, without the label and with the home page chunk also retrieved
+   (Black Friday purchase prices, "12x R$ 7,90 … Get Clássica"), it gave neither price in 3/3 and said the comparison was not
+   in the sources. The same rule removes other isolated content lines: 16 distinct lines in the current
+   corpus ("débito", "link de pagamento", "get tap", "para compras com:" …). The home page chunk stays as it is (second factor,
+   not changed: it is real content of an official page).
+3. **Latency and cost** rose with the planner, the verifier and the language check. Not targeted in Phase 14 beyond not adding
+   calls; the round measures them again.
 
-Checked by `scripts/verify_phase13b.py`; prompt `docs/phase-prompts/13B.md`. Decisions taken while writing it (they replace
-the provisional text of this section):
-- **Holdout 3** (`data/eval/cases_holdout3.jsonl`, 31 cases, reviewer, committed with 13B before any 13B code runs on it):
-  English questions across categories and one language switch, off-topic and knowledge-gap requests where no ticket may be
-  opened, error codes shown outside a declined sale (05, 51, 57 on settings, update, start-up screens and in the app) with the
-  catalogue meaning as forbidden facts, the contrast cases where the catalogue applies, and merchant-requested escalations
-  (explicit, formal complaint, accepted offer) in both languages. Not independent (same reviewer, written knowing the
-  failures). The 13C confirmation flows get their own pre-registered cases before 13C code.
-- **Planner node** before the supervisor, product model, forced structured output `TurnPlan`: `reply_language`,
-  `scope` (`support | out_of_scope`), `escalation_request` (`none | asked_for_human | formal_complaint | accepted_offer`),
-  up to 4 steps (`goal`, `delegate`). Out of scope → fixed bilingual system message, no tools. The plan is appended to the
-  supervisor's system prompt (never to the persisted messages); routing stays function calling.
-- **Verifier node** after the supervisor's draft, product model, forced structured output: one verdict per step
-  (`answered | evidence_does_not_apply | unsupported_claim | not_answered`). One replan with the critique (the failed draft
-  is removed from history); a second failure → fixed abstention with an offer of a human agent. Invalid output or provider
-  error → the draft goes on (fail-open, recorded).
-- **Escalation gate** instead of the quote idea: a quote can be any substring of the question, so it does not separate
-  "asked" from "not asked". The planner's `escalation_request` is an LLM judgement made before the supervisor sees any
-  evidence; with a plan and `none`, `escalate_to_human` returns `needs_merchant_request` and opens nothing. Without a plan the
-  gate is open (refusing a requested human is worse than one extra ticket). The step-limit escalation and the automatic
-  escalation after two consecutive abstentions stay as they are: both are documented system policies, and neither caused the
-  unrequested tickets (single-turn `off04`/`o04` tickets were opened by the supervisor).
-- **Decline catalogue applicability:** `diagnose_declined_transaction` gets a required `code_context`
-  (`declined_sale | terminal_screen | app | unknown`); outside a declined sale it returns `not_applicable`.
-- **Language enforcement** after `answer_check`, only on model-written answers: `langdetect` (seeded; not the eval's lexicon
-  detector); a mismatch with the plan's language triggers one rewrite, accepted only if every URL, ticket id and number of 2+
-  digits survives and the new text is in the target language.
-- **Injection, not flags, in tests:** `OrchestrationGraph(..., planner_model, verifier_model, rewrite_model)`; production
-  (`chat_model is None`) builds all three with the product model; tests that pass only `chat_model` keep today's behaviour.
-- **Smoke** after the 13B commit: holdout 3 once with the product model (author), reported as a smoke, not as a result.
+### 14A — Verifier evidence and block boilerplate (`scripts/verify_phase14a.py`, prompt `docs/phase-prompts/14A.md`)
 
-### 13C — Smoke fixes, confirmed terminal replacement with audit, operator console, corpus pages (items 5, 8b, 9)
+Verifier (general fix of 1):
+- `SpecialistAgent.run` returns `tool_outputs`: one `{"tool", "content"}` per tool call, in call order, with `content` exactly
+  as appended to the specialist's `ToolMessage` (after the web-results screening: a blocked result is the blocked payload;
+  an unavailable tool is its error payload).
+- `SupervisorState.turn_evidence` (list), reset to `[]` in `_build_turn_state`; the tools node appends
+  `{"agent", "tool", "content"[:MAX_EVIDENCE_ITEM_CHARS]}` for every output of `ask_knowledge_agent` and `ask_support_agent`;
+  it accumulates across the replan of the same turn.
+- `build_verifier_evidence(messages, merchant_idx, turn_evidence) -> (str, bool)` (module level in `src/core/graph.py`): the
+  current turn's supervisor `ToolMessage`s (as today), then the `turn_evidence` items, each block headed `[<name>]` or
+  `[<agent>/<tool>]`; each item cut to `MAX_EVIDENCE_ITEM_CHARS = 6000`; the whole string at most
+  `MAX_EVIDENCE_TOTAL_CHARS = 24000` (the item that crosses the limit is cut, later items dropped); the bool says whether
+  anything was cut or dropped.
+- `build_verifier_conversation(messages, merchant_idx) -> str`: messages before the latest merchant message, oldest first, one
+  entry per message, `merchant: …`, `operator: …` (HumanMessage with `origin == "operator"`) or `assistant: …` (AIMessage
+  without tool calls); never `ToolMessage`s or AIMessages with tool calls (earlier evidence is not reused: test
+  `test_verifier_uses_only_current_turn_tool_evidence` stays); at most the 8 most recent entries, each text cut to 1500
+  characters, the joined block at most 6000 characters (older entries dropped first).
+- `format_verifier_input(message, steps, evidence, draft, conversation="")` and `Verifier.verify(..., conversation="")`: blocks
+  `<message>`, `<conversation>` (always present, may be empty), `<plan_steps>`, `<evidence>`, `<draft>`, same escaping.
+- `verification` gains `evidence_chars` (int) and `evidence_truncated` (bool) whenever the verifier model was called.
+- Prompt `src/prompts/verifier.md` (reviewer): describes the new input; a fact is supported by any field of a raw tool result
+  or by what the merchant, the operator or an earlier assistant answer said; general knowledge never is.
+- Unchanged: when the verifier runs or is skipped, the single replan, the fixed abstention, fail-open on invalid output or
+  provider error, `answer_check`, planner, language enforcement, supervisor and specialist prompts.
 
-Checked by `scripts/verify_phase13c.py`; prompt `docs/phase-prompts/13C.md`; pre-registered cases
-`data/eval/cases_actions.jsonl` (8, reviewer, written before 13C code: proposal then confirmation in a later turn in both
-languages, decline, proposal only, confirmation inside the request message, unknown serial, "yes" with nothing pending,
-topic change after a proposal; no deadline promises).
-- **Smoke fixes:** the supervisor's plan section lists goals only (routing stays with the supervisor and the tool
-  descriptions); the planner prompt makes weather and exchange rates explicitly in scope, sends decline-code meanings to the
-  support agent and prefers "support" when unsure; an out-of-scope turn records the planner's model so cost is computed.
-- **Write action, fail-closed:** `request_terminal_replacement(serial_number, reason)` (support agent) only creates a
-  proposal (`pending_actions`, 30 min); `confirm_pending_action()` (supervisor) executes it only when the planner's new
-  `action_confirmation` is `confirmed`, in a later turn than the proposal, same session, not expired; without a valid plan it
-  refuses. A partial unique index allows one open request per serial (`already_requested` otherwise). Declines are resolved
-  deterministically from the plan. Every proposal, confirmation, decline, expiry, execution and ticket change goes to
-  `audit_events` (hashed actor, allowlisted details, `otel_trace_id`); `GET /audit` and `GET /replacements` for operators.
-- **Operator console** `/operator`: one self-contained page, key kept in memory only, data inserted as text.
-- **Corpus:** the three `no_content` pages are server-rendered WordPress whose text the extractor dropped; `extract_text` is
-  fixed generally, `--only URL` re-collects just those records, a redirect to an already-collected page becomes
-  `redirect_duplicate`; the author rebuilds the index with the API key after the commit. Retrieval labels stay unchanged.
-- **Mock fix:** `diagnose_terminal` with a serial that is not the merchant's returns `not_found` (it returned the first
-  terminal).
+Chunking (general fix of 2):
+- `build_chunks(..., boilerplate_min_run: int = 2)`: a line is removed as boilerplate only when its normalized form appears in
+  at least `boilerplate_min_pages` ok pages **and**, in that page, it is part of a run of at least `boilerplate_min_run`
+  consecutive such lines, counted over the lines that survive the empty and non-alphanumeric filters. Template chrome (menus,
+  footers, call-to-action blocks) comes in runs; an isolated repeated line is content. `boilerplate_min_run=1` is the old rule.
+- `src/rag/index.py`: `build_index(..., chunking=None)` writes `chunking` into `index_meta.json` when given; `main()` passes
+  `{"max_chars": 900, "boilerplate_min_pages": 4, "boilerplate_min_run": 2, "min_chars": RAG_MIN_CHUNK_CHARS}`.
+- No change to `data/` in 14A: the author rebuilds the index after the commit (needs the API key).
 
-### 13D — Close: one round of real runs, annotator, integration evidence, README (items 7, 9)
+Tests (new files; existing test files only grow): `tests/test_verifier_evidence.py` (≥ 7) and `tests/test_chunking_blocks.py`
+(≥ 3), scripted models only. Process: `docs/phase-prompts/13D-2.md` and `scripts/verify_phase13d2.py` leave the tree.
 
-Split in two Antigravity runs with the author's round in between, because the README may only cite committed numbers.
+### Between 14A and 14B — index rebuild and the round (author; pre-registered here, before any run)
 
-**13D-1** (`scripts/verify_phase13d1.py`, prompt `docs/phase-prompts/13D-1.md`): no change to graph behaviour, prompts,
-records or README.
-- Ticket audit events (`ticket_created`, `ticket_updated`, `ticket_replied`, `ticket_reply_delivered`) are written in the
-  same transaction as the ticket change (`insert_audit(conn, ...)`); an audit failure rolls the change back.
-- The automatic escalation after repeated abstentions is audited as `system`.
-- A database error in `confirm`/`decline` is fail-closed: `action.status = "error"`, nothing executed, the turn continues
-  with the supervisor's answer, no error detail reaches the merchant or the logs.
-- The eval runner gives every case its own tickets/actions database and ignores `DATABASE_URL` during a run (cases are
-  independent conversations; the action cases share one serial).
-- `python -m src.eval human-import` reads the annotator's `.xlsx` with the standard library (no new dependency) into
-  `answers.csv`, `comments.csv` and `declaration.json` (name only if the annotator authorised it; the `.xlsx` is not
-  committed); `human-raters` compares two answer files (agreement, Wilson interval, Cohen's kappa per field; groundedness
-  exact and within one).
-- `python -m src.eval context` appends the author's tier declaration for new run ids (never rewrites existing entries).
-- `python -m src.rag.hybrid_eval report --name` writes a new report instead of overwriting `reports/retrieval_hybrid.*`.
-- `scripts/compose_evidence.py run --run-id compose-1` (author, Codespaces): Compose with two replicas and the observability
-  profile, a conversation whose proposal is made on `app-a` and confirmed on `app-b`, a ticket answered by the operator on
-  one replica and delivered on the other, the shared 429, a scan of a `pg_dump` and of the container logs for raw card/CPF
-  and a marker, and one exported trace summarised from Jaeger; writes `reports/integration/compose-1.{json,md}`.
+1. `python -m src.rag.index` → commit `index: rebuild with block boilerplate filter` (only `data/index/`).
+2. With the code of that commit, Tier 1 paid account, product model `gemini-3.5-flash-lite`, judge `gemini-3.6-flash`, same
+   settings as 13D; no code, prompt or label change until the round is committed:
+   - `v2-13`, `v2-14`, `v2-15` (`data/eval/cases_v2.jsonl`), each `run` then `judge`;
+   - `rh-10` (`cases_routing_holdout.jsonl`), `rh2-7` (`cases_routing_holdout2.jsonl`), `h3-4` (`cases_holdout3.jsonl`),
+     `act-4` (`cases_actions.jsonl`), one `run` each, no judge;
+   - `rerank-7` (`python -m src.rag.hybrid_eval run --run-id rerank-7`), one run: the index changes, and the README's retrieval
+     table describes the current index (reviewer's addition; the author confirms before the round);
+   - `python -m src.eval context` for every new run id;
+   - comparison reports (new names; 13D reports are not regenerated): `compare --name v2_phase14` with groups
+     `11G=v2-1,v2-2,v2-3`, `12E=v2-7,v2-8,v2-9`, `13D=v2-10,v2-11,v2-12`, `14=v2-13,v2-14,v2-15`;
+     `routing_holdout_phase14` (`13D=rh-7,rh-8,rh-9`, `14=rh-10`); `routing_holdout2_phase14` (`13D=rh2-4,rh2-5,rh2-6`,
+     `14=rh2-7`); `holdout3_phase14` (`13D=h3-1,h3-2,h3-3`, `14=h3-4`); `actions_phase14` (`13D=act-1,act-2,act-3`,
+     `14=act-4`); `python -m src.rag.hybrid_eval report --runs rerank-7 --name retrieval_hybrid_phase14`;
+   - one commit `eval: phase 14 round (...)` with the records and the reports. Failures are published as they come out.
 
-**Author's round** (after the 13D-1 commit; product model, judge `gemini-3.6-flash`; pre-registered here):
-`v2-10..12` (v2 × 3, with judge), `rh-7..9` (holdout 1 × 3), `rh2-4..6` (holdout 2 × 3), `h3-1..3` (holdout 3 × 3),
-`act-1..3` (action cases × 3), `rerank-4..6` (retrieval, corpus changed); comparison reports `eval_v2_phase13`,
-`eval_routing_holdout_phase13`, `eval_routing_holdout2_phase13`, `eval_holdout3`, `eval_actions`,
-`retrieval_hybrid_phase13`; tier declaration via `context`; `compose-1` in Codespaces; annotator import and agreement when
-the spreadsheet arrives. No code or prompt changes between the 13D-1 commit and the end of the round; any failure is
-reported as it came out.
+**Success criterion (declared before the round).** From `reports/eval_v2_phase14.md`, group `14` (mean of `v2-13..15`, as
+printed with one decimal) against the values printed in `reports/eval_v2_phase13.md`:
+- official scenarios ≥ **96.7%** (11G);
+- expected facts present ≥ **94.9%** (11G);
+- routing ≥ **99.5%**, tools ≥ **99.5%**, escalation ≥ **100.0%** (13D: no drop).
+Met only if all five hold. The README states, criterion by criterion, whether it held; if not, it says so plainly. Language,
+judge metrics, latency, cost, holdouts, action cases and retrieval are reported, not criteria. The four cases that motivated
+14A (`d04`, `d05`, `m04`, `off01`) belong to v2; no holdout case influenced 14A.
 
-**13D-2** (after the round and the annotator): README rewritten shorter, every claim pointing to a test, record or report
-(no retired verifier); holdout 3 cases `t07`, `t24`, `t25` disclosed as no longer clean; the reviewer never called
-independent; `docs/history.md` decision; the 13D-1 prompt and verifier leave the tree.
-Implementer model: from 13D-2 on, Antigravity runs in Orchestrator (Neon) mode (phase prompts say so at the top); 13D-1-fix
-and every earlier Phase 12E-13 subphase ran in Orchestrator (Argon). The README section "Autoria e revisão" lists which
-subphases used each model: Gemini 3.8 Flash up to 11G; Gemini 4 Hydrogen 12A-12D; Orchestrator (Argon) 12E, 12F, 13A,
-13A-fix, 13B, 13C, 13D-1 and 13D-1-fix; Orchestrator (Neon) from 13D-2.
+### 14B — README with the round (prompt and verifier written by the reviewer after the round is committed)
 
-### Acceptance (Phase 13)
+README changes, and nothing else, as decided by the author: a "14" column next to 11G/12E/13D in the v2 table (latency and cost
+rows included); the bullets under that table and "Limitações conhecidas" revised (remove what the round shows fixed, keep the
+rest, add what the round shows); the success criterion and its outcome; "Autoria e revisão" with Orchestrator (Neon) for 14A
+and 14B. Reviewer's recommendations pending the author's decision (each keeps a README claim true after 14A): the first
+paragraph of "Resultados" (it describes the Phase 13 round and code `14f795b` as the current one); a "14" column in the
+holdouts table; the retrieval table ("Busca") with `rerank-7`, since the index changes; the evidence rows of the verifier and
+chunking claims (new test files). 14B also updates this section's "Current state" (reviewer) and `docs/STATUS.md`.
 
-- AC13.1 State (checkpoints, tickets, audit) and the rate limit are shared by two replicas; shown by CI and by a committed
-  Compose run.
-- AC13.2 Every request has a trace with spans per node, LLM call and tool, without conversation text or raw identifiers.
-- AC13.3 `u03`-like screen errors never receive the decline catalogue's meaning; English questions get English answers;
-  no ticket is opened without a merchant request, complaint, blocking problem or accepted offer — each measured on v2 and
-  holdout 3, with every regression reported.
-- AC13.4 A write action exists with confirmation, idempotency and audit.
-- AC13.5 Labels and judge are compared with an annotator outside the project, reported as it came out.
-- AC13.6 Every README claim has evidence in the repository; product model unchanged; `docs/DECISIONS.md` unchanged.
+### Acceptance (Phase 14)
+
+- AC14.1 The verifier receives the turn's raw tool outputs and the earlier conversation; a fact present only there is not
+  rejected, and a fact supported by neither still is (scripted tests and `verify_phase14a.py`).
+- AC14.2 Isolated repeated lines stay in the chunks and repeated blocks do not; the old rule reproduces the 13C index exactly;
+  the rebuilt index records its chunking parameters.
+- AC14.3 One round, pre-registered above, published as it came out, with the success criterion stated before it and its outcome
+  in the README.
+- AC14.4 Every README claim has evidence in the repository; product model, labels and agent prompts (other than the verifier's)
+  unchanged.

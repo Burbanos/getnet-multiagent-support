@@ -77,8 +77,9 @@ def format_verifier_input(
     steps: list[dict[str, Any]],
     evidence: str,
     draft: str,
+    conversation: str = "",
 ) -> str:
-    """Escape delimiters and format message, numbered plan steps, evidence, and draft."""
+    """Escape delimiters and format message, conversation, numbered plan steps, evidence, and draft."""
     step_lines = [
         f"{idx}. [{_escape_brackets(str(s.get('delegate', 'none')))}] {_escape_brackets(str(s.get('goal', '')))}"
         for idx, s in enumerate(steps, start=1)
@@ -86,6 +87,7 @@ def format_verifier_input(
     steps_block = "\n".join(step_lines)
     return (
         f"<message>\n{_escape_brackets(message)}\n</message>\n"
+        f"<conversation>\n{_escape_brackets(conversation)}\n</conversation>\n"
         f"<plan_steps>\n{steps_block}\n</plan_steps>\n"
         f"<evidence>\n{_escape_brackets(evidence)}\n</evidence>\n"
         f"<draft>\n{_escape_brackets(draft)}\n</draft>"
@@ -133,12 +135,13 @@ class Verifier:
         steps: list[dict[str, Any]],
         evidence: str,
         draft: str,
+        conversation: str = "",
     ) -> VerifierResult:
-        """Check whether a draft answer satisfies every plan step using only the supplied evidence."""
+        """Check whether a draft answer satisfies every plan step using only supplied evidence and conversation."""
         self._ensure_bound_model()
         messages = [
             SystemMessage(content=load_verifier_prompt(self.prompt_path)),
-            HumanMessage(content=format_verifier_input(message, steps, evidence, draft)),
+            HumanMessage(content=format_verifier_input(message, steps, evidence, draft, conversation=conversation)),
         ]
 
         t0 = time.perf_counter()

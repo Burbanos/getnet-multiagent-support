@@ -20,6 +20,7 @@ def build_index(
     embedding_model: str,
     dim: int,
     corpus_sha256: str | None = None,
+    chunking: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Generate embeddings for chunks, L2-normalize them, and persist the index artifacts.
@@ -57,6 +58,8 @@ def build_index(
         "corpus_sha256": corpus_sha256,
         "created_at": datetime.now(UTC).isoformat(),
     }
+    if chunking is not None:
+        meta["chunking"] = dict(chunking)
     (out_path / "index_meta.json").write_text(
         json.dumps(meta, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -159,12 +162,13 @@ def main() -> None:
     ok_pages = [p for p in pages if p.get("status") == "ok"]
 
     corpus_sha = hashlib.sha256("".join(p["sha256"] for p in ok_pages).encode("utf-8")).hexdigest()
-    chunks = build_chunks(
-        ok_pages,
-        max_chars=900,
-        boilerplate_min_pages=4,
-        min_chars=settings.RAG_MIN_CHUNK_CHARS,
-    )
+    chunking_cfg = {
+        "max_chars": 900,
+        "boilerplate_min_pages": 4,
+        "boilerplate_min_run": 2,
+        "min_chars": settings.RAG_MIN_CHUNK_CHARS,
+    }
+    chunks = build_chunks(ok_pages, **chunking_cfg)
 
     embedder = get_embedder("RETRIEVAL_DOCUMENT")
     meta = build_index(
@@ -174,6 +178,7 @@ def main() -> None:
         embedding_model=settings.EMBEDDING_MODEL,
         dim=settings.EMBEDDING_DIM,
         corpus_sha256=corpus_sha,
+        chunking=chunking_cfg,
     )
 
     print(f"Built index with {meta['n_chunks']} chunks from {len(ok_pages)} ok pages (dim={meta['dim']}).")

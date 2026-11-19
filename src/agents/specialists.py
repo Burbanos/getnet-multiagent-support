@@ -97,6 +97,7 @@ class SpecialistAgent:
         api_results: list[dict[str, Any]] = []
         web_guardrail: list[dict[str, Any]] = []
         action_results: list[dict[str, Any]] = []
+        tool_outputs: list[dict[str, str]] = []
         specialist_usage: dict[str, int] | None = None
 
         steps = 0
@@ -133,6 +134,7 @@ class SpecialistAgent:
                     "api_results": api_results,
                     "web_guardrail": web_guardrail,
                     "action_results": action_results,
+                    "tool_outputs": tool_outputs,
                     "usage": specialist_usage,
                 }
 
@@ -149,6 +151,7 @@ class SpecialistAgent:
                         err_msg = json.dumps({"error": f"tool {tool_name} not available to {self.name}"})
                         t_msg = ToolMessage(content=err_msg, tool_call_id=call_id, name=tool_name)
                         messages.append(t_msg)
+                        tool_outputs.append({"tool": str(tool_name or "unknown"), "content": err_msg})
                         metrics.inc_tool(tool_name, "error")
                         set_attributes({"tool.status": "error"})
                         logger.info(
@@ -228,6 +231,12 @@ class SpecialistAgent:
                                 )
 
                     tools_used.append(tool_name)
+                    content_str = (
+                        result_str
+                        if isinstance(result_str, str)
+                        else json.dumps(result_str, ensure_ascii=False)
+                    )
+                    tool_outputs.append({"tool": str(tool_name or "unknown"), "content": content_str})
                     t_msg = ToolMessage(content=result_str, tool_call_id=call_id, name=tool_name)
                     messages.append(t_msg)
 
@@ -291,5 +300,6 @@ class SpecialistAgent:
             "api_results": api_results,
             "web_guardrail": web_guardrail,
             "action_results": action_results,
+            "tool_outputs": tool_outputs,
             "usage": specialist_usage,
         }

@@ -135,8 +135,11 @@ VERIFIER_ABSTENTION_MESSAGE = {
         "If you want, I can open a request with our human support team."
     ),
 }
-MAX_EVIDENCE_ITEM_CHARS = 4000
-MAX_EVIDENCE_TOTAL_CHARS = 12000
+MAX_EVIDENCE_ITEM_CHARS = 6000
+MAX_EVIDENCE_TOTAL_CHARS = 24000
+MAX_CONVERSATION_ENTRIES = 8
+MAX_CONVERSATION_ITEM_CHARS = 1500
+MAX_CONVERSATION_TOTAL_CHARS = 6000
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "supervisor.md"
 
@@ -187,6 +190,108 @@ def _latest_ai_message(messages: Sequence[BaseMessage]) -> AIMessage | None:
         if isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
             return msg
     return None
+
+
+def _append_specialist_evidence(
+    turn_evidence: list[dict[str, Any]],
+    spec_res: dict[str, Any],
+) -> None:
+    """Append truncated raw specialist tool outputs to per-turn verifier evidence."""
+    agent_name = str(spec_res.get("agent") or "SpecialistAgent")
+    for item in spec_res.get("tool_outputs") or ():
+        if not isinstance(item, dict):
+            continue
+        raw_content = str(item.get("content") or "")
+        entry: dict[str, Any] = {
+            "agent": agent_name,
+            "tool": str(item.get("tool") or "unknown"),
+            "content": raw_content[:MAX_EVIDENCE_ITEM_CHARS],
+        }
+        if len(raw_content) > MAX_EVIDENCE_ITEM_CHARS:
+            entry["truncated"] = True
+        turn_evidence.append(entry)
+
+
+def build_verifier_evidence(
+    messages: Sequence[BaseMessage],
+    merchant_idx: int | None,
+    turn_evidence: Sequence[dict[str, Any]] | None,
+) -> tuple[str, bool]:
+    """Assemble current-turn supervisor ToolMessages and raw specialist outputs within char limits."""
+    ev_start = (merchant_idx + 1) if merchant_idx is not None else 0
+    blocks: list[str] = []
+    truncated = False
+
+    for m in messages[ev_start:]:
+        if not isinstance(m, ToolMessage):
+            continue
+        t_name = str(getattr(m, "name", None) or "tool")
+        raw = _get_message_text(m)
+        if len(raw) > MAX_EVIDENCE_ITEM_CHARS:
+            raw = raw[:MAX_EVIDENCE_ITEM_CHARS]
+            truncated = True
+        blocks.append(f"[{t_name}]\n{raw}")
+
+    for item in turn_evidence or ():
+        if not isinstance(item, dict):
+            continue
+        agent_name = str(item.get("agent") or "agent")
+        tool_name = str(item.get("tool") or "tool")
+        raw = str(item.get("content") or "")
+        if item.get("truncated"):
+            truncated = True
+        if len(raw) > MAX_EVIDENCE_ITEM_CHARS:
+            raw = raw[:MAX_EVIDENCE_ITEM_CHARS]
+            truncated = True
+        blocks.append(f"[{agent_name}/{tool_name}]\n{raw}")
+
+    parts: list[str] = []
+    total_len = 0
+    for block in blocks:
+        sep = "\n" if parts else ""
+        remaining = MAX_EVIDENCE_TOTAL_CHARS - total_len - len(sep)
+        if remaining <= 0:
+            truncated = True
+            break
+        if len(block) <= remaining:
+            parts.append(block)
+            total_len += len(sep) + len(block)
+        else:
+            parts.append(block[:remaining])
+            total_len += len(sep) + remaining
+            truncated = True
+            break
+
+    return "\n".join(parts), truncated
+
+
+def build_verifier_conversation(
+    messages: Sequence[BaseMessage],
+    merchant_idx: int | None,
+) -> str:
+    """Format prior conversation turns (merchant, operator, assistant answers) for the verifier."""
+    if merchant_idx is None or merchant_idx <= 0:
+        return ""
+
+    entries: list[str] = []
+    for m in messages[:merchant_idx]:
+        if isinstance(m, HumanMessage):
+            extra = getattr(m, "additional_kwargs", None) or {}
+            role = "operator" if extra.get("origin") == "operator" else "merchant"
+        elif isinstance(m, AIMessage) and not getattr(m, "tool_calls", None):
+            role = "assistant"
+        else:
+            continue
+
+        text = _get_message_text(m).strip()
+        if not text:
+            continue
+        entries.append(f"{role}: {text[:MAX_CONVERSATION_ITEM_CHARS]}")
+
+    entries = entries[-MAX_CONVERSATION_ENTRIES:]
+    while len(entries) > 1 and len("\n".join(entries)) > MAX_CONVERSATION_TOTAL_CHARS:
+        entries.pop(0)
+    return "\n".join(entries)[:MAX_CONVERSATION_TOTAL_CHARS]
 
 
 def load_supervisor_prompt() -> str:
@@ -856,15 +961,20 @@ class OrchestrationGraph:
                 "verification_feedback": None,
             }
 
-        ev_start = (merchant_idx + 1) if merchant_idx is not None else 0
-        ev_parts = [
-            _get_message_text(m)[:MAX_EVIDENCE_ITEM_CHARS]
-            for m in messages[ev_start:]
-            if isinstance(m, ToolMessage)
-        ]
-        evidence = "\n".join(ev_parts)[:MAX_EVIDENCE_TOTAL_CHARS]
+        evidence, evidence_truncated = build_verifier_evidence(
+            messages,
+            merchant_idx,
+            state.get("turn_evidence"),
+        )
+        conversation = build_verifier_conversation(messages, merchant_idx)
 
-        result = self.verifier.verify(latest_msg, steps, evidence, draft_text)
+        result = self.verifier.verify(
+            latest_msg,
+            steps,
+            evidence,
+            draft_text,
+            conversation=conversation,
+        )
         tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "Verifier", result.usage)
 
         if result.status in ("invalid", "error"):
@@ -876,6 +986,8 @@ class OrchestrationGraph:
                     "replans": replans,
                     "rounds": rounds,
                     "error_type": result.error_type,
+                    "evidence_chars": len(evidence),
+                    "evidence_truncated": evidence_truncated,
                 },
                 "verification_feedback": None,
                 "tokens_by_agent": tba,
@@ -893,6 +1005,8 @@ class OrchestrationGraph:
                     "replans": replans,
                     "rounds": rounds,
                     "error_type": None,
+                    "evidence_chars": len(evidence),
+                    "evidence_truncated": evidence_truncated,
                 },
                 "verification_feedback": None,
                 "tokens_by_agent": tba,
@@ -915,6 +1029,8 @@ class OrchestrationGraph:
                     "replans": 1,
                     "rounds": rounds,
                     "error_type": None,
+                    "evidence_chars": len(evidence),
+                    "evidence_truncated": evidence_truncated,
                 },
                 "verification_feedback": feedback,
                 "replans": 1,
@@ -936,6 +1052,8 @@ class OrchestrationGraph:
                 "replans": replans,
                 "rounds": rounds,
                 "error_type": None,
+                "evidence_chars": len(evidence),
+                "evidence_truncated": evidence_truncated,
             },
             "verification_feedback": None,
             "tokens_by_agent": tba,
@@ -1324,6 +1442,7 @@ class OrchestrationGraph:
         tool_messages: list[ToolMessage] = []
         tools_used = list(state.get("tools_used", []))
         tool_results = list(state.get("tool_results", []))
+        turn_evidence = list(state.get("turn_evidence", []))
         sources = list(state.get("sources", []))
         retrieved_docs = list(state.get("retrieved_docs", []))
         web_results = list(state.get("web_results", []))
@@ -1352,6 +1471,7 @@ class OrchestrationGraph:
                         agents_used.append("KnowledgeAgent")
                     question = tool_args.get("question") or tool_args.get("query") or tool_args.get("task") or ""
                     spec_res = self.knowledge_agent.run(question, user_id=user_id, trace_id=trace_id)
+                    _append_specialist_evidence(turn_evidence, spec_res)
                     knowledge_outcomes.append(bool(spec_res.get("sources")))
                     if spec_res.get("status") == "error":
                         call_status = "error"
@@ -1418,6 +1538,7 @@ class OrchestrationGraph:
                             trace_id=trace_id,
                             session_id=state["session_id"],
                         )
+                        _append_specialist_evidence(turn_evidence, spec_res)
                         if spec_res.get("status") == "error":
                             call_status = "error"
 
@@ -1602,6 +1723,7 @@ class OrchestrationGraph:
             "agents_used": agents_used,
             "tools_used": tools_used,
             "tool_results": tool_results,
+            "turn_evidence": turn_evidence,
             "sources": sources,
             "retrieved_docs": retrieved_docs,
             "web_results": web_results,
@@ -1798,6 +1920,7 @@ class OrchestrationGraph:
             "verification": None,
             "verification_feedback": None,
             "replans": 0,
+            "turn_evidence": [],
             "language": None,
             "escalation_gate": None,
             "action": None,

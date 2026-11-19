@@ -36,12 +36,14 @@ def build_chunks(
     max_chars: int = 900,
     boilerplate_min_pages: int = 4,
     min_chars: int = 0,
+    boilerplate_min_run: int = 2,
 ) -> list[dict[str, Any]]:
     """
     Split clean 'ok' records into deterministic, verbatim text chunks.
 
-    Filters boilerplate lines appearing in boilerplate_min_pages or more pages,
-    empty lines, and lines without any alphanumeric character (e.g. '—').
+    Filters empty lines, lines without any alphanumeric character (e.g. '—'),
+    and contiguous runs of at least boilerplate_min_run lines whose normalized text
+    appears in boilerplate_min_pages or more pages.
     Groups remaining lines verbatim into chunks capped at max_chars characters.
     If min_chars > 0, pages with less than min_chars of retained text are dropped,
     and a trailing chunk smaller than min_chars is merged into the previous chunk.
@@ -69,17 +71,31 @@ def build_chunks(
         market = rec.get("market") or ""
         fetched_at = rec.get("fetched_at") or ""
 
-        # Filter lines
-        filtered_lines: list[str] = []
+        # Filter empty/symbol lines and remove repeated boilerplate blocks
+        surviving: list[tuple[str, bool]] = []
         for line in text.split("\n"):
             nline = _norm(line)
             if not nline:
                 continue
             if not any(ch.isalnum() for ch in line):
                 continue
-            if nline in boilerplate:
+            surviving.append((line, nline in boilerplate))
+
+        filtered_lines: list[str] = []
+        min_run = max(1, boilerplate_min_run)
+        idx_line = 0
+        while idx_line < len(surviving):
+            line_text, is_bp = surviving[idx_line]
+            if not is_bp:
+                filtered_lines.append(line_text)
+                idx_line += 1
                 continue
-            filtered_lines.append(line)
+            run_end = idx_line + 1
+            while run_end < len(surviving) and surviving[run_end][1]:
+                run_end += 1
+            if (run_end - idx_line) < min_run:
+                filtered_lines.extend(item[0] for item in surviving[idx_line:run_end])
+            idx_line = run_end
 
         # Check min_chars requirement for the whole page
         page_text_len = sum(len(line) for line in filtered_lines) + max(0, len(filtered_lines) - 1)
