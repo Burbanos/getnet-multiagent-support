@@ -88,7 +88,7 @@ Cada caso roda com um banco próprio de chamados e ações (`src/eval/runner.py`
 
 ## Resultados
 
-Rodada única da Fase 14, em 2026-11-19, com o código do commit `10548ed` e o índice reconstruído no `45a6047`, conta Tier 1 paga e modelo `gemini-3.5-flash-lite`. O juiz da v2 foi o `gemini-3.1-flash-lite`, e não o `gemini-3.6-flash` das rodadas anteriores: os comandos passados pelo revisor não definiam `EVAL_JUDGE_MODEL`, e a avaliação do juiz não foi refeita. As linhas do juiz na coluna 14 não se comparam com as outras; nenhuma métrica do critério de sucesso depende do juiz. Todas as execuções terminaram sem erro. Os registros brutos estão em `reports/eval_runs/` e `reports/retrieval_runs/`, e a declaração de tier em `reports/run_context.json`. As colunas 11G, 12E e 13D vêm das rodadas anteriores.
+Rodada única da Fase 14, em 2026-11-19, com o código do commit `10548ed` e o índice reconstruído no `45a6047`, conta Tier 1 paga e modelo `gemini-3.5-flash-lite`. O juiz foi o `gemini-3.6-flash`, o mesmo das rodadas anteriores: a primeira avaliação usou por engano o `gemini-3.1-flash-lite`, porque os comandos passados pelo revisor não definiam `EVAL_JUDGE_MODEL`, e as três execuções foram reavaliadas só com o juiz, sem rodar o sistema de novo, com o resultado anterior guardado em `reports/eval_runs/judge_gemini-3.1-flash-lite/`. Todas as execuções terminaram sem erro. Os registros brutos estão em `reports/eval_runs/` e `reports/retrieval_runs/`, e a declaração de tier em `reports/run_context.json`. As colunas 11G, 12E e 13D vêm das rodadas anteriores.
 
 ### Conjunto v2: 78 casos, três execuções por versão
 
@@ -104,8 +104,8 @@ Rodada única da Fase 14, em 2026-11-19, com o código do commit `10548ed` e o �
 | Escalonamento correto | 98,6% | 98,1% | 100,0% | 100,0% |
 | Fatos esperados presentes | 94,9% | 99,1% | 92,3% (89,7–94,9) | 99,1% (97,4–100,0) |
 | Idioma da resposta | 97,2% | 96,3% | 100,0% | 100,0% |
-| Juiz: precisão da abstenção | 80,0% | 100,0% | 86,3% (77,8–100,0) | 100,0% (outro juiz) |
-| Juiz: cobertura da abstenção | 80,0% | 77,8% | 91,1% (86,7–93,3) | 88,9% (86,7–93,3) (outro juiz) |
+| Juiz: precisão da abstenção | 80,0% | 100,0% | 86,3% (77,8–100,0) | 100,0% |
+| Juiz: cobertura da abstenção | 80,0% | 77,8% | 91,1% (86,7–93,3) | 88,9% (86,7–93,3) |
 | Latência por caso, mediana | 5,1 s | 5,5 s | 8,4 s (8,3–8,5) | 7,4 s (7,1–7,8) |
 | Latência por caso, p95 | 9,3 s | 11,6 s | 18,3 s (16,1–20,3) | 14,7 s (14,2–15,4) |
 | Custo estimado por execução (plano pago) | US$ 0,253 | US$ 0,288 | US$ 0,392 (0,382–0,403) | US$ 0,401 (0,399–0,405) |
@@ -210,7 +210,7 @@ Entre os dois avaliadores (`reports/human_validation_annotator/raters.md`), a co
 - **O verificador aceita o que a conversa já disse.** Fatos ditos antes pelo lojista, pelo operador ou numa resposta anterior do assistente contam como apoio. Isso acabou com as abstenções nas perguntas de acompanhamento, mas uma resposta anterior sem apoio poderia ser repetida e aprovada, e no `m04` (2 de 3) o supervisor deixou de consultar a base no segundo turno.
 - **Custo e latência:** planner, verificador e checagem de idioma deixam a mediana em 7,4 s, o p95 em 14,7 s e o custo em US$ 0,401 por execução do v2 (eram 5,5 s, 11,6 s e US$ 0,288 na 12E).
 - **Casos isolados:** o significado do código de recusa dado a um erro de tela, com ressalva, no `t21` (1 de 3 na 13D) e no `t20` (na execução da 14). No holdout 2, `n05` e `n06` falham nas ferramentas em todas as execuções, e o `n07` na da 14. No `a05`, pedido e confirmação na mesma mensagem não executam nada, mas a resposta variou: um chamado sem pedido por limite de passos (1 de 3 na 13D) e um pedido de nova confirmação sem registrar a proposta (na 14).
-- **Avaliação:** os rótulos, os holdouts e os prompts dos agentes e do juiz foram escritos pelo revisor, que também planejou o sistema. O juiz é um modelo, e a nota de fundamentação perto de 5 discrimina pouco; na rodada da 14, ele foi outro modelo (`gemini-3.1-flash-lite`), e as notas não se comparam com as anteriores. O rótulo do `u02` ficou desatualizado depois da correção do chunking. Os testes automatizados usam modelos roteirizados: medem o comportamento do código, não a qualidade das decisões do modelo, que é medida pela avaliação.
+- **Avaliação:** os rótulos, os holdouts e os prompts dos agentes e do juiz foram escritos pelo revisor, que também planejou o sistema. O juiz é um modelo, e a nota de fundamentação perto de 5 discrimina pouco. O rótulo do `u02` ficou desatualizado depois da correção do chunking. Os testes automatizados usam modelos roteirizados: medem o comportamento do código, não a qualidade das decisões do modelo, que é medida pela avaliação.
 - **Guardrail:** o falso positivo médio no conjunto de 36 ficou acima da meta (10,4%). O classificador vê só a mensagem atual. A camada sobre resultados da busca web não tem medição de bloqueio.
 - **Dados:** as ferramentas de conta leem uma base simulada com um lojista (`cliente1988`); qualquer outro recebe `not_found`, e o mock não inventa conta, maquininha nem transação. A troca de maquininha grava o pedido no próprio sistema, sem integração com a logística. A Open-Meteo gratuita é só para uso não comercial, e a PTAX é taxa de referência, não de varejo.
 - **Corpus:** a página inicial recoletada na 13C tem textos de campanha com data (Black Friday) e um aviso de manutenção do sistema de contratação, que podem aparecer em respostas. Desde a 14, linhas repetidas isoladas ficam nos trechos: isso devolve conteúdo, como nomes de produto e o telefone da central, e também algumas linhas soltas de navegação.

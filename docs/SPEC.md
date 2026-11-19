@@ -57,12 +57,14 @@ each. `u02` (central phone) is now answered 3/3 because the block rule restored 
 was not changed. Holdouts, one run each: rh 100%, rh2 75% (`n05`, `n06`, `n07`), h3 96.8% (`t20`), actions 87.5% (`a05`);
 `rerank-7` hit@1 1.000, uncovered abstention 0.900 (`u02`).
 
-**Deviation in the round (reviewer's error):** the commands given to the author did not set `EVAL_JUDGE_MODEL`, so `v2-13..15`
-were judged by the code default `gemini-3.1-flash-lite`, not `gemini-3.6-flash`. No criterion depends on the judge. Decision
-(delegated by the author): the judge is not re-run (records are immutable, and re-judging would pick a result); the README
-marks the judge rows of column 14 as another model.
+**Deviation in the round (reviewer's error), corrected in 14C:** the commands given to the author did not set
+`EVAL_JUDGE_MODEL`, so `v2-13..15` were first judged by the code default `gemini-3.1-flash-lite`. At the author's request the
+three runs were re-judged with `gemini-3.6-flash` only (no system re-run; `bc9b2be`); the first judgments are kept unchanged
+in `reports/eval_runs/judge_gemini-3.1-flash-lite/`. With the correct judge, abstention precision and coverage stay at 100.0%
+and 88.9% (`u02` is still the only abstention error in all three runs); grounding 4.96 and answers 4.76.
 
-Next: **14B** (README with the round, then resubmission). No further round or fix sub-phase in Phase 14.
+**14B done** (`9a2e19c`). Next: **14C** (README and comparison report with the corrected judge), then resubmission. No
+further round in Phase 14.
 
 ---
 
@@ -214,6 +216,16 @@ the table; column "14" in the holdouts table and its bullets; the retrieval tabl
 revised; "Autoria e revisão" with Orchestrator (Neon) for 14A and 14B; the evidence rows of the verifier, chunking, decline
 context and results claims. Nothing else in the README changes. 14B also retires the 14A prompt and verifier, and rewrites
 `docs/STATUS.md`. No code, record, label or prompt changes.
+
+### 14C — Corrected judge in the README (`scripts/verify_phase14c.py`, prompt `docs/phase-prompts/14C.md`)
+
+Base `bc9b2be`. The implementer regenerates `reports/eval_v2_phase14.md` and `.json` with the same `compare` command as the
+round (offline, no key) and applies four dictated replacements to the README: the opening paragraph of "Resultados" states in
+one sentence that the round was re-judged with the correct judge and where the first judgments are; the two "(outro juiz)"
+markers leave the v2 table; the clause about the other judge leaves "Limitações conhecidas". No other line changes: no
+deterministic metric, label (`u02` stays as it is) or prompt. The verifier pins the README, checks the judge rows against the
+re-judged records, the judge model of every judgment, the preserved first judgments, and that every other table row equals
+`9a2e19c`.
 
 ### Acceptance (Phase 14)
 

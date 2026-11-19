@@ -1,6 +1,6 @@
 {
   "name": "v2_phase14",
-  "generated_at": "2026-11-19T05:34:44.052962+00:00",
+  "generated_at": "2026-11-19T09:38:35.301101+00:00",
   "cases_sha256": "e32b61a20c57fd3fb6c919b848339b56c6c57a7f7cf9b74959cb617f3b28bb10",
   "groups": [
     {
@@ -646,23 +646,23 @@
         },
         "judge_grounded_mean": {
           "values": [
-            4.958333333333333,
-            4.833333333333333,
-            4.888888888888889
+            5.0,
+            4.944444444444445,
+            4.944444444444445
           ],
-          "mean": 4.893518518518518,
-          "min": 4.833333333333333,
-          "max": 4.958333333333333
+          "mean": 4.962962962962963,
+          "min": 4.944444444444445,
+          "max": 5.0
         },
         "judge_answers_mean": {
           "values": [
             4.75,
-            4.722222222222222,
-            4.736111111111111
+            4.763888888888889,
+            4.763888888888889
           ],
-          "mean": 4.736111111111111,
-          "min": 4.722222222222222,
-          "max": 4.75
+          "mean": 4.7592592592592595,
+          "min": 4.75,
+          "max": 4.763888888888889
         },
         "judge_abstention_precision": {
           "values": [
@@ -849,7 +849,7 @@
         "gemini-3.5-flash-lite"
       ],
       "judge_models": [
-        "gemini-3.1-flash-lite"
+        "gemini-3.6-flash"
       ]
     },
     {
@@ -861,7 +861,7 @@
         "gemini-3.5-flash-lite"
       ],
       "judge_models": [
-        "gemini-3.1-flash-lite"
+        "gemini-3.6-flash"
       ]
     },
     {
@@ -873,7 +873,7 @@
         "gemini-3.5-flash-lite"
       ],
       "judge_models": [
-        "gemini-3.1-flash-lite"
+        "gemini-3.6-flash"
       ]
     }
   ]

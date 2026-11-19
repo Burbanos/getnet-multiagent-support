@@ -12,8 +12,8 @@
 | Fatos esperados presentes | 94,9% (92,3–97,4) | 99,1% (97,4–100,0) | 92,3% (89,7–94,9) | 99,1% (97,4–100,0) |
 | Fonte oficial recuperada | 96,0% (96,0–96,0) | 100,0% (100,0–100,0) | 97,3% (92,0–100,0) | 97,3% (96,0–100,0) |
 | Idioma da resposta | 97,2% (97,2–97,2) | 96,3% (94,4–97,2) | 100,0% (100,0–100,0) | 100,0% (100,0–100,0) |
-| Juiz: fundamentação (1 a 5) | 4,99 (4,97–5,00) | 4,98 (4,94–5,00) | 4,98 (4,93–5,00) | 4,89 (4,83–4,96) |
-| Juiz: responde à pergunta (1 a 5) | 4,71 (4,69–4,74) | 4,74 (4,68–4,83) | 4,70 (4,65–4,76) | 4,74 (4,72–4,75) |
+| Juiz: fundamentação (1 a 5) | 4,99 (4,97–5,00) | 4,98 (4,94–5,00) | 4,98 (4,93–5,00) | 4,96 (4,94–5,00) |
+| Juiz: responde à pergunta (1 a 5) | 4,71 (4,69–4,74) | 4,74 (4,68–4,83) | 4,70 (4,65–4,76) | 4,76 (4,75–4,76) |
 | Juiz: precisão da abstenção | 80,0% (80,0–80,0) | 100,0% (100,0–100,0) | 86,3% (77,8–100,0) | 100,0% (100,0–100,0) |
 | Juiz: cobertura da abstenção | 80,0% (80,0–80,0) | 77,8% (73,3–80,0) | 91,1% (86,7–93,3) | 88,9% (86,7–93,3) |
 | Latência por caso, mediana | 5,1 s (4,9–5,1) | 5,5 s (5,4–5,7) | 8,4 s (8,3–8,5) | 7,4 s (7,1–7,8) |
@@ -32,8 +32,8 @@
 - `v2-10` (13D): 2026-11-18, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
 - `v2-11` (13D): 2026-11-18, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
 - `v2-12` (13D): 2026-11-18, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
-- `v2-13` (14): 2026-11-19, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.1-flash-lite
-- `v2-14` (14): 2026-11-19, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.1-flash-lite
-- `v2-15` (14): 2026-11-19, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.1-flash-lite
+- `v2-13` (14): 2026-11-19, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+- `v2-14` (14): 2026-11-19, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
+- `v2-15` (14): 2026-11-19, conta Tier 1 (pago); respostas: gemini-3.5-flash-lite; juiz: gemini-3.6-flash
 
 Tier da conta declarado pelo autor em `reports/run_context.json`; modelos lidos dos registros das execuções.
