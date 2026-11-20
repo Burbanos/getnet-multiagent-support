@@ -181,7 +181,7 @@ def test_original_33_pages_match_committed_chunks_as_url_text_pairs() -> None:
         for line in (ROOT / "data" / "index" / "chunks.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    committed_pairs = {(c["doc_url"], c["text"]) for c in committed_chunks}
+    committed_pairs = {(c["doc_url"], c["text"]) for c in committed_chunks if c["doc_url"] in orig_urls}
 
     assert len(committed_pairs) == 103
     assert rebuilt_pairs == committed_pairs

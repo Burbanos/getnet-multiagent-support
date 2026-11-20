@@ -46,8 +46,8 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 Phase 14 closed (`8dcf972`, CI green: `test`, `integration`, `docker`). Real feedback v3: **9.2/10**, "Excelente / finalista",
 9th place. Its "Caminho para 9,5" is the scope of Phase 15. Decided by the author: no new labels from an annotator outside the
 project in Phase 15 (the README declares it as pending); judge calibration as in §3.5 (options a and c). 15A closed
-(`fba3306`, 44/44, CI green). 15B closed (`dd9e8d3`, 48/48 with promtool, CI green). **Next: 15C** (pre-round fixes and
-the reviewer's pre-round files), then the round, then 15D.
+(`fba3306`, 44/44, CI green). 15B closed (`dd9e8d3`, 48/48 with promtool, CI green). 15C closed (`a1cfac9`, 21/21, CI green). **Next: 15C2**
+(one test made valid after the index rebuild, §3.6), then the round, then 15D.
 
 ---
 
@@ -567,6 +567,13 @@ and STATUS checks (A1–A5, S1), which 15C checks again against `dd9e8d3`.
   (URL, text) pairs, exactly those of the committed `data/index/chunks.jsonl` (103); every answerable query of both retrieval
   sets has a chunk of a gold URL containing a gold snippet; chunk ids are unique. `data/index/` is not rebuilt in 15C (the
   author rebuilds it with the embedding key before the round).
+
+**15C2 (found in the 15C review; checked by `scripts/verify_phase15c2.py`, prompt `docs/phase-prompts/15C2.md`).** The 15C
+test `test_original_33_pages_match_committed_chunks_as_url_text_pairs` compares with the whole committed
+`data/index/chunks.jsonl` and requires 103 chunks, so it fails as soon as the author rebuilds the index (the CI of the index
+commit and of the round would fail, criterion C5). It must compare only the committed chunks of the 33 original URLs (still
+103 pairs, before and after the rebuild). Only that test function and `docs/STATUS.md` change; the verifier rebuilds the index
+with a fake embedder in a temporary git worktree and runs the test file there and in the repository.
 
 ### 3.7 15D — Publication and the matrix check
 
