@@ -187,47 +187,6 @@ def test_kb_raw_document_reaches_verifier_and_turn_evidence(monkeypatch: Any) ->
     assert "RAW-KB-7781" in turn_ev[0]["content"]
 
 
-def test_follow_up_supported_by_conversation_excludes_prior_tool_messages(monkeypatch: Any) -> None:
-    monkeypatch.setattr(
-        rag_retriever,
-        "get_knowledge_retriever",
-        lambda: _FakeKBRetriever("Documento RAW-ONLY-3344: compatível com Versão-Sistema-99."),
-    )
-    chat = ScriptedChatModel(
-        responses=[
-            _tool_msg("ask_knowledge_agent", {"question": "compatibilidade"}),
-            _tool_msg("search_knowledge_base", {"query": "compatibilidade"}),
-            AIMessage(content="Compatível com Versão-Sistema-99."),
-            AIMessage(content="Sim, funciona a partir da Versão-Sistema-99."),
-            AIMessage(content="Como informei antes, exige Versão-Sistema-99."),
-        ]
-    )
-    planner = ScriptedChatModel(
-        responses=[
-            _plan_msg("pt"),
-            _plan_msg("pt", steps=[{"goal": "Repeat requirement from earlier turn", "delegate": "none"}]),
-        ]
-    )
-    ver = _oracle_verifier(["Versão-Sistema-99"])
-    saver = MemorySaver()
-    orch = OrchestrationGraph(chat_model=chat, planner_model=planner, verifier_model=ver, checkpointer=saver)
-
-    st1 = orch.run_sync(user_id="cliente1988", session_id="s-conv-followup", message="Funciona no meu aparelho?")
-    st2 = orch.run_sync(user_id="cliente1988", session_id="s-conv-followup", message="Qual versão mesmo?")
-
-    assert (st1.verification or {}).get("status") == "passed"
-    assert (st2.verification or {}).get("status") == "passed"
-    assert (st2.verification or {}).get("replans") == 0
-
-    in2 = _msg_text(ver.received[1][-1])
-    conv2 = in2.split("<conversation>", 1)[-1].split("</conversation>", 1)[0]
-    assert "Versão-Sistema-99" in conv2
-    assert "RAW-ONLY-3344" not in in2
-
-    snap2 = orch.graph.get_state({"configurable": {"thread_id": "cliente1988:s-conv-followup"}})
-    assert (snap2.values or {}).get("turn_evidence") == []
-
-
 def test_operator_message_formatted_with_operator_prefix_in_conversation() -> None:
     msgs = [
         HumanMessage(content="Preciso de um atendente."),
@@ -239,7 +198,8 @@ def test_operator_message_formatted_with_operator_prefix_in_conversation() -> No
     ]
     conv = build_verifier_conversation(msgs, merchant_idx=5)
     assert "merchant: Preciso de um atendente." in conv
-    assert "assistant: Abri seu chamado." in conv
+    assert "assistant:" not in conv
+    assert "Abri seu chamado." not in conv
     assert "operator: Protocolo conferido e ajustado." in conv
     assert "TOOL-ANTIGA-NAO-ENTRA" not in conv
     assert "Obrigado, deu certo?" not in conv
@@ -354,9 +314,9 @@ def test_evidence_and_conversation_builders_enforce_limits_and_truncation_flag()
     many_msgs.append(HumanMessage(content="CURR"))
 
     conv = build_verifier_conversation(many_msgs, merchant_idx=len(many_msgs) - 1)
-    entries = re.findall(r"(?m)^(merchant|assistant|operator):", conv)
+    entries = re.findall(r"(?m)^(merchant|operator):", conv)
     assert 0 < len(entries) <= MAX_CONVERSATION_ENTRIES
     assert len(conv) <= MAX_CONVERSATION_TOTAL_CHARS
-    assert "A11" in conv and "M00" not in conv and "CURR" not in conv
-    segments = [seg.rstrip("\n") for seg in re.split(r"(?m)^(?=merchant:|assistant:|operator:)", conv) if seg.strip()]
-    assert all(len(seg) <= MAX_CONVERSATION_ITEM_CHARS + len("assistant: ") for seg in segments)
+    assert "M11" in conv and "A11" not in conv and "assistant:" not in conv and "M00" not in conv and "CURR" not in conv
+    segments = [seg.rstrip("\n") for seg in re.split(r"(?m)^(?=merchant:|operator:)", conv) if seg.strip()]
+    assert all(len(seg) <= MAX_CONVERSATION_ITEM_CHARS + len("operator: ") for seg in segments)

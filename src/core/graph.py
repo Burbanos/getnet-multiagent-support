@@ -216,8 +216,9 @@ def build_verifier_evidence(
     messages: Sequence[BaseMessage],
     merchant_idx: int | None,
     turn_evidence: Sequence[dict[str, Any]] | None,
+    prior_evidence: Sequence[dict[str, Any]] | None = None,
 ) -> tuple[str, bool]:
-    """Assemble current-turn supervisor ToolMessages and raw specialist outputs within char limits."""
+    """Assemble current-turn ToolMessages/raw outputs, then prior-turn raw outputs, within char limits."""
     ev_start = (merchant_idx + 1) if merchant_idx is not None else 0
     blocks: list[str] = []
     truncated = False
@@ -232,18 +233,19 @@ def build_verifier_evidence(
             truncated = True
         blocks.append(f"[{t_name}]\n{raw}")
 
-    for item in turn_evidence or ():
-        if not isinstance(item, dict):
-            continue
-        agent_name = str(item.get("agent") or "agent")
-        tool_name = str(item.get("tool") or "tool")
-        raw = str(item.get("content") or "")
-        if item.get("truncated"):
-            truncated = True
-        if len(raw) > MAX_EVIDENCE_ITEM_CHARS:
-            raw = raw[:MAX_EVIDENCE_ITEM_CHARS]
-            truncated = True
-        blocks.append(f"[{agent_name}/{tool_name}]\n{raw}")
+    for prefix, seq in (("", turn_evidence), ("earlier turn: ", prior_evidence)):
+        for item in seq or ():
+            if not isinstance(item, dict):
+                continue
+            agent_name = str(item.get("agent") or "agent")
+            tool_name = str(item.get("tool") or "tool")
+            raw = str(item.get("content") or "")
+            if item.get("truncated"):
+                truncated = True
+            if len(raw) > MAX_EVIDENCE_ITEM_CHARS:
+                raw = raw[:MAX_EVIDENCE_ITEM_CHARS]
+                truncated = True
+            blocks.append(f"[{prefix}{agent_name}/{tool_name}]\n{raw}")
 
     parts: list[str] = []
     total_len = 0
@@ -269,7 +271,7 @@ def build_verifier_conversation(
     messages: Sequence[BaseMessage],
     merchant_idx: int | None,
 ) -> str:
-    """Format prior conversation turns (merchant, operator, assistant answers) for the verifier."""
+    """Format prior conversation turns (merchant and operator only; never assistant answers) for the verifier."""
     if merchant_idx is None or merchant_idx <= 0:
         return ""
 
@@ -278,8 +280,6 @@ def build_verifier_conversation(
         if isinstance(m, HumanMessage):
             extra = getattr(m, "additional_kwargs", None) or {}
             role = "operator" if extra.get("origin") == "operator" else "merchant"
-        elif isinstance(m, AIMessage) and not getattr(m, "tool_calls", None):
-            role = "assistant"
         else:
             continue
 
@@ -411,6 +411,7 @@ class OrchestrationGraph:
         builder.add_node("supervisor", self._wrap_node("supervisor", self._supervisor_node))
         builder.add_node("tools", self._wrap_node("tools", self._tools_node))
         builder.add_node("force_escalation", self._wrap_node("force_escalation", self._force_escalation_node))
+        builder.add_node("plan_coverage", self._wrap_node("plan_coverage", self._plan_coverage_node))
         builder.add_node("verifier", self._wrap_node("verifier", self._verifier_node))
         builder.add_node("answer_check", self._wrap_node("answer_check", self._answer_check_node))
         builder.add_node("language_check", self._wrap_node("language_check", self._language_check_node))
@@ -470,13 +471,22 @@ class OrchestrationGraph:
             {
                 "tools": "tools",
                 "force_escalation": "force_escalation",
-                "verifier": "verifier",
+                "plan_coverage": "plan_coverage",
             },
         )
 
         # ReAct observation loop: from tools back to supervisor
         builder.add_edge("tools", "supervisor")
         builder.add_edge("force_escalation", END)
+
+        builder.add_conditional_edges(
+            "plan_coverage",
+            self._plan_coverage_condition,
+            {
+                "supervisor": "supervisor",
+                "verifier": "verifier",
+            },
+        )
 
         builder.add_conditional_edges(
             "verifier",
@@ -843,6 +853,7 @@ class OrchestrationGraph:
                 "scope": None,
                 "escalation_request": None,
                 "action_confirmation": None,
+                "code_source": None,
                 "steps": None,
                 "error_type": None,
                 "latency_ms": None,
@@ -850,7 +861,7 @@ class OrchestrationGraph:
             }
             metrics.inc_planner("disabled")
             logger.info("planner finished", extra={"status": "disabled"})
-            return {"plan": plan_meta}
+            return {"plan": plan_meta, "tool_gate": None}
 
         messages = list(state.get("messages") or [])
         merchant_idx = _latest_merchant_message_index(messages)
@@ -877,8 +888,15 @@ class OrchestrationGraph:
             f"escalation_request={plan_meta['escalation_request']}, steps={step_count})",
             extra={"status": result.status, "latency_ms": result.latency_ms},
         )
+        if result.status == "ok":
+            cs = str(plan_meta.get("code_source") or "none")
+            removed = ["diagnose_declined_transaction"] if cs in ("terminal_screen", "app") else []
+            tool_gate: dict[str, Any] | None = {"code_source": cs, "removed_tools": removed}
+        else:
+            tool_gate = None
         out: dict[str, Any] = {
             "plan": plan_meta,
+            "tool_gate": tool_gate,
             "tokens_by_agent": tba,
             "tokens": tokens,
         }
@@ -925,12 +943,13 @@ class OrchestrationGraph:
         }
 
     def _verifier_node(self, state: SupervisorState) -> dict[str, Any]:
-        """Validate supervisor draft against plan steps and current-turn tool evidence before sending."""
+        """Validate supervisor draft against plan steps, current-turn evidence, and prior raw tool outputs."""
         plan = state.get("plan") or {}
         steps = plan.get("steps") or []
         replans = int(state.get("replans") or 0)
         prev_ver = state.get("verification") or {}
         rounds = list(prev_ver.get("rounds") or [])
+        llat = dict(state.get("layer_latency_ms") or {"verifier": None, "language": None})
 
         if not settings.VERIFIER_ENABLED or self.verifier is None:
             metrics.inc_verifier("disabled")
@@ -965,6 +984,7 @@ class OrchestrationGraph:
             messages,
             merchant_idx,
             state.get("turn_evidence"),
+            prior_evidence=state.get("prior_turn_evidence"),
         )
         conversation = build_verifier_conversation(messages, merchant_idx)
 
@@ -974,6 +994,11 @@ class OrchestrationGraph:
             evidence,
             draft_text,
             conversation=conversation,
+        )
+        prev_v = llat.get("verifier")
+        llat["verifier"] = round(
+            (float(prev_v) if isinstance(prev_v, (int, float)) else 0.0) + float(result.latency_ms),
+            2,
         )
         tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "Verifier", result.usage)
 
@@ -990,6 +1015,7 @@ class OrchestrationGraph:
                     "evidence_truncated": evidence_truncated,
                 },
                 "verification_feedback": None,
+                "layer_latency_ms": llat,
                 "tokens_by_agent": tba,
                 "tokens": tokens,
             }
@@ -1009,9 +1035,14 @@ class OrchestrationGraph:
                     "evidence_truncated": evidence_truncated,
                 },
                 "verification_feedback": None,
+                "layer_latency_ms": llat,
                 "tokens_by_agent": tba,
                 "tokens": tokens,
             }
+
+        rejected = list(state.get("rejected_drafts") or [])
+        if draft_text and len(rejected) < 2:
+            rejected.append(draft_text)
 
         draft_id = getattr(draft_msg, "id", None) if draft_msg is not None else None
         if replans == 0:
@@ -1034,6 +1065,8 @@ class OrchestrationGraph:
                 },
                 "verification_feedback": feedback,
                 "replans": 1,
+                "rejected_drafts": rejected,
+                "layer_latency_ms": llat,
                 "tokens_by_agent": tba,
                 "tokens": tokens,
             }
@@ -1056,6 +1089,8 @@ class OrchestrationGraph:
                 "evidence_truncated": evidence_truncated,
             },
             "verification_feedback": None,
+            "rejected_drafts": rejected,
+            "layer_latency_ms": llat,
             "tokens_by_agent": tba,
             "tokens": tokens,
         }
@@ -1067,16 +1102,24 @@ class OrchestrationGraph:
 
     def _language_check_node(self, state: SupervisorState) -> dict[str, Any]:
         """Verify final reply language matches target and rewrite once with token preservation if needed."""
-        if not settings.LANGUAGE_ENFORCEMENT_ENABLED or self.language_rewriter is None:
+        t0 = time.perf_counter()
+        llat = dict(state.get("layer_latency_ms") or {"verifier": None, "language": None})
+
+        def _lang_ms() -> float:
+            return round((time.perf_counter() - t0) * 1000, 2)
+
+        if not settings.LANGUAGE_ENFORCEMENT_ENABLED:
+            llat["language"] = None
             metrics.inc_language_enforcement("disabled")
             logger.info("language check finished", extra={"status": "disabled"})
-            return {"language": {"status": "disabled", "target": None, "detected": None}}
+            return {"language": {"status": "disabled", "target": None, "detected": None}, "layer_latency_ms": llat}
 
         ac_status = (state.get("answer_check") or {}).get("status")
         if ac_status not in ("passed", "revised"):
+            llat["language"] = _lang_ms()
             metrics.inc_language_enforcement("skipped")
             logger.info("language check finished", extra={"status": "skipped"})
-            return {"language": {"status": "skipped", "target": None, "detected": None}}
+            return {"language": {"status": "skipped", "target": None, "detected": None}, "layer_latency_ms": llat}
 
         messages = list(state.get("messages") or [])
         plan = state.get("plan") or {}
@@ -1089,32 +1132,43 @@ class OrchestrationGraph:
             target = inferred if inferred in ("pt", "en") else None
 
         if target is None:
+            llat["language"] = _lang_ms()
             metrics.inc_language_enforcement("undetermined")
             logger.info("language check finished", extra={"status": "undetermined"})
-            return {"language": {"status": "undetermined", "target": None, "detected": None}}
+            return {"language": {"status": "undetermined", "target": None, "detected": None}, "layer_latency_ms": llat}
 
         last_msg = _latest_ai_message(messages)
         reply_text = _get_message_text(last_msg).strip() if last_msg is not None else ""
         detected = detect_reply_language(reply_text)
 
         if detected == target:
+            llat["language"] = _lang_ms()
             metrics.inc_language_enforcement("ok")
             logger.info("language check finished", extra={"status": "ok"})
-            return {"language": {"status": "ok", "target": target, "detected": detected}}
+            return {"language": {"status": "ok", "target": target, "detected": detected}, "layer_latency_ms": llat}
 
         if detected not in ("pt", "en"):
+            llat["language"] = _lang_ms()
             metrics.inc_language_enforcement("undetermined")
             logger.info("language check finished", extra={"status": "undetermined"})
-            return {"language": {"status": "undetermined", "target": target, "detected": detected}}
+            return {"language": {"status": "undetermined", "target": target, "detected": detected}, "layer_latency_ms": llat}
+
+        if self.language_rewriter is None:
+            llat["language"] = _lang_ms()
+            metrics.inc_language_enforcement("disabled")
+            logger.info("language check finished", extra={"status": "disabled"})
+            return {"language": {"status": "disabled", "target": target, "detected": detected}, "layer_latency_ms": llat}
 
         rw_res = self.language_rewriter.rewrite(reply_text, target)
         tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "LanguageRewriter", rw_res.usage)
 
         if rw_res.status == "error" or not rw_res.text:
+            llat["language"] = _lang_ms()
             metrics.inc_language_enforcement("error")
             logger.info("language check finished", extra={"status": "error", "latency_ms": rw_res.latency_ms})
             return {
                 "language": {"status": "error", "target": target, "detected": detected},
+                "layer_latency_ms": llat,
                 "tokens_by_agent": tba,
                 "tokens": tokens,
             }
@@ -1124,23 +1178,113 @@ class OrchestrationGraph:
         new_lang = detect_reply_language(rw_res.text)
         if orig_toks <= new_toks and new_lang == target:
             msg_id = (getattr(last_msg, "id", None) if last_msg is not None else None) or str(uuid.uuid4())
+            llat["language"] = _lang_ms()
             metrics.inc_language_enforcement("rewritten")
             logger.info("language check finished", extra={"status": "rewritten", "latency_ms": rw_res.latency_ms})
             return {
                 "messages": [AIMessage(content=rw_res.text, id=msg_id)],
                 "final_response": rw_res.text,
                 "language": {"status": "rewritten", "target": target, "detected": detected},
+                "layer_latency_ms": llat,
                 "tokens_by_agent": tba,
                 "tokens": tokens,
             }
 
+        llat["language"] = _lang_ms()
         metrics.inc_language_enforcement("rewrite_rejected")
         logger.info("language check finished", extra={"status": "rewrite_rejected", "latency_ms": rw_res.latency_ms})
         return {
             "language": {"status": "rewrite_rejected", "target": target, "detected": detected},
+            "layer_latency_ms": llat,
             "tokens_by_agent": tba,
             "tokens": tokens,
         }
+
+    def _plan_coverage_node(self, state: SupervisorState) -> dict[str, Any]:
+        """Verify every delegated plan step called its assigned specialist in this turn, with one retry."""
+        existing_cov = state.get("coverage")
+        if existing_cov is not None and not state.get("coverage_feedback"):
+            set_attributes({"coverage.status": str(existing_cov.get("status") or "skipped")})
+            return {}
+
+        retries = int(state.get("coverage_retries") or 0)
+        if not settings.PLAN_COVERAGE_ENABLED:
+            metrics.inc_plan_coverage("disabled")
+            set_attributes({"coverage.status": "disabled"})
+            logger.info("plan coverage finished", extra={"status": "disabled"})
+            return {"coverage": {"status": "disabled", "missing": [], "retries": retries}, "coverage_feedback": None}
+
+        plan = state.get("plan") or {}
+        steps = plan.get("steps") or []
+        if plan.get("status") != "ok" or not steps or state.get("ticket") or state.get("handoff"):
+            metrics.inc_plan_coverage("skipped")
+            set_attributes({"coverage.status": "skipped"})
+            logger.info("plan coverage finished", extra={"status": "skipped"})
+            return {"coverage": {"status": "skipped", "missing": [], "retries": retries}, "coverage_feedback": None}
+
+        messages = list(state.get("messages") or [])
+        merchant_idx = _latest_merchant_message_index(messages)
+        start_idx = (merchant_idx + 1) if merchant_idx is not None else 0
+        called: set[str] = set()
+        for m in messages[start_idx:]:
+            if isinstance(m, AIMessage):
+                for tc in (getattr(m, "tool_calls", None) or []):
+                    if tc.get("name"):
+                        called.add(str(tc["name"]))
+            elif isinstance(m, ToolMessage) and getattr(m, "name", None):
+                called.add(str(m.name))
+
+        missing = [
+            idx
+            for idx, step in enumerate(steps, start=1)
+            if (step.get("delegate") == "knowledge" and "ask_knowledge_agent" not in called)
+            or (step.get("delegate") == "support" and "ask_support_agent" not in called)
+        ]
+
+        if not missing:
+            if retries >= 1:
+                prev_missing = list((existing_cov or {}).get("missing") or [])
+                status = "corrected"
+                cov = {"status": "corrected", "missing": prev_missing, "retries": 1}
+            else:
+                status = "complete"
+                cov = {"status": "complete", "missing": [], "retries": 0}
+            metrics.inc_plan_coverage(status)
+            set_attributes({"coverage.status": status})
+            logger.info("plan coverage finished", extra={"status": status})
+            return {"coverage": cov, "coverage_feedback": None}
+
+        if retries == 0:
+            if state.get("supervisor_steps", 0) >= settings.MAX_SUPERVISOR_STEPS:
+                metrics.inc_plan_coverage("skipped")
+                set_attributes({"coverage.status": "skipped"})
+                logger.info("plan coverage finished", extra={"status": "skipped"})
+                return {"coverage": {"status": "skipped", "missing": [], "retries": 0}, "coverage_feedback": None}
+
+            draft_msg = _latest_ai_message(messages)
+            draft_id = getattr(draft_msg, "id", None) if draft_msg is not None else None
+            removals = [RemoveMessage(id=draft_id)] if draft_id else []
+            feedback_lines = [
+                f"step {idx} [{steps[idx - 1].get('delegate', 'none')}]: {steps[idx - 1].get('goal', '')}"
+                for idx in missing
+            ]
+            set_attributes({"coverage.status": "incomplete"})
+            logger.info("plan coverage retrying", extra={"status": "incomplete"})
+            return {
+                "messages": removals,
+                "coverage": {"status": "corrected", "missing": missing, "retries": 1},
+                "coverage_feedback": "\n".join(feedback_lines),
+                "coverage_retries": 1,
+            }
+
+        metrics.inc_plan_coverage("incomplete")
+        set_attributes({"coverage.status": "incomplete"})
+        logger.info("plan coverage finished", extra={"status": "incomplete"})
+        return {"coverage": {"status": "incomplete", "missing": missing, "retries": 1}, "coverage_feedback": None}
+
+    def _plan_coverage_condition(self, state: SupervisorState) -> str:
+        """Loop back once to supervisor when plan coverage requests missing specialist calls."""
+        return "supervisor" if state.get("coverage_feedback") else "verifier"
 
     def _supervisor_node(self, state: SupervisorState) -> dict[str, Any]:
         """
@@ -1153,7 +1297,7 @@ class OrchestrationGraph:
         if plan.get("status") == "ok":
             steps = plan.get("steps") or []
             steps_text = "\n".join(
-                f"{idx}. {step.get('goal', '')}"
+                f"{idx}. [{step.get('delegate', 'none')}] {step.get('goal', '')}"
                 for idx, step in enumerate(steps, start=1)
             ) or "(none)"
             system_prompt += (
@@ -1166,6 +1310,9 @@ class OrchestrationGraph:
         feedback = state.get("verification_feedback")
         if feedback:
             system_prompt += f"\n\n[Verification before sending]\n{feedback}"
+        cov_feedback = state.get("coverage_feedback")
+        if cov_feedback:
+            system_prompt += f"\n\n[Plan coverage]\n{cov_feedback}"
 
         full_messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
         trace_id = state.get("trace_id", "")
@@ -1218,7 +1365,7 @@ class OrchestrationGraph:
                 if current_steps >= settings.MAX_SUPERVISOR_STEPS:
                     return "force_escalation"
                 return "tools"
-        return "verifier"
+        return "plan_coverage"
 
     def _answer_check_node(self, state: SupervisorState) -> dict[str, Any]:
         """Validate the supervisor's final reply against consulted evidence before abstention_check."""
@@ -1417,11 +1564,18 @@ class OrchestrationGraph:
         tools_used = list(state.get("tools_used", []))
         tools_used.append("escalate_to_human")
 
+        cov_retries = int(state.get("coverage_retries") or 0)
+        cov_status = "skipped" if settings.PLAN_COVERAGE_ENABLED else "disabled"
+        metrics.inc_plan_coverage(cov_status)
+        set_attributes({"coverage.status": cov_status})
+
         ret: dict[str, Any] = {
             "messages": tool_messages,
             "ticket": ticket_obj,
             "final_response": final_text,
             "tools_used": tools_used,
+            "coverage": {"status": cov_status, "missing": [], "retries": cov_retries},
+            "coverage_feedback": None,
         }
         if ticket_obj and ticket_obj.get("ticket_id"):
             ret["pending_ticket_id"] = ticket_obj["ticket_id"]
@@ -1532,12 +1686,22 @@ class OrchestrationGraph:
                         if "SupportAgent" not in agents_used:
                             agents_used.append("SupportAgent")
                         request_text = tool_args.get("request") or tool_args.get("task") or tool_args.get("question") or ""
-                        spec_res = self.support_agent.run(
-                            request_text,
-                            user_id=user_id,
-                            trace_id=trace_id,
-                            session_id=state["session_id"],
-                        )
+                        removed_tools = frozenset((state.get("tool_gate") or {}).get("removed_tools") or ())
+                        if removed_tools:
+                            spec_res = self.support_agent.run(
+                                request_text,
+                                user_id=user_id,
+                                trace_id=trace_id,
+                                session_id=state["session_id"],
+                                excluded_tools=removed_tools,
+                            )
+                        else:
+                            spec_res = self.support_agent.run(
+                                request_text,
+                                user_id=user_id,
+                                trace_id=trace_id,
+                                session_id=state["session_id"],
+                            )
                         _append_specialist_evidence(turn_evidence, spec_res)
                         if spec_res.get("status") == "error":
                             call_status = "error"
@@ -1772,6 +1936,19 @@ class OrchestrationGraph:
         except Exception as exc:  # noqa: BLE001
             logger.error(f"Could not close dangling tool calls: {type(exc).__name__}")
 
+    def _read_prior_turn_evidence(self, config: dict[str, Any]) -> list[dict[str, Any]]:
+        """Read raw tool evidence collected in the previous turn of this session thread."""
+        try:
+            snapshot = self.graph.get_state(config)
+        except Exception:  # noqa: BLE001
+            return []
+        if not snapshot or not snapshot.values:
+            return []
+        raw = snapshot.values.get("turn_evidence")
+        if not isinstance(raw, list):
+            return []
+        return [dict(item) for item in raw if isinstance(item, dict)]
+
     def run_sync(
         self,
         user_id: str,
@@ -1796,15 +1973,17 @@ class OrchestrationGraph:
         from src.core.log_context import bind
 
         with bind(active_trace_id, active_session_id, user_id):
+            # Checkpointer thread configuration
+            config = {"configurable": {"thread_id": f"{user_id}:{active_session_id}"}}
+            prior_ev = self._read_prior_turn_evidence(config)
+
             initial_state = self._build_turn_state(
                 HumanMessage(content=safe_message, id=msg_id),
                 user_id=user_id,
                 session_id=active_session_id,
                 trace_id=active_trace_id,
+                prior_turn_evidence=prior_ev,
             )
-
-            # Checkpointer thread configuration
-            config = {"configurable": {"thread_id": f"{user_id}:{active_session_id}"}}
 
             logger.info("workflow started")
 
@@ -1862,6 +2041,10 @@ class OrchestrationGraph:
                 answer_check=result.get("answer_check"),
                 web_guardrail=result.get("web_guardrail", []),
                 plan=result.get("plan"),
+                coverage=result.get("coverage"),
+                tool_gate=result.get("tool_gate"),
+                rejected_drafts=list(result.get("rejected_drafts") or []),
+                layer_latency_ms=result.get("layer_latency_ms"),
                 verification=result.get("verification"),
                 language=result.get("language"),
                 escalation_gate=result.get("escalation_gate"),
@@ -1903,6 +2086,7 @@ class OrchestrationGraph:
         trace_id: str,
         *,
         operator_event: dict[str, Any] | None = None,
+        prior_turn_evidence: list[dict[str, Any]] | None = None,
     ) -> SupervisorState:
         """Build per-turn SupervisorState leaving cross-turn hold/abstention keys untouched."""
         return {
@@ -1917,10 +2101,17 @@ class OrchestrationGraph:
             "answer_check": None,
             "web_guardrail": [],
             "plan": None,
+            "coverage": None,
+            "coverage_feedback": None,
+            "coverage_retries": 0,
+            "tool_gate": None,
             "verification": None,
             "verification_feedback": None,
             "replans": 0,
             "turn_evidence": [],
+            "prior_turn_evidence": list(prior_turn_evidence or []),
+            "rejected_drafts": [],
+            "layer_latency_ms": {"verifier": None, "language": None},
             "language": None,
             "escalation_gate": None,
             "action": None,
@@ -2016,6 +2207,9 @@ class OrchestrationGraph:
                 logger.info("operator resume", extra={"status": "skipped"})
                 return {"status": "skipped", "reason": "already_delivered"}
 
+            prior_raw = snapshot.values.get("turn_evidence") if (snapshot and snapshot.values) else None
+            prior_ev = [dict(item) for item in prior_raw if isinstance(item, dict)] if isinstance(prior_raw, list) else []
+
             safe_reply, _ = sanitize_pii(str(ticket["operator_reply"]))
             op_content = OPERATOR_MESSAGE_PREFIX.format(ticket_id=ticket_id) + safe_reply
             op_msg = HumanMessage(
@@ -2030,6 +2224,7 @@ class OrchestrationGraph:
                 session_id=session_id,
                 trace_id=trace_id,
                 operator_event={"ticket_id": ticket_id},
+                prior_turn_evidence=prior_ev,
             )
         except Exception as exc:  # noqa: BLE001
             err_cls = type(exc).__name__

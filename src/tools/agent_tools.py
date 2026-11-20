@@ -98,7 +98,11 @@ def diagnose_declined_transaction(
 
 
 @tool
-def diagnose_terminal(serial_number: str | None = None, config: RunnableConfig = None) -> str:
+def diagnose_terminal(
+    serial_number: str | None = None,
+    screen_error_code: str | None = None,
+    config: RunnableConfig = None,
+) -> str:
     """
     Realiza diagnóstico técnico e de conectividade nas maquininhas Getnet (Get Smart, Get Clássica, etc.).
     Use sempre que o usuário relatar:
@@ -106,13 +110,23 @@ def diagnose_terminal(serial_number: str | None = None, config: RunnableConfig =
     - Sinal fraco ou instabilidade no chip 3G/4G
     - Dificuldades para conectar na rede Wi-Fi
     - Necessidade de passo a passo para reiniciar o terminal
+    - Código exibido na tela da maquininha fora de venda (informe screen_error_code)
 
     Args:
         serial_number: Número de série do terminal (opcional).
+        screen_error_code: Código de erro exibido na tela da maquininha fora de venda (opcional).
     """
     user_id = config["configurable"]["user_id"]
-    logger.info(f"[Tool: diagnose_terminal] invoked (serial_given={bool(serial_number)})")
-    result = diagnose_terminal_connectivity(user_id=user_id, terminal_serial=serial_number)
+    clean_code = screen_error_code.strip() if isinstance(screen_error_code, str) else ""
+    logger.info(
+        "[Tool: diagnose_terminal] invoked "
+        f"(serial_given={bool(serial_number)}, screen_error_code_given={bool(clean_code)})"
+    )
+    result = diagnose_terminal_connectivity(
+        user_id=user_id,
+        terminal_serial=serial_number,
+        screen_error_code=screen_error_code,
+    )
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 

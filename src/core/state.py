@@ -59,6 +59,13 @@ class SupervisorState(TypedDict):
     verification_feedback: str | None
     replans: int
     turn_evidence: list[dict[str, Any]]
+    prior_turn_evidence: list[dict[str, Any]]
+    rejected_drafts: list[str]
+    coverage: dict[str, Any] | None
+    coverage_feedback: str | None
+    coverage_retries: int
+    tool_gate: dict[str, Any] | None
+    layer_latency_ms: dict[str, float | None]
     language: dict[str, Any] | None
     escalation_gate: dict[str, Any] | None
     action: dict[str, Any] | None
@@ -108,6 +115,10 @@ class AgentState(BaseModel):
     answer_check: dict[str, Any] | None = None
     web_guardrail: list[dict[str, Any]] = Field(default_factory=list)
     plan: dict[str, Any] | None = None
+    coverage: dict[str, Any] | None = None
+    tool_gate: dict[str, Any] | None = None
+    rejected_drafts: list[str] = Field(default_factory=list)
+    layer_latency_ms: dict[str, float | None] | None = None
     verification: dict[str, Any] | None = None
     language: dict[str, Any] | None = None
     escalation_gate: dict[str, Any] | None = None
@@ -152,6 +163,8 @@ class AgentMetadata(BaseModel):
     answer_check: dict[str, Any] | None = None
     web_guardrail: list[dict[str, Any]] = Field(default_factory=list)
     plan: dict[str, Any] | None = None
+    coverage: dict[str, Any] | None = None
+    tool_gate: dict[str, Any] | None = None
     verification: dict[str, Any] | None = None
     language: dict[str, Any] | None = None
     escalation_gate: dict[str, Any] | None = None

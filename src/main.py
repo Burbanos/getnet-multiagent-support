@@ -78,6 +78,8 @@ class AgentMetadata(BaseModel):
     answer_check: dict[str, Any] | None = Field(default=None, description="Post-supervisor answer validation outcome")
     web_guardrail: list[dict[str, Any]] = Field(default_factory=list, description="Guardrail screening outcomes for web search results")
     plan: dict[str, Any] | None = Field(default=None, description="Structured turn planner output")
+    coverage: dict[str, Any] | None = Field(default=None, description="Plan-step coverage gate outcome")
+    tool_gate: dict[str, Any] | None = Field(default=None, description="Screen/app code tool gate outcome")
     verification: dict[str, Any] | None = Field(default=None, description="Pre-send verifier outcome")
     language: dict[str, Any] | None = Field(default=None, description="Language enforcement outcome")
     escalation_gate: dict[str, Any] | None = Field(default=None, description="Escalation gate decision")
@@ -521,6 +523,8 @@ def chat_endpoint(
                     answer_check=getattr(state, "answer_check", None),
                     web_guardrail=getattr(state, "web_guardrail", []) or [],
                     plan=getattr(state, "plan", None),
+                    coverage=getattr(state, "coverage", None),
+                    tool_gate=getattr(state, "tool_gate", None),
                     verification=getattr(state, "verification", None),
                     language=getattr(state, "language", None),
                     escalation_gate=getattr(state, "escalation_gate", None),

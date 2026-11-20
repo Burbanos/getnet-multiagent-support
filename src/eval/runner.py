@@ -127,7 +127,41 @@ def observe_turn(state: Any, message: str, latency_ms: float) -> dict[str, Any]:
     }
 
 
-def run_case(case: dict[str, Any], orchestrator: Any, run_id: str) -> dict[str, Any]:
+def current_layers() -> dict[str, bool]:
+    """Read current feature layer toggles from application settings."""
+    return {
+        "planner": bool(settings.PLANNER_ENABLED),
+        "verifier": bool(settings.VERIFIER_ENABLED),
+        "language": bool(settings.LANGUAGE_ENFORCEMENT_ENABLED),
+        "plan_coverage": bool(settings.PLAN_COVERAGE_ENABLED),
+    }
+
+
+def _check_layers_match(path: Path, active_layers: dict[str, bool], run_id: str) -> None:
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        raw_line = raw_line.strip()
+        if not raw_line:
+            continue
+        try:
+            rec = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        for turn in rec.get("turns") or []:
+            if isinstance(turn, dict) and turn.get("layers") != active_layers:
+                raise ValueError(
+                    f"Cannot resume run '{run_id}': existing records use different layers "
+                    f"({turn.get('layers')} != {active_layers})"
+                )
+
+
+def run_case(
+    case: dict[str, Any],
+    orchestrator: Any,
+    run_id: str,
+    layers: dict[str, bool] | None = None,
+) -> dict[str, Any]:
     """
     Execute all turns of a single test case within the same session.
     Reraises LLMNotConfiguredError; wraps any other error into status: error without message leaks.
@@ -136,6 +170,7 @@ def run_case(case: dict[str, Any], orchestrator: Any, run_id: str) -> dict[str, 
     user_id = "cliente1988"
     session_id = f"eval-{run_id}-{cid}"
     turns: list[dict[str, Any]] = []
+    run_layers = dict(layers) if layers is not None else current_layers()
 
     for msg in case.get("turns", []):
         t0 = time.perf_counter()
@@ -146,7 +181,17 @@ def run_case(case: dict[str, Any], orchestrator: Any, run_id: str) -> dict[str, 
                 session_id=session_id,
             )
             lat_ms = round((time.perf_counter() - t0) * 1000, 1)
-            turns.append(observe_turn(state, msg, lat_ms))
+            turn_obs = observe_turn(state, msg, lat_ms)
+            raw_cov = _get_val(state, "coverage")
+            raw_tg = _get_val(state, "tool_gate")
+            raw_rd = _get_val(state, "rejected_drafts", []) or []
+            raw_llat = _get_val(state, "layer_latency_ms")
+            turn_obs["layers"] = dict(run_layers)
+            turn_obs["coverage"] = copy.deepcopy(raw_cov) if isinstance(raw_cov, dict) else None
+            turn_obs["tool_gate"] = copy.deepcopy(raw_tg) if isinstance(raw_tg, dict) else None
+            turn_obs["rejected_drafts"] = [str(d) for d in raw_rd] if isinstance(raw_rd, list) else []
+            turn_obs["layer_latency_ms"] = copy.deepcopy(raw_llat) if isinstance(raw_llat, dict) else None
+            turns.append(turn_obs)
             err_type = getattr(state, "error", None) or (_get_val(state, "error") if isinstance(state, dict) else None)
             if err_type:
                 return {
@@ -212,6 +257,8 @@ def run_eval(
     Execute evaluation over cases with resumption, isolated tickets DB, and quota exhaustion guards.
     """
     p = Path(results_path)
+    active_layers = current_layers()
+    _check_layers_match(p, active_layers, run_id)
     p.parent.mkdir(parents=True, exist_ok=True)
 
     delay = sleep_s if sleep_s is not None else settings.EVAL_SLEEP_S
@@ -260,7 +307,7 @@ def run_eval(
                 tdb.reset_tickets_repository()
                 adb.reset_actions_repository()
                 try:
-                    res = run_case(case, orchestrator, run_id)
+                    res = run_case(case, orchestrator, run_id, layers=active_layers)
                 finally:
                     tdb.reset_tickets_repository()
                     adb.reset_actions_repository()

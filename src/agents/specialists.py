@@ -66,7 +66,25 @@ class SpecialistAgent:
             return prompt_path.read_text(encoding="utf-8")
         return f"You are the {self.name}."
 
-    def _get_bound_models(self) -> tuple[Any, Any]:
+    def _get_bound_models(
+        self,
+        excluded_tools: set[str] | frozenset[str] | None = None,
+    ) -> tuple[Any, Any, dict[str, Any]]:
+        if excluded_tools:
+            active_tools = [t for t in self.tools if t.name not in excluded_tools]
+            active_by_name = {t.name: t for t in active_tools}
+            if self.chat_model is not None:
+                primary = self.chat_model
+                fallback = self.fallback_model
+            else:
+                primary = get_chat_model()
+                fallback = get_fallback_model()
+            return (
+                primary.bind_tools(active_tools),
+                fallback.bind_tools(active_tools) if fallback is not None else None,
+                active_by_name,
+            )
+
         if self._bound_model is None:
             if self.chat_model is not None:
                 primary = self.chat_model
@@ -76,15 +94,22 @@ class SpecialistAgent:
                 fallback = get_fallback_model()
             self._bound_model = primary.bind_tools(self.tools)
             self._bound_fallback = fallback.bind_tools(self.tools) if fallback is not None else None
-        return self._bound_model, self._bound_fallback
+        return self._bound_model, self._bound_fallback, self.tools_by_name
 
-    def run(self, task: str, user_id: str, trace_id: str, session_id: str | None = None) -> dict[str, Any]:
+    def run(
+        self,
+        task: str,
+        user_id: str,
+        trace_id: str,
+        session_id: str | None = None,
+        excluded_tools: set[str] | frozenset[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Execute the specialist loop in an isolated context.
         Messages: [SystemMessage(prompt.strip()), HumanMessage(task)].
         Runs model -> tools -> model loop up to settings.MAX_SPECIALIST_STEPS calls.
         """
-        bound_model, bound_fallback = self._get_bound_models()
+        bound_model, bound_fallback, active_tools_by_name = self._get_bound_models(excluded_tools)
         messages: list[BaseMessage] = [
             SystemMessage(content=self.prompt.strip()),
             HumanMessage(content=task),
@@ -146,7 +171,7 @@ class SpecialistAgent:
                 tool_args = call.get("args", {})
                 call_id = call.get("id", str(uuid.uuid4()))
 
-                if tool_name not in self.tools_by_name:
+                if tool_name not in active_tools_by_name:
                     with span("tool.call", {"agent.name": self.name, "tool.name": str(tool_name or "unknown")}):
                         err_msg = json.dumps({"error": f"tool {tool_name} not available to {self.name}"})
                         t_msg = ToolMessage(content=err_msg, tool_call_id=call_id, name=tool_name)
@@ -165,7 +190,7 @@ class SpecialistAgent:
                         )
                     continue
 
-                tool_fn = self.tools_by_name[tool_name]
+                tool_fn = active_tools_by_name[tool_name]
                 with span("tool.call", {"agent.name": self.name, "tool.name": str(tool_name or "unknown")}):
                     t0 = time.perf_counter()
                     status = "ok"

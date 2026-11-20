@@ -182,3 +182,24 @@ def reset_auth_settings(monkeypatch):
     yield
     reset_rate_limiter()
     reset_tickets_repository()
+
+
+LEGACY_NO_COVERAGE_MODULES = (
+    "tests.test_planner",
+    "tests.test_verifier_node",
+    "tests.test_escalation_gate",
+    "tests.test_write_action_flow",
+    "tests.test_language_enforcement",
+)
+
+
+@pytest.fixture(autouse=True)
+def disable_plan_coverage_for_legacy_tests(request, monkeypatch):
+    """Disable plan_coverage gate on legacy scripted modules unless PLAN_COVERAGE_FORCE=1."""
+    if os.environ.get("PLAN_COVERAGE_FORCE") == "1":
+        return
+    mod_name = request.node.module.__name__
+    if mod_name in LEGACY_NO_COVERAGE_MODULES or f"tests.{mod_name}" in LEGACY_NO_COVERAGE_MODULES:
+        from src.config import settings
+
+        monkeypatch.setattr(settings, "PLAN_COVERAGE_ENABLED", False)

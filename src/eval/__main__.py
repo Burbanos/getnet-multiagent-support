@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.config import settings
 from src.core.llm import LLMConfigurationError, LLMNotConfiguredError
+from src.eval.ablation import write_ablation
 from src.eval.annotator import compare_raters, import_annotator_xlsx
 from src.eval.cases import load_cases
 from src.eval.checks import evaluate_case
@@ -34,6 +35,14 @@ from src.eval.human_validation import (
     write_sample,
 )
 from src.eval.judge import load_judgments, run_judge
+from src.eval.judge_calibration import (
+    DEFAULT_ANNOTATOR_ANSWERS,
+    DEFAULT_AUTHOR_ANSWERS,
+    DEFAULT_OUT_DIR,
+    DEFAULT_SAMPLE_PATH,
+    run_judge_calibration,
+    write_judge_calibration_report,
+)
 from src.eval.offline import run_offline
 from src.eval.report import write_report
 from src.eval.run_context import DEFAULT_RUN_CONTEXT_PATH, TIER_LABELS, update_run_context
@@ -320,7 +329,105 @@ def main() -> int:
     p_ctx.add_argument("--date", default=None, help="Run date YYYY-MM-DD (default: UTC today)")
     p_ctx.add_argument("--file", default=str(DEFAULT_RUN_CONTEXT_PATH), help="Path to run_context.json")
 
+    # 15. ablation
+    p_abl = subparsers.add_parser("ablation", help="Compare single-layer ablation configurations")
+    p_abl.add_argument("--name", required=True, help="Ablation report name")
+    p_abl.add_argument("--cases", required=True, help="Path to evaluation cases JSONL")
+    p_abl.add_argument("--config", required=True, action="append", help="Config in format LABEL=run1,run2,...")
+    p_abl.add_argument("--baseline", required=True, help="Baseline configuration label")
+    p_abl.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_abl.add_argument("--out-dir", default="reports", help="Output directory for ablation reports")
+
+    # 16. judge-calibrate
+    p_jc = subparsers.add_parser("judge-calibrate", help="Run candidate judge prompt/model over human validation sample")
+    p_jc.add_argument("--run-id", required=True, help="Calibration run ID")
+    p_jc.add_argument("--judge-model", required=True, help="Candidate judge model name")
+    p_jc.add_argument("--judge-prompt", required=True, help="Path to candidate judge prompt file")
+    p_jc.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="Directory for calibration run JSONL")
+    p_jc.add_argument("--sample", default=str(DEFAULT_SAMPLE_PATH), help="Path to sample.json")
+    p_jc.add_argument("--runs-dir", default="reports/eval_runs", help="Directory containing source eval run")
+    p_jc.add_argument("--sleep", type=float, default=None, help="Pause between items in seconds")
+
+    # 17. judge-calibration-report
+    p_jcr = subparsers.add_parser("judge-calibration-report", help="Generate agreement report across calibration runs")
+    p_jcr.add_argument("--name", required=True, help="Calibration report name")
+    p_jcr.add_argument("--runs", required=True, help="Comma-separated calibration run IDs")
+    p_jcr.add_argument("--runs-dir", default=str(DEFAULT_OUT_DIR), help="Directory containing calibration runs")
+    p_jcr.add_argument("--author-answers", default=str(DEFAULT_AUTHOR_ANSWERS), help="Author answers CSV path")
+    p_jcr.add_argument("--annotator-answers", default=str(DEFAULT_ANNOTATOR_ANSWERS), help="Annotator answers CSV path")
+    p_jcr.add_argument("--sample", default=str(DEFAULT_SAMPLE_PATH), help="Path to sample.json")
+    p_jcr.add_argument("--out-dir", default="reports", help="Output directory for calibration reports")
+
     args = parser.parse_args()
+
+    if args.subcommand == "ablation":
+        configs: dict[str, list[str]] = {}
+        for cfg_str in args.config:
+            if "=" not in cfg_str:
+                print(f"Error: invalid config '{cfg_str}'. Expected LABEL=run1,run2,...", file=sys.stderr)
+                return 1
+            lbl, runs_csv = cfg_str.split("=", 1)
+            lbl = lbl.strip()
+            rids = [r.strip() for r in runs_csv.split(",") if r.strip()]
+            configs[lbl] = rids
+        try:
+            rep = write_ablation(
+                name=args.name,
+                cases_path=args.cases,
+                configs=configs,
+                baseline=args.baseline,
+                runs_dir=args.runs_dir,
+                out_dir=args.out_dir,
+            )
+            print(f"Generated ablation report for {len(rep['configs'])} configs at {args.out_dir}/{args.name}.md")
+            return 0
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"Error generating ablation report: {exc}", file=sys.stderr)
+            return 1
+
+    if args.subcommand == "judge-calibrate":
+        if not settings.GEMINI_API_KEY:
+            print(
+                "Error: GEMINI_API_KEY environment variable is required to run judge calibration.",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            summary = run_judge_calibration(
+                run_id=args.run_id,
+                judge_model=args.judge_model,
+                prompt_path=args.judge_prompt,
+                out_dir=args.out_dir,
+                sample_path=args.sample,
+                runs_dir=args.runs_dir,
+                sleep_s=args.sleep,
+            )
+            print(
+                f"judge-calibrate '{args.run_id}': attempted={summary['attempted']}, "
+                f"ok={summary['ok']}, errors={summary['errors']}, skipped={summary['skipped']}"
+            )
+            return 0 if not summary["errors"] else 1
+        except (ValueError, FileNotFoundError, LLMConfigurationError, LLMNotConfiguredError) as exc:
+            print(f"Error running judge calibration: {exc}", file=sys.stderr)
+            return 1
+
+    if args.subcommand == "judge-calibration-report":
+        rids = [r.strip() for r in args.runs.split(",") if r.strip()]
+        try:
+            rep = write_judge_calibration_report(
+                name=args.name,
+                run_ids=rids,
+                runs_dir=args.runs_dir,
+                author_answers=args.author_answers,
+                annotator_answers=args.annotator_answers,
+                sample_path=args.sample,
+                out_dir=args.out_dir,
+            )
+            print(f"Generated calibration report ({len(rep['candidates'])} candidates) at {args.out_dir}/{args.name}.md")
+            return 0
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"Error generating calibration report: {exc}", file=sys.stderr)
+            return 1
 
     if args.subcommand == "offline":
         return _cmd_offline(DEFAULT_CASES_PATH)
@@ -449,14 +556,18 @@ def main() -> int:
         only_list = [x.strip() for x in args.only.split(",") if x.strip()] if args.only else None
         results_file = Path(args.runs_dir) / f"{args.run_id}.jsonl"
 
-        summary = run_eval(
-            cases=cases,
-            results_path=results_file,
-            run_id=args.run_id,
-            sleep_s=args.sleep,
-            max_cases=args.max_cases,
-            only=only_list,
-        )
+        try:
+            summary = run_eval(
+                cases=cases,
+                results_path=results_file,
+                run_id=args.run_id,
+                sleep_s=args.sleep,
+                max_cases=args.max_cases,
+                only=only_list,
+            )
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
         print(
             f"Run '{args.run_id}': attempted={summary['attempted']}, ok={summary['ok']}, "
             f"errors={summary['errors']}, skipped={summary['skipped']}, stopped_early={summary['stopped_early']}"

@@ -59,6 +59,7 @@ LANGUAGE_STATUSES: frozenset[str] = frozenset({
     "disabled",
 })
 ESCALATION_GATE_DECISIONS: frozenset[str] = frozenset({"allowed", "rejected", "allowed_no_plan"})
+PLAN_COVERAGE_STATUSES: frozenset[str] = frozenset({"complete", "corrected", "incomplete", "skipped", "disabled"})
 
 # Cumulative histogram bucket thresholds
 LATENCY_BUCKETS: tuple[float, ...] = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
@@ -80,6 +81,7 @@ _planner_outcomes: dict[str, int] = {}
 _verifier_outcomes: dict[str, int] = {}
 _language_outcomes: dict[str, int] = {}
 _escalation_gate_decisions: dict[str, int] = {}
+_plan_coverage_outcomes: dict[str, int] = {}
 _rate_limit_backend_errors_total: int = 0
 
 
@@ -105,6 +107,7 @@ def reset() -> None:
         _verifier_outcomes.clear()
         _language_outcomes.clear()
         _escalation_gate_decisions.clear()
+        _plan_coverage_outcomes.clear()
         _rate_limit_backend_errors_total = 0
 
 
@@ -193,6 +196,13 @@ def inc_escalation_gate(decision: str) -> None:
     norm = decision if decision in ESCALATION_GATE_DECISIONS else "unknown"
     with _lock:
         _escalation_gate_decisions[norm] = _escalation_gate_decisions.get(norm, 0) + 1
+
+
+def inc_plan_coverage(status: str) -> None:
+    """Increment the plan coverage gate outcome counter."""
+    norm = status if status in PLAN_COVERAGE_STATUSES else "unknown"
+    with _lock:
+        _plan_coverage_outcomes[norm] = _plan_coverage_outcomes.get(norm, 0) + 1
 
 
 def inc_rate_limit_error() -> None:
@@ -287,6 +297,13 @@ def render() -> str:
         ])
         for dec, count in sorted(_escalation_gate_decisions.items()):
             lines.append(f'getnet_escalation_gate_total{{decision="{dec}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_plan_coverage_total Total number of plan coverage gate outcomes.",
+            "# TYPE getnet_plan_coverage_total counter",
+        ])
+        for st, count in sorted(_plan_coverage_outcomes.items()):
+            lines.append(f'getnet_plan_coverage_total{{status="{st}"}} {count}')
 
         lines.extend([
             "# HELP getnet_escalations_total Total number of tickets escalated to human.",

@@ -7,14 +7,25 @@ from src.core.mock_db import get_mock_db
 logger = logging.getLogger("multiagent.terminal_tools")
 
 
-def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = None) -> dict[str, Any]:
+SCREEN_CODE_UNAVAILABLE_NOTE = (
+    "No catalogue of card machine screen codes is available to this assistant; "
+    "the meaning of this code is unknown."
+)
+
+
+def diagnose_terminal_connectivity(
+    user_id: str,
+    terminal_serial: str | None = None,
+    screen_error_code: str | None = None,
+) -> dict[str, Any]:
     """
     Diagnose POS card machine connectivity issues (4G/Wi-Fi, SIM card, signal).
-    
+
     Args:
         user_id: Merchant identifier.
         terminal_serial: Optional terminal serial number.
-        
+        screen_error_code: Optional error code displayed on a terminal screen outside a sale.
+
     Returns:
         Diagnostic results and recommended step-by-step troubleshooting actions.
     """
@@ -76,7 +87,7 @@ def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = N
     else:
         diagnosis = "Nenhum problema de conectividade identificado na telemetria do terminal."
 
-    return {
+    result: dict[str, Any] = {
         "status": "success",
         "user_id": user_id,
         "terminal_model": terminal.get("model"),
@@ -91,3 +102,11 @@ def diagnose_terminal_connectivity(user_id: str, terminal_serial: str | None = N
         "diagnosis": diagnosis,
         "troubleshooting_steps": steps,
     }
+    clean_code = screen_error_code.strip() if isinstance(screen_error_code, str) else ""
+    if clean_code:
+        result["screen_error"] = {
+            "code": clean_code,
+            "catalogue": "not_available",
+            "note": SCREEN_CODE_UNAVAILABLE_NOTE,
+        }
+    return result

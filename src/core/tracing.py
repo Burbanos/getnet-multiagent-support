@@ -45,6 +45,7 @@ ALLOWED_ATTRIBUTES: frozenset[str] = frozenset({
     "answer_check.status",
     "notification.status",
     "rate_limit.backend",
+    "coverage.status",
 })
 
 _PROPAGATOR = TraceContextTextMapPropagator()

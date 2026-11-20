@@ -201,12 +201,18 @@ def parse_judgment(text: str) -> dict[str, Any]:
     if not isinstance(abstained, bool):
         raise ValueError(f"Invalid 'abstained' value: {abstained}")  # noqa: TRY004
 
-    return {
+    out: dict[str, Any] = {
         "grounded": grounded,
         "answers_question": answers_question,
         "abstained": abstained,
         "rationale": str(data.get("rationale") or ""),
     }
+    if "acceptable" in data:
+        acc = data.get("acceptable")
+        if not isinstance(acc, bool):
+            raise ValueError(f"Invalid 'acceptable' value: {acc}")
+        out["acceptable"] = acc
+    return out
 
 
 def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict[str, Any]:

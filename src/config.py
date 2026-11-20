@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     PLANNER_ENABLED: bool = True
     VERIFIER_ENABLED: bool = True
     LANGUAGE_ENFORCEMENT_ENABLED: bool = True
+    PLAN_COVERAGE_ENABLED: bool = True
     API_KEYS: str = ""
     RATE_LIMIT_PER_MINUTE: int = 30
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
