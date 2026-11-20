@@ -70,10 +70,12 @@ def run_judge_calibration(
             done_hids.add(str(row["hid"]))
 
     sample = json.loads(Path(sample_path).read_text(encoding="utf-8"))
-    source_run = sample["source_run"]
-    cases_list = load_cases(sample["cases_file"])
-    cases_by_id = {c["id"]: c for c in cases_list}
-    results_by_id = load_results(Path(runs_dir) / f"{source_run}.jsonl")
+    default_source_run = sample.get("source_run")
+    default_cases_file = sample.get("cases_file")
+    runs_base = Path(runs_dir)
+
+    cases_cache: dict[str, dict[str, dict[str, Any]]] = {}
+    results_cache: dict[str, dict[str, dict[str, Any]]] = {}
 
     judge = model if model is not None else get_chat_model(judge_model)
     delay = sleep_s if sleep_s is not None else (0.0 if model is not None else settings.EVAL_SLEEP_S)
@@ -92,7 +94,17 @@ def run_judge_calibration(
                 skipped += 1
                 continue
 
-            user_input = build_judge_input(cases_by_id[cid], results_by_id[cid])
+            item_cases_file = str(item.get("cases_file") or default_cases_file)
+            item_run_id = str(item.get("run_id") or default_source_run)
+            if item_cases_file not in cases_cache:
+                cases_cache[item_cases_file] = {c["id"]: c for c in load_cases(item_cases_file)}
+            if item_run_id not in results_cache:
+                results_cache[item_run_id] = load_results(runs_base / f"{item_run_id}.jsonl")
+
+            user_input = build_judge_input(
+                cases_cache[item_cases_file][cid],
+                results_cache[item_run_id][cid],
+            )
             messages = [
                 SystemMessage(content=prompt_text),
                 HumanMessage(content=user_input),
@@ -215,7 +227,7 @@ def build_judge_calibration_report(
     run_ids: list[str],
     runs_dir: str | Path = DEFAULT_OUT_DIR,
     author_answers: str | Path = DEFAULT_AUTHOR_ANSWERS,
-    annotator_answers: str | Path = DEFAULT_ANNOTATOR_ANSWERS,
+    annotator_answers: str | Path | None = DEFAULT_ANNOTATOR_ANSWERS,
     sample_path: str | Path = DEFAULT_SAMPLE_PATH,
 ) -> dict[str, Any]:
     """Build agreement, κ, AC1, grounding and stability report across candidate judge runs."""
@@ -225,15 +237,23 @@ def build_judge_calibration_report(
     sample = json.loads(Path(sample_path).read_text(encoding="utf-8"))
     hids = [str(it["hid"]) for it in sample["items"]]
     author = parse_answers(author_answers, hids)
-    annotator = parse_answers(annotator_answers, hids)
+    annotator = parse_answers(annotator_answers, hids) if annotator_answers is not None else None
 
-    auth_acc = [bool(author[h]["aceitavel"]) for h in hids]
-    anno_acc = [bool(annotator[h]["aceitavel"]) for h in hids]
-    humans = {
-        "agreement": sum(1 for x, y in zip(auth_acc, anno_acc) if x == y),
-        "kappa": _cohens_kappa(auth_acc, anno_acc),
-        "ac1": _gwets_ac1(auth_acc, anno_acc),
-    }
+    if annotator is not None:
+        auth_acc = [bool(author[h]["aceitavel"]) for h in hids]
+        anno_acc = [bool(annotator[h]["aceitavel"]) for h in hids]
+        humans: dict[str, Any] | None = {
+            "agreement": sum(1 for x, y in zip(auth_acc, anno_acc) if x == y),
+            "kappa": _cohens_kappa(auth_acc, anno_acc),
+            "ac1": _gwets_ac1(auth_acc, anno_acc),
+        }
+        raters_data: tuple[tuple[str, dict[str, dict[str, Any]]], ...] = (
+            ("autor", author),
+            ("anotador", annotator),
+        )
+    else:
+        humans = None
+        raters_data = (("autor", author),)
 
     r_dir = Path(runs_dir)
     grouped: dict[tuple[str, str], list[tuple[str, dict[str, dict[str, Any]]]]] = {}
@@ -254,7 +274,6 @@ def build_judge_calibration_report(
         cand_key = next(iter(pairs_seen))
         grouped.setdefault(cand_key, []).append((rid, by_hid))
 
-    raters_data = (("autor", author), ("anotador", annotator))
     candidates: list[dict[str, Any]] = []
 
     for (j_model, p_sha), cand_runs in grouped.items():
@@ -366,19 +385,21 @@ def _render_calibration_md(report: dict[str, Any], name: str) -> str:
     lines: list[str] = [
         f"# Calibração do Juiz: {name}",
         "",
-        f"Amostra de {n_items} itens (`reports/human_validation/sample.json`).",
+        f"Amostra de {n_items} itens.",
         "",
         "## Humanos vs Juízes Candidatos",
         "",
         "| Comparação | Concordância | κ de Cohen | AC1 de Gwet | Estabilidade |",
         "| :--- | :--- | :--- | :--- | :--- |",
-        f"| Humanos (`autor` × `anotador`) | {h['agreement']}/{n_items} | {_fmt_num(h['kappa'])} | {_fmt_num(h['ac1'])} | — |",
     ]
+    if h is not None:
+        lines.append(
+            f"| Humanos (`autor` × `anotador`) | {h['agreement']}/{n_items} | {_fmt_num(h['kappa'])} | {_fmt_num(h['ac1'])} | — |"
+        )
     for idx, c in enumerate(report["candidates"], start=1):
         label = f"Candidato {idx} (`{c['judge_model']}`, `{c['prompt_sha256'][:8]}`)"
         stab = _fmt_num(c["stability"])
-        for rname in ("autor", "anotador"):
-            r = c["raters"][rname]
+        for rname, r in c["raters"].items():
             lines.append(
                 f"| {label} × `{rname}` | {r['agreement']}/{r['n']} | {_fmt_num(r['kappa'])} | {_fmt_num(r['ac1'])} | {stab} |"
             )
@@ -388,10 +409,10 @@ def _render_calibration_md(report: dict[str, Any], name: str) -> str:
         lines.append(f"### Candidato {idx}: `{c['judge_model']}` (`{c['prompt_sha256'][:12]}`)")
         lines.append("")
         lines.append(f"- **Execuções:** {', '.join(f'`{r}`' for r in c['runs'])}")
-        for rname in ("autor", "anotador"):
+        for rname, neg_source in c["raters"].items():
             g = c["grounding"][rname]
             ak = _fmt_num(c["abstention_kappa"][rname])
-            neg = c["raters"][rname]["judge_on_rater_negatives"]
+            neg = neg_source["judge_on_rater_negatives"]
             neg_str = ", ".join(f"`{k}`={v}" for k, v in sorted(neg.items())) or "nenhum"
             lines.append(
                 f"- **Contra `{rname}`:** κ(abstenção)={ak}; fundamentação exata={g['exact']}/{n_items}, "
@@ -407,7 +428,7 @@ def write_judge_calibration_report(
     run_ids: list[str],
     runs_dir: str | Path = DEFAULT_OUT_DIR,
     author_answers: str | Path = DEFAULT_AUTHOR_ANSWERS,
-    annotator_answers: str | Path = DEFAULT_ANNOTATOR_ANSWERS,
+    annotator_answers: str | Path | None = DEFAULT_ANNOTATOR_ANSWERS,
     sample_path: str | Path = DEFAULT_SAMPLE_PATH,
     out_dir: str | Path = Path("reports"),
 ) -> dict[str, Any]:

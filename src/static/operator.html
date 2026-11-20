@@ -218,6 +218,9 @@
   <script>
     (function () {
       let operatorKey = "";
+      let accessToken = "";
+      let refreshToken = "";
+      let tokenExpiresAt = 0;
       let selectedTicketId = null;
 
       const keyInput = document.getElementById("opKey");
@@ -241,10 +244,64 @@
         httpStatusEl.className = isError ? "status-error" : "status-ok";
       }
 
+      async function exchangeKey() {
+        const resp = await fetch("/auth/token", {
+          method: "POST",
+          headers: { "X-API-Key": operatorKey }
+        });
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status + " em /auth/token");
+        }
+        const tok = await resp.json();
+        accessToken = tok.access_token || "";
+        refreshToken = tok.refresh_token || "";
+        tokenExpiresAt = Date.now() + Number(tok.expires_in || 900) * 1000;
+        return accessToken;
+      }
+
+      async function refreshAccessToken() {
+        if (!refreshToken) {
+          return exchangeKey();
+        }
+        const resp = await fetch("/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken })
+        });
+        if (!resp.ok) {
+          refreshToken = "";
+          accessToken = "";
+          return exchangeKey();
+        }
+        const tok = await resp.json();
+        accessToken = tok.access_token || "";
+        refreshToken = tok.refresh_token || "";
+        tokenExpiresAt = Date.now() + Number(tok.expires_in || 900) * 1000;
+        return accessToken;
+      }
+
+      async function ensureBearerToken(forceRefresh) {
+        if (!accessToken) {
+          return exchangeKey();
+        }
+        if (forceRefresh || Date.now() >= tokenExpiresAt - 30000) {
+          return refreshAccessToken();
+        }
+        return accessToken;
+      }
+
       async function apiFetch(path, options) {
-        const opts = Object.assign({ headers: {} }, options || {});
-        opts.headers = Object.assign({}, opts.headers, { "X-API-Key": operatorKey });
-        const resp = await fetch(path, opts);
+        let token = await ensureBearerToken(false);
+        const buildOpts = function (t) {
+          const opts = Object.assign({ headers: {} }, options || {});
+          opts.headers = Object.assign({}, opts.headers, { "Authorization": "Bearer " + t });
+          return opts;
+        };
+        let resp = await fetch(path, buildOpts(token));
+        if (resp.status === 401) {
+          token = await ensureBearerToken(true);
+          resp = await fetch(path, buildOpts(token));
+        }
         if (!resp.ok) {
           throw new Error("HTTP " + resp.status + " em " + path);
         }
@@ -378,12 +435,24 @@
       }
 
       connectBtn.addEventListener("click", function () {
-        operatorKey = keyInput.value.trim();
+        const nextKey = keyInput.value.trim();
+        if (nextKey !== operatorKey) {
+          accessToken = "";
+          refreshToken = "";
+          tokenExpiresAt = 0;
+        }
+        operatorKey = nextKey;
         refreshAll();
       });
 
       refreshBtn.addEventListener("click", function () {
-        operatorKey = keyInput.value.trim();
+        const nextKey = keyInput.value.trim();
+        if (nextKey !== operatorKey) {
+          accessToken = "";
+          refreshToken = "";
+          tokenExpiresAt = 0;
+        }
+        operatorKey = nextKey;
         refreshAll();
       });
 

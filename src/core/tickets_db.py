@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 import uuid
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
-from sqlalchemy import and_, insert, select, update
+from sqlalchemy import and_, func, insert, select, update
 
 from src.config import settings
 from src.core import metrics
@@ -374,6 +375,39 @@ def get_tickets_repository() -> TicketsRepository:
     return _tickets_repo
 
 
+def compute_oldest_open_ticket_age_seconds() -> float:
+    """Return age in seconds of the oldest open/in_progress ticket, or 0.0 without creating DB files."""
+    try:
+        min_created: str | None = None
+        if _tickets_repo is not None:
+            stmt = select(func.min(tickets.c.created_at)).where(tickets.c.status.in_(("open", "in_progress")))
+            with _tickets_repo.engine.connect() as conn:
+                min_created = conn.execute(stmt).scalar_one_or_none()
+        elif settings.DATABASE_URL.strip():
+            repo = get_tickets_repository()
+            stmt = select(func.min(tickets.c.created_at)).where(tickets.c.status.in_(("open", "in_progress")))
+            with repo.engine.connect() as conn:
+                min_created = conn.execute(stmt).scalar_one_or_none()
+        else:
+            db_path = Path(settings.TICKETS_DB_PATH)
+            if not db_path.exists():
+                return 0.0
+            with sqlite3.connect(f"file:{db_path.resolve().as_posix()}?mode=ro", uri=True) as conn:
+                row = conn.execute(
+                    "SELECT MIN(created_at) FROM tickets WHERE status IN ('open', 'in_progress')"
+                ).fetchone()
+                min_created = row[0] if row else None
+
+        if not min_created:
+            return 0.0
+        dt = datetime.fromisoformat(str(min_created))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return max(0.0, (datetime.now(UTC) - dt).total_seconds())
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
 def reset_tickets_repository() -> None:
     """Reset tickets repository singleton."""
     global _tickets_repo
@@ -383,3 +417,6 @@ def reset_tickets_repository() -> None:
             engine.dispose()
     _tickets_repo = None
     reset_actions_repository()
+    from src.core.refresh_tokens import reset_refresh_token_repository
+
+    reset_refresh_token_repository()

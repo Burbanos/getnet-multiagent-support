@@ -879,6 +879,7 @@ class OrchestrationGraph:
         result = self.planner.plan(latest_msg, previous_reply)
         plan_meta = result.as_metadata()
         tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "Planner", result.usage)
+        metrics.inc_llm_call("Planner", "error" if result.status == "error" else "ok")
         metrics.inc_planner(result.status)
         step_count = len(plan_meta["steps"]) if isinstance(plan_meta.get("steps"), list) else 0
         logger.info(
@@ -995,6 +996,7 @@ class OrchestrationGraph:
             draft_text,
             conversation=conversation,
         )
+        metrics.inc_llm_call("Verifier", "error" if result.status == "error" else "ok")
         prev_v = llat.get("verifier")
         llat["verifier"] = round(
             (float(prev_v) if isinstance(prev_v, (int, float)) else 0.0) + float(result.latency_ms),
@@ -1160,6 +1162,7 @@ class OrchestrationGraph:
             return {"language": {"status": "disabled", "target": target, "detected": detected}, "layer_latency_ms": llat}
 
         rw_res = self.language_rewriter.rewrite(reply_text, target)
+        metrics.inc_llm_call("LanguageRewriter", "error" if rw_res.status == "error" else "ok")
         tba, tokens = _accumulate_tokens(state.get("tokens_by_agent"), "LanguageRewriter", rw_res.usage)
 
         if rw_res.status == "error" or not rw_res.text:
@@ -1216,7 +1219,8 @@ class OrchestrationGraph:
 
         plan = state.get("plan") or {}
         steps = plan.get("steps") or []
-        if plan.get("status") != "ok" or not steps or state.get("ticket") or state.get("handoff"):
+        action_conf = str(plan.get("action_confirmation") or "none")
+        if plan.get("status") != "ok" or not steps or state.get("ticket") or state.get("handoff") or action_conf != "none":
             metrics.inc_plan_coverage("skipped")
             set_attributes({"coverage.status": "skipped"})
             logger.info("plan coverage finished", extra={"status": "skipped"})
@@ -2022,6 +2026,7 @@ class OrchestrationGraph:
                     tokens_dict.get("input_tokens"),
                     tokens_dict.get("output_tokens"),
                 )
+                metrics.add_estimated_cost(cost_val)
                 metrics.add_tokens(
                     tokens_dict.get("input_tokens"),
                     tokens_dict.get("output_tokens"),

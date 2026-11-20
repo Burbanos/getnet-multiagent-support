@@ -1,23 +1,34 @@
 """FastAPI HTTP service exposing the Multi-Agent Support System API."""
+import asyncio
+import json
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi import Path as FastAPIPath
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import logger, settings
 from src.core import metrics
 from src.core.actions_db import get_actions_repository
-from src.core.auth import Principal, auth_mode, authenticate, validate_auth_config
+from src.core.auth import (
+    Principal,
+    auth_mode,
+    authenticate,
+    authenticate_api_key,
+    enforce_rate_limit,
+    validate_auth_config,
+)
 from src.core.checkpointer import checkpoint_backend, checkpointer_label
 from src.core.db import ping, validate_state_config
+from src.core.events import get_event_broker
 from src.core.graph import KNOWLEDGE_TOOLS, SUPPORT_TOOLS, get_orchestrator
 from src.core.llm import (
     LLMConfigurationError,
@@ -26,7 +37,9 @@ from src.core.llm import (
 )
 from src.core.log_context import bind, exc_brief, user_hash
 from src.core.rate_limit import rate_limit_backend
+from src.core.refresh_tokens import get_refresh_token_repository
 from src.core.tickets_db import TicketTransitionError, get_tickets_repository
+from src.core.tokens import TokenError, issue_access_token
 from src.core.tracing import (
     ensure_tracing,
     extract_context,
@@ -116,6 +129,20 @@ class TicketUpdate(BaseModel):
     reply: str | None = Field(default=None, min_length=1, max_length=4000, description="Operator response message")
 
 
+class RefreshTokenRequest(BaseModel):
+    """Payload containing an opaque refresh token."""
+    refresh_token: str = Field(..., min_length=1)
+
+
+class TokenResponse(BaseModel):
+    """Short-lived access token and opaque refresh token pair."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    refresh_token: str
+    refresh_expires_in: int
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_state_config()
@@ -124,6 +151,7 @@ async def lifespan(app: FastAPI):
     get_orchestrator()
     get_tickets_repository()
     get_actions_repository()
+    get_refresh_token_repository()
     try:
         yield
     finally:
@@ -242,6 +270,70 @@ def metrics_endpoint() -> Response:
     )
 
 
+@app.post("/auth/token", response_model=TokenResponse, tags=["Auth"])
+def issue_token_endpoint(
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> TokenResponse:
+    """Exchange a valid API key for a short-lived Bearer access token and a refresh token."""
+    principal = authenticate_api_key(x_api_key)
+    enforce_rate_limit(f"auth:{principal.key_id}")
+    try:
+        access_token, expires_in = issue_access_token(principal)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Token signing misconfigured: check JWT_SIGNING_KEYS.",
+        ) from exc
+    refresh_token, refresh_expires_in = get_refresh_token_repository().issue(principal)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=expires_in,
+        refresh_token=refresh_token,
+        refresh_expires_in=refresh_expires_in,
+    )
+
+
+@app.post("/auth/refresh", response_model=TokenResponse, tags=["Auth"])
+def refresh_token_endpoint(payload: RefreshTokenRequest) -> TokenResponse:
+    """Rotate an active refresh token and return a new short-lived access token pair."""
+    repo = get_refresh_token_repository()
+    key_id = repo.peek_key_id(payload.refresh_token) or "unknown"
+    enforce_rate_limit(f"auth:{key_id}")
+    try:
+        principal, new_refresh, refresh_expires_in = repo.rotate(payload.refresh_token)
+    except TokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired refresh token ({exc.reason}).",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    try:
+        access_token, expires_in = issue_access_token(principal)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Token signing misconfigured: check JWT_SIGNING_KEYS.",
+        ) from exc
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=expires_in,
+        refresh_token=new_refresh,
+        refresh_expires_in=refresh_expires_in,
+    )
+
+
+@app.post("/auth/revoke", status_code=status.HTTP_204_NO_CONTENT, tags=["Auth"])
+def revoke_token_endpoint(payload: RefreshTokenRequest) -> Response:
+    """Revoke the refresh token family if known; always returns 204."""
+    repo = get_refresh_token_repository()
+    key_id = repo.peek_key_id(payload.refresh_token) or "unknown"
+    enforce_rate_limit(f"auth:{key_id}")
+    repo.revoke_family(payload.refresh_token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.get("/agents", tags=["Architecture"])
 async def list_agents():
     all_tools = [*SUPERVISOR_TOOLS, *KNOWLEDGE_TOOLS, *SUPPORT_TOOLS]
@@ -346,6 +438,23 @@ def patch_ticket_endpoint(
                 logger.error(f"Operator resume failed cleanly in PATCH /tickets: {exc_brief(exc)}")
                 resume_res = {"status": "failed", "error_type": err_cls}
             updated = repo.get_ticket(ticket_id) or updated
+            if updated.get("session_id"):
+                event_payload = {
+                    "type": "operator_reply",
+                    "ticket_id": updated["ticket_id"],
+                    "session_id": str(updated["session_id"]),
+                    "status": str(updated.get("status") or "answered"),
+                    "at": str(updated.get("answered_at") or datetime.now(UTC).isoformat()),
+                }
+                try:
+                    pub_ok = get_event_broker().publish(
+                        str(updated["user_id"]),
+                        str(updated["session_id"]),
+                        event_payload,
+                    )
+                except Exception:  # noqa: BLE001
+                    pub_ok = False
+                metrics.inc_merchant_notification("published" if pub_ok else "failed")
 
         set_attributes({"ticket.status": updated.get("status")})
         return {**updated, "resume": resume_res}
@@ -446,6 +555,67 @@ def get_session_messages_endpoint(
         )
     msgs = get_orchestrator().session_messages(principal.user_id, session_id, limit=limit)
     return {"session_id": session_id, "messages": msgs}
+
+
+@app.get("/sessions/{session_id}/events", tags=["Chat"])
+async def get_session_events_endpoint(
+    request: Request,
+    session_id: Annotated[str, FastAPIPath(..., min_length=1, max_length=64)],
+    principal: Annotated[Principal, Depends(authenticate)],
+):
+    """Stream Server-Sent Events (operator_reply metadata only) for the authenticated customer's session."""
+    if principal.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can subscribe to session events.",
+        )
+
+    sub = get_event_broker().subscribe(principal.user_id, session_id)
+    metrics.inc_sse_connections(1)
+
+    async def _event_stream():
+        started = time.monotonic()
+        max_s = max(0.1, float(settings.SSE_MAX_CONNECTION_S))
+        hb_s = max(0.05, float(settings.SSE_HEARTBEAT_S))
+        deadline = started + max_s
+        next_hb = started + hb_s
+        try:
+            while True:
+                now = time.monotonic()
+                if now >= deadline:
+                    break
+                if await request.is_disconnected():
+                    break
+                wait_s = min(max(0.01, deadline - now), max(0.01, next_hb - now))
+                ev = await asyncio.to_thread(sub.get, wait_s)
+                if ev is not None:
+                    event_data = {
+                        "ticket_id": ev.get("ticket_id"),
+                        "session_id": ev.get("session_id") or session_id,
+                        "status": ev.get("status"),
+                        "at": ev.get("at"),
+                    }
+                    yield f"event: operator_reply\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    next_hb = time.monotonic() + hb_s
+                    continue
+                now = time.monotonic()
+                if now >= deadline:
+                    break
+                if now >= next_hb:
+                    yield ": ping\n\n"
+                    next_hb = now + hb_s
+        finally:
+            metrics.inc_sse_connections(-1)
+            sub.close()
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK, tags=["Chat"])

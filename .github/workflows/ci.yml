@@ -22,6 +22,10 @@ jobs:
       - name: Compile scripts, src and tests on Python 3.11
         run: |
           python -m compileall -q scripts src tests
+      - name: Validate Prometheus alert rules with promtool
+        run: |
+          docker run --rm --entrypoint="" -v "${PWD}:/work:ro" -w /work prom/prometheus:v2.55.1 promtool check rules deploy/alerts.yml
+          docker run --rm --entrypoint="" -v "${PWD}:/work:ro" -w /work prom/prometheus:v2.55.1 promtool test rules deploy/alerts_test.yml
       - name: Lint with ruff
         run: |
           ruff check .
@@ -81,14 +85,16 @@ jobs:
           CUST_KEY=$(python3 -c "import secrets; print(secrets.token_hex(16))")
           OP_KEY=$(python3 -c "import secrets; print(secrets.token_hex(16))")
           RL_KEY=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+          JWT_K1=$(python3 -c "import secrets; print('k1:' + secrets.token_hex(24))")
           API_KEYS=$(python3 -c "import hashlib; print(';'.join([hashlib.sha256('${CUST_KEY}'.encode()).hexdigest()+':cliente1988:customer', hashlib.sha256('${OP_KEY}'.encode()).hexdigest()+':operador_ci:operator', hashlib.sha256('${RL_KEY}'.encode()).hexdigest()+':cliente_rl:customer']))")
-          python3 -c "from pathlib import Path; lines = [ln for ln in Path('.env').read_text().splitlines() if not ln.startswith(('POSTGRES_PASSWORD=', 'RATE_LIMIT_PER_MINUTE=', 'API_KEYS='))]; lines += ['POSTGRES_PASSWORD=ci-postgres-pass', 'RATE_LIMIT_PER_MINUTE=4', 'API_KEYS=${API_KEYS}']; Path('.env').write_text('\n'.join(lines) + '\n')"
+          python3 -c "from pathlib import Path; lines = [ln for ln in Path('.env').read_text().splitlines() if not ln.startswith(('POSTGRES_PASSWORD=', 'RATE_LIMIT_PER_MINUTE=', 'API_KEYS=', 'JWT_SIGNING_KEYS=', 'JWT_ACTIVE_KID='))]; lines += ['POSTGRES_PASSWORD=ci-postgres-pass', 'RATE_LIMIT_PER_MINUTE=4', 'API_KEYS=${API_KEYS}', 'JWT_SIGNING_KEYS=${JWT_K1}', 'JWT_ACTIVE_KID=k1']; Path('.env').write_text('\n'.join(lines) + '\n')"
           echo "CUST_KEY=${CUST_KEY}" >> "$GITHUB_ENV"
           echo "OP_KEY=${OP_KEY}" >> "$GITHUB_ENV"
           echo "RL_KEY=${RL_KEY}" >> "$GITHUB_ENV"
           echo "CI_API_KEYS=${API_KEYS}" >> "$GITHUB_ENV"
+          echo "CI_JWT_KEYS=${JWT_K1}" >> "$GITHUB_ENV"
           docker compose up -d --build --wait postgres redis app-a app-b
-      - name: Check health, security, shared tickets, shared rate limit, restart, and standalone fail-fast
+      - name: Check health, tokens, SSE, security, shared tickets, shared rate limit, restart, and standalone fail-fast
         run: |
           for port in 8000 8001; do
             code=$(curl -s -o /tmp/h_${port}.json -w "%{http_code}" http://localhost:${port}/health)
@@ -99,26 +105,44 @@ jobs:
           test "$(docker compose exec -T app-a id -u)" != "0"
           docker compose exec -T app-a sh -c '! test -w /app/data/index/chunks.jsonl && ! test -w /app/src/main.py'
 
+          # Direct X-API-Key rejected in production
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/tickets -H "X-API-Key: ${CUST_KEY}")
+          test "$code" = "401"
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "X-API-Key: getnet-dev-key" -d '{"message": "oi"}')
           test "$code" = "401"
           code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/tickets -H "X-API-Key: getnet-dev-operator")
           test "$code" = "401"
 
-          TID=$(docker compose exec -T app-a python -c "from src.core.tickets_db import get_tickets_repository; t = get_tickets_repository().create_ticket(user_id='cliente1988', reason='ci cross replica'); print(t['ticket_id'])" | tail -n 1 | tr -d '\r')
+          # Exchange keys for short-lived Bearer tokens
+          CUST_TOK=$(curl -sf -X POST http://localhost:8000/auth/token -H "X-API-Key: ${CUST_KEY}" | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])")
+          OP_TOK=$(curl -sf -X POST http://localhost:8000/auth/token -H "X-API-Key: ${OP_KEY}" | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])")
+          RL_TOK=$(curl -sf -X POST http://localhost:8000/auth/token -H "X-API-Key: ${RL_KEY}" | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])")
+
+          TID=$(docker compose exec -T app-a python -c "from src.core.tickets_db import get_tickets_repository; t = get_tickets_repository().create_ticket(user_id='cliente1988', reason='ci cross replica', session_id='ci-sse-sess'); print(t['ticket_id'])" | tail -n 1 | tr -d '\r')
           echo "$TID" | grep -Eq '^GET-TKT-[0-9]{8}-[0-9A-F]{10}$'
-          code=$(curl -s -o /tmp/tkt_b.json -w "%{http_code}" http://localhost:8001/tickets/${TID} -H "X-API-Key: ${CUST_KEY}")
+          code=$(curl -s -o /tmp/tkt_b.json -w "%{http_code}" http://localhost:8001/tickets/${TID} -H "Authorization: Bearer ${CUST_TOK}")
           test "$code" = "200"
-          code=$(curl -s -o /tmp/tkt_patch.json -w "%{http_code}" -X PATCH http://localhost:8001/tickets/${TID} -H "Content-Type: application/json" -H "X-API-Key: ${OP_KEY}" -d '{"status": "in_progress"}')
+
+          # Cross-replica SSE notification: listen on app-a (8000), PATCH reply on app-b (8001)
+          curl -sN --max-time 6 http://localhost:8000/sessions/ci-sse-sess/events -H "Authorization: Bearer ${CUST_TOK}" > /tmp/ci_sse.log &
+          SSE_PID=$!
+          sleep 1
+          code=$(curl -s -o /tmp/tkt_patch.json -w "%{http_code}" -X PATCH http://localhost:8001/tickets/${TID} -H "Content-Type: application/json" -H "Authorization: Bearer ${OP_TOK}" -d '{"reply": "Resposta secreta CI"}')
           test "$code" = "200"
-          code=$(curl -s -o /tmp/tkt_a.json -w "%{http_code}" http://localhost:8000/tickets/${TID} -H "X-API-Key: ${CUST_KEY}")
+          wait $SSE_PID || true
+          grep -q "event: operator_reply" /tmp/ci_sse.log
+          grep -q "${TID}" /tmp/ci_sse.log
+          ! grep -q "Resposta secreta CI" /tmp/ci_sse.log
+
+          code=$(curl -s -o /tmp/tkt_a.json -w "%{http_code}" http://localhost:8000/tickets/${TID} -H "Authorization: Bearer ${CUST_TOK}")
           test "$code" = "200"
-          python3 -c "import json; t = json.load(open('/tmp/tkt_a.json')); assert t['status'] == 'in_progress', t"
+          python3 -c "import json; t = json.load(open('/tmp/tkt_a.json')); assert t['status'] == 'answered', t"
 
           for port in 8000 8000 8001 8001; do
-            c=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:${port}/chat -H "Content-Type: application/json" -H "X-API-Key: ${RL_KEY}" -d '{"message": "oi"}')
+            c=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:${port}/chat -H "Content-Type: application/json" -H "Authorization: Bearer ${RL_TOK}" -d '{"message": "oi"}')
             test "$c" != "429"
           done
-          c5=$(curl -s -D /tmp/rl5_headers.txt -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "X-API-Key: ${RL_KEY}" -d '{"message": "oi"}')
+          c5=$(curl -s -D /tmp/rl5_headers.txt -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/chat -H "Content-Type: application/json" -H "Authorization: Bearer ${RL_TOK}" -d '{"message": "oi"}')
           test "$c5" = "429"
           grep -qi "^Retry-After:" /tmp/rl5_headers.txt
 
@@ -133,10 +157,10 @@ jobs:
             sleep 2
             elapsed=$((elapsed+2))
           done
-          curl -s http://localhost:8000/tickets/${TID} -H "X-API-Key: ${CUST_KEY}" | python3 -c "import json, sys; t = json.load(sys.stdin); assert t['status'] == 'in_progress', t"
+          curl -s http://localhost:8000/tickets/${TID} -H "Authorization: Bearer ${CUST_TOK}" | python3 -c "import json, sys; t = json.load(sys.stdin); assert t['status'] == 'answered', t"
 
           set +e
-          timeout 30 docker run --rm --name standalone-no-db -e APP_ENV=production -e "API_KEYS=${CI_API_KEYS}" getnet-multiagent-app:local > /tmp/standalone.log 2>&1
+          timeout 30 docker run --rm --name standalone-no-db -e APP_ENV=production -e "API_KEYS=${CI_API_KEYS}" -e "JWT_SIGNING_KEYS=${CI_JWT_KEYS}" -e "JWT_ACTIVE_KID=k1" getnet-multiagent-app:local > /tmp/standalone.log 2>&1
           rc=$?
           set -e
           cat /tmp/standalone.log

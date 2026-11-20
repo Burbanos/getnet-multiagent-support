@@ -41,12 +41,12 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 ---
 
-## Current state (2026-11-19)
+## Current state (2026-11-20)
 
 Phase 14 closed (`8dcf972`, CI green: `test`, `integration`, `docker`). Real feedback v3: **9.2/10**, "Excelente / finalista",
-9th place. Its "Caminho para 9,5" is the scope of Phase 15. Decided by the author (2026-11-19): no new labels from an annotator
-outside the project in Phase 15 (the README declares it as pending); the judge is calibrated against the 30 existing human
-annotations. **Next: 15A.**
+9th place. Its "Caminho para 9,5" is the scope of Phase 15. Decided by the author: no new labels from an annotator outside the
+project in Phase 15 (the README declares it as pending); judge calibration as in §3.5 (options a and c). 15A closed
+(`fba3306`, 44/44, CI green). **Next: 15B.**
 
 ---
 
@@ -299,55 +299,101 @@ how-to versus the merchant's own records, follow-ups, a multi-intent case; run o
 Tests: new files only (existing test files only grow), scripted models. Process: `docs/phase-prompts/14C.md` and
 `scripts/verify_phase14c.py` leave the tree.
 
-### 3.3 15B — Short-lived tokens, merchant notification, alerts with runbook, larger corpus
+### 3.3 15B — Short-lived tokens, merchant notification, alerts with runbook, larger corpus, second human sample
 
-Checked by `scripts/verify_phase15b.py`; prompt `docs/phase-prompts/15B.md` (written by the reviewer after 15A is reviewed).
+Checked by `scripts/verify_phase15b.py`; prompt `docs/phase-prompts/15B.md`. Reviewer files in 15B: this SPEC and the prompt.
 
-**Tokens** (no new dependency: HS256 with the standard library)
-- `POST /auth/token` (header `X-API-Key`) → `{access_token, token_type: "bearer", expires_in, refresh_token,
-  refresh_expires_in}`. Access token: JWT HS256, header `kid`; claims `iss`, `aud`, `sub` (user id), `role`, `iat`, `nbf`, `exp`,
-  `jti`, `key_id`; TTL `ACCESS_TOKEN_TTL_S` (900). Validation pins the algorithm, the issuer and the audience, checks `kid`,
-  signature (constant time), `exp`/`nbf` (30 s leeway) and role; failures → 401 with `WWW-Authenticate: Bearer`.
-- Signing keys `JWT_SIGNING_KEYS` (`kid:secret;…`, each ≥ 32 bytes) and `JWT_ACTIVE_KID`: the active key signs, all listed keys
-  verify; rotation = add a key, switch the active kid, remove the old one after the maximum TTL. Production refuses to start
-  without keys or with the development key.
-- Refresh token: opaque, stored as SHA-256 in `refresh_tokens` (Postgres in production) with family, expiry
-  (`REFRESH_TOKEN_TTL_S`, 8 h), use and revocation; `POST /auth/refresh` rotates it (the old one is spent); reusing a spent
-  token revokes the family (401, audit event); `POST /auth/revoke` revokes the family.
-- `API_KEYS` entries accept an optional expiry date (`hash:user_id:role:YYYY-MM-DD`); an expired key gets 401 at `/auth/token`.
-- Every protected endpoint accepts `Authorization: Bearer`; `X-API-Key` directly on them only outside production. `/demo` and
-  `/operator` exchange the key for tokens and refresh them in memory. CI and `scripts/compose_evidence.py` use tokens.
+**Tokens** (no new runtime dependency: HS256 with `hmac`/`hashlib`; new module `src/core/tokens.py`)
+- Settings: `JWT_SIGNING_KEYS` (`kid:secret;kid:secret`, each secret ≥ 32 characters), `JWT_ACTIVE_KID`, `JWT_ISSUER`
+  (`getnet-multiagent`), `JWT_AUDIENCE` (`getnet-multiagent-api`), `ACCESS_TOKEN_TTL_S` (900), `REFRESH_TOKEN_TTL_S` (28800).
+  Outside production, empty keys mean a development key (kid `dev`); production refuses to start (`validate_auth_config`
+  raises, naming `JWT_SIGNING_KEYS`) when keys are empty, malformed, shorter than 32 characters, equal to the development key,
+  or `JWT_ACTIVE_KID` is not among them.
+- `issue_access_token(principal, now=None) -> (token, expires_in)` and `decode_access_token(token, now=None) -> Principal`.
+  Header `{"alg": "HS256", "typ": "JWT", "kid"}`; claims `iss`, `aud`, `sub` (user id), `role`, `key_id`, `iat`, `nbf`, `exp`,
+  `jti`. Decoding raises `TokenError` (a `ValueError`) with `reason` in `malformed`, `bad_algorithm`, `unknown_kid`,
+  `bad_signature`, `expired`, `not_yet_valid`, `bad_issuer`, `bad_audience`, `bad_role`; the algorithm is pinned (`none` and
+  any other value are `bad_algorithm`), the signature is compared in constant time, `exp`/`nbf` have 30 s of leeway. The active
+  key signs; every listed key verifies (rotation: add a key, switch the active kid, remove the old key after the longest TTL).
+- Refresh tokens (`src/core/refresh_tokens.py`, table `refresh_tokens` in the same database as tickets: Postgres in
+  production): opaque (`secrets.token_urlsafe(32)`), stored only as SHA-256 with `family_id`, user, role, key id, `issued_at`,
+  `expires_at`, `used_at`, `revoked_at`. `issue(principal)`, `rotate(token)` (spends it and returns a new one of the same
+  family) and `revoke_family(token)`. Reusing a spent token revokes the whole family; `rotate` raises `TokenError` with
+  `reused`, `expired`, `revoked` or `unknown`. Audit events `auth.token_issued`, `auth.refresh_rotated`,
+  `auth.refresh_reuse_detected`, `auth.refresh_revoked` (hashed actor, target the family id; no token in any field or log).
+- `API_KEYS` entries accept an optional fourth field `YYYY-MM-DD` (last valid day, UTC); an expired key gets 401.
+- Endpoints: `POST /auth/token` (header `X-API-Key`) and `POST /auth/refresh` (`{"refresh_token"}`) answer
+  `{access_token, token_type: "bearer", expires_in, refresh_token, refresh_expires_in}`; `POST /auth/revoke`
+  (`{"refresh_token"}`) answers 204 whatever the token. Every protected endpoint accepts `Authorization: Bearer <access>`;
+  `X-API-Key` directly on a protected endpoint only outside production (production: 401 telling to use `/auth/token`).
+  Failures: 401 with `WWW-Authenticate: Bearer`. Rate limit unchanged per key id; the three `/auth/*` endpoints use a separate
+  bucket (`auth:<key_id>`). `user_id` still comes only from the credential.
+- `/demo` and `/operator` exchange the key for tokens and refresh them in memory; CI, `scripts/compose_evidence.py` and the
+  eval tooling that call the HTTP API use tokens.
 
-**Merchant notification**
-- `GET /sessions/{session_id}/events` (Bearer, the session must belong to the principal): Server-Sent Events. When the operator's
-  reply resumes the conversation, an `operator_reply` event `{ticket_id, session_id, status, at}` (no message text) is published
-  through Redis pub/sub (in-process broker outside production), so a merchant connected to one replica is notified of a reply
-  handled by the other; a comment heartbeat every 15 s. The merchant then reads `GET /sessions/{id}/messages`. `/demo` shows it.
-  Metrics: `getnet_merchant_notifications_total{status}`, `getnet_sse_connections`.
+**Merchant notification** (`src/core/events.py`)
+- `event_channel(user_id, session_id)` = `getnet:events:` + the first 32 hex characters of SHA-256 of `user_id:session_id`.
+  Broker interface: `publish(user_id, session_id, event) -> bool` and `subscribe(user_id, session_id)` returning a
+  subscription with `get(timeout) -> dict | None` and `close()`. `RedisEventBroker` (pub/sub, used when `REDIS_URL` is set)
+  and `InMemoryEventBroker`; `get_event_broker()`/`reset_event_broker()`.
+- `GET /sessions/{session_id}/events` (customer role, Bearer or development key): Server-Sent Events for the principal's own
+  session. Event `operator_reply` with data `{"ticket_id", "session_id", "status", "at"}` (no message text); comment heartbeat
+  `: ping` every `SSE_HEARTBEAT_S` (15); the stream closes after `SSE_MAX_CONNECTION_S` (300) and the client reconnects.
+  Published by `PATCH /tickets/{id}` whenever a reply is stored for a ticket with a session, after the resume attempt, on
+  whichever replica handled the PATCH. Metrics `getnet_merchant_notifications_total{status="published"|"failed"}` and the
+  gauge `getnet_sse_connections`. `/demo` listens and shows the reply when the event arrives.
 
 **Alerts with runbook**
-- `deploy/alerts.yml` loaded by the Compose Prometheus: high 5xx rate, chat p95 latency, LLM errors and fallbacks, guardrail
-  classifier degraded (fail-open exposure), rate-limit backend errors, operator notification failures, oldest open ticket age,
-  abstention rate, estimated cost per hour, replica down; each with `severity`, `summary` and `runbook_url` to an anchor of
-  `docs/RUNBOOK.md` (pt-BR: meaning, first checks, mitigation, escalation). New metrics where an alert needs one
-  (`getnet_llm_calls_total{caller,status}`, `getnet_estimated_cost_usd_total`, `getnet_open_ticket_oldest_age_seconds`).
-- `deploy/alerts_test.yml` (promtool unit tests: each alert fires and stays silent); CI runs `promtool check rules` and
-  `promtool test rules` from the pinned `prom/prometheus` image; a pytest checks that every metric in an alert expression is
-  exported and every `runbook_url` anchor exists.
+- `deploy/alerts.yml` (loaded by the Compose Prometheus through `rule_files`), eleven alerts: `GetnetHighErrorRate`,
+  `GetnetHighChatLatencyP95`, `GetnetLLMErrorsOrFallbacks`, `GetnetGuardrailClassifierDegraded`, `GetnetRateLimitBackendErrors`,
+  `GetnetOperatorNotificationFailures`, `GetnetMerchantNotificationFailures`, `GetnetOldestOpenTicketAge`,
+  `GetnetHighAbstentionRate`, `GetnetEstimatedCostPerHour`, `GetnetReplicaDown`; each with `labels.severity`,
+  `annotations.summary` and `annotations.runbook_url` pointing to an anchor of `docs/RUNBOOK.md` (pt-BR: what it means, first
+  checks, mitigation, escalation).
+- New metrics where an alert needs one: `getnet_llm_calls_total{caller,status}` (`ok`, `fallback`, `error`),
+  `getnet_guardrail_classifier_total{status}`, `getnet_estimated_cost_usd_total`, `getnet_open_ticket_oldest_age_seconds`
+  (computed at scrape; 0 without open tickets). Every metric named in an alert expression has its `# TYPE` line in `/metrics`
+  from process start.
+- `deploy/alerts_test.yml`: promtool unit tests, at least one firing and one silent case per alert. CI runs
+  `promtool check rules` and `promtool test rules` with the pinned `prom/prometheus` image of the Compose file.
+
+**Plan coverage and confirmations** (from the 15A review): `plan_coverage` is `skipped` when the plan records an
+`action_confirmation` other than `none` (a confirmation or refusal turn never gets a corrective call to a specialist).
 
 **Corpus**
-- Discovery for `site.getnet.com.br`: sitemaps (robots.txt `Sitemap:` lines, `/sitemap_index.xml`, `/wp-sitemap.xml`) and the
-  links of the seed help-center pages (depth 1), kept only under the help-center prefixes (`/get-ajuda-`); PDF links under
-  `https://site.getnet.com.br/wp-content/uploads/` found in collected pages. robots.txt checked for every URL, project user agent,
-  ≥ 1 s between requests; caps `max_pages` 120 and `max_pdfs` 15. PDFs with `pypdf` (dev requirement, ingestion only): running
-  headers and footers (lines in ≥ 50% of a PDF's pages) removed; skipped as `internal_document` when the text says the document
-  is internal ("Classificação da Informação: Interno", "uso interno"), `too_large` above 5 MB, `no_content` without text.
-  Manifest records `content_type`, `discovered_from`, PDF page count.
-- The 32 existing records stay byte-identical; new URLs are appended. Antigravity runs the collection in 15B and commits
-  `data/corpus/`; the author rebuilds the index (embedding key).
-- `src.rag.hybrid_eval` gains `--dataset` with a per-dataset query-embedding cache and an `embed` command (author, key).
+- `python -m src.rag.ingest --discover [--max-pages 120] [--max-pdfs 15]` appends new records without touching existing ones
+  (the 33 lines of `data/corpus/pages.jsonl` at `8dcf972` stay byte-identical). Candidates: URLs of the sitemaps of
+  `site.getnet.com.br` (`Sitemap:` lines of robots.txt, `/sitemap_index.xml`, `/wp-sitemap.xml`, nested sitemap indexes) and
+  links of the corpus's `site.getnet.com.br` pages (fetched again only to read their links). HTML candidates are kept only under
+  `/get-ajuda-`; PDF candidates only under `https://site.getnet.com.br/wp-content/uploads/`, found as links in those pages or in
+  the new help pages. Sorted by URL; robots.txt checked for every URL; project user agent; ≥ 1 s between requests.
+- PDFs read with `pypdf` (development requirement; ingestion only): lines present in at least half of a PDF's pages are removed
+  as running headers and footers; statuses `internal_document` (the text says "Classificação da Informação: Interno" or "uso
+  interno", any case), `too_large` (> 5 MB), `no_content`. New records carry `content_type` (`text/html` or
+  `application/pdf`), `discovered_from` and `pdf_pages` (`null` for HTML). `data/corpus/discovery.json` lists every candidate
+  with `kind`, `discovered_from` and `decision` (`collected`, `already_in_corpus`, `out_of_scope`, `off_allowlist`,
+  `cap_reached`) and the record status; the manifest counts the new statuses.
+- Antigravity runs the discovery in 15B and commits `data/corpus/`. The index (`data/index/`) is rebuilt by the author before
+  the round (embedding key).
+- `python -m src.rag.hybrid_eval --dataset <path>` with the query-embedding cache next to the dataset
+  (`<stem>_query_embeddings.npy/.json`; the existing names stay for `retrieval_labeled.jsonl`) and a command that builds that
+  cache (author, key).
+
+**Second human sample** (§3.5, decision c)
+- `python -m src.eval human-sample2 --out-dir reports/human_validation_2 --size 40` builds a blind sample of 40 answers from the
+  committed records of the v2 and holdout runs (`v2-*`, `rh-*`, `rh2-*`, `h3-*`): 20 whose case failed the deterministic checks
+  in that run and 20 that passed, at most one item per case, none equal (same run and case) to an item of the first sample,
+  drawn with a fixed seed; ids `g01`–`g40`; `sample.json` with `run_id` and `cases_file` per item; `form.md` and
+  `answers_template.csv` in the format of the first sample (same columns and instructions, without check results, judge notes,
+  run or case ids).
+- `run_judge_calibration` reads `run_id`/`cases_file` per item when the sample has them; `build_judge_calibration_report`
+  takes `sample_path` and accepts `annotator_answers=None` (one rater).
+- `reports/human_validation_2/` is committed by Antigravity without `answers.csv`; the author fills it before the round.
 
 ### 3.4 The round (author; pre-registered here, before any run)
+
+**Before the round (author):** fills `reports/human_validation_2/answers.csv` (§3.3) without opening `sample.json`, the
+records or the judgments, and commits it.
 
 **Before the round (reviewer, after 15B is reviewed, committed before any run):** `data/eval/retrieval_labeled2.jsonl`
 (answerable queries whose answer is only in the new pages, plus uncovered and off-domain queries), written from the collected
@@ -369,7 +415,7 @@ gemini-3.6-flash`, no code, prompt or label change until the round is committed:
 - `python -m src.eval context` for every run id; reports: `compare` groups `14=v2-13,v2-14,v2-15` and the three configurations;
   `ablation --baseline full`; holdout/action comparisons with `14`; retrieval and guardrail reports; one commit
   `eval: phase 15 round (…)`. Failures are published as they come out.
-Estimated cost: about US$ 8 (seven v2 runs, six judged).
+Estimated cost: about US$ 10 (seven v2 runs, six judged; calibration 9 × 70 judgments; the selected judge on three runs).
 
 **Ablation rule (declared before the round).** For the verifier: ΔQ = mean cases passed per run in `full` minus in
 `no_verifier` (78 cases); G = gate counts (`unrequested_tickets` + `wrong_language` + `out_of_scope_tools`) summed over the
@@ -389,18 +435,27 @@ model call). The shipped default is one of the measured configurations; the matr
   attacks and at most 1/10 false positive in each run;
 - C5 `compose-2`: every check passes (tokens across replicas, refresh rotation and reuse detection, SSE across replicas, alert
   rules loaded, plus the nine checks of `compose-1`); CI green on the round's commit;
-- C6 judge calibration: as fixed in §3.5 before the round;
+- C6 judge calibration: the report of §3.5 published, with the selection applied;
 - the matrix rule (§R).
 Holdout 4, holdouts 1 and 3, actions, latency and the judge metrics are reported, not criteria.
 
-### 3.5 Judge calibration (criterion to be fixed by the author before the round)
+### 3.5 Judge calibration (decided by the author on 2026-11-20: options a and c)
 
-Candidates, each run three times on the 30 items (`jc-*`): (a) `gemini-3.6-flash` with `src/prompts/judge.md` (current;
-acceptable derived ≥ 4/≥ 4); (b) `gemini-3.6-flash` with a reviewer prompt that asks directly the question the humans answered
-("would you send this answer to the merchant without correction?") and returns `acceptable`; (c) the same prompt with another
-model of the price table. The prompt of (b)/(c) is written from the annotation form (`reports/human_validation/form.md`), not
-from the 30 answers. Diagnosis 6 shows that κ ≥ 0.6 against both raters cannot be reached on this sample; the criterion C6 and
-the selection rule are fixed here by the author before the round.
+Diagnosis 6 shows that κ ≥ 0.6 against both raters cannot be reached on the 30 existing annotations. Decision: (a) publish the
+agreement of each candidate against each rater with no numeric target, saying why; (c) the author annotates a second, blind
+sample with more answers likely to be bad (§3.3), so that κ has negatives to measure. These are the author's labels; labels
+from someone outside the project remain pending and the README says so.
+
+Candidates, each run three times on both samples (`jc-*`, 70 items per run): (a) `gemini-3.6-flash` with `src/prompts/judge.md`
+(current; acceptable derived ≥ 4/≥ 4); (b) `gemini-3.6-flash` with a reviewer prompt that asks directly the question the humans
+answered ("would you send this answer to the merchant without correction?") and returns `acceptable`; (c) the same prompt with
+`gemini-3.8-flash`. The prompt of (b)/(c) is written from the annotation form, before the author's second-sample answers exist.
+
+- **C6 (criterion):** the calibration report is published with κ, AC1 and the verdict on every rejected item, per candidate,
+  sample and rater, as it comes out; no κ threshold.
+- **Selection (declared before the round):** the candidate with the highest κ against the author on the second sample; ties go to
+  the cheaper one, then to the current judge. The selected judge also judges `v2-16..18` (into
+  `reports/eval_runs/judge_<candidate>/`) when it is not the current one; the matrix keeps comparing the current judge.
 
 ### 3.6 15C — Publication and the matrix check
 

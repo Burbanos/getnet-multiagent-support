@@ -32,6 +32,7 @@ from src.eval.human_validation import (
     file_sha256,
     parse_answers,
     write_agreement_report,
+    write_human_sample2,
     write_sample,
 )
 from src.eval.judge import load_judgments, run_judge
@@ -96,6 +97,20 @@ def _cmd_human_sample(args: argparse.Namespace) -> int:
         return 1
     except Exception as exc:  # noqa: BLE001
         print(f"Error creating human validation sample: {exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_human_sample2(args: argparse.Namespace) -> int:
+    try:
+        sample = write_human_sample2(
+            out_dir=args.out_dir,
+            size=args.size,
+            runs_dir=args.runs_dir,
+        )
+        print(f"human-sample2: {len(sample['items'])} items written to {args.out_dir}")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error creating second human validation sample: {exc}", file=sys.stderr)
         return 1
 
 
@@ -293,6 +308,12 @@ def main() -> int:
     p_hs.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
     p_hs.add_argument("--out-dir", default=HV_SAMPLE_DIR, help="Output directory for sample files")
 
+    # 10b. human-sample2
+    p_hs2 = subparsers.add_parser("human-sample2", help="Generate balanced blind second sample for judge calibration")
+    p_hs2.add_argument("--out-dir", default="reports/human_validation_2", help="Output directory for sample files")
+    p_hs2.add_argument("--size", type=int, default=40, help="Total sample size (half failing, half passing)")
+    p_hs2.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+
     # 11. human-agreement
     p_ha = subparsers.add_parser("human-agreement", help="Compute human agreement metrics and report")
     p_ha.add_argument("--answers", default=f"{HV_SAMPLE_DIR}/answers.csv", help="Path to filled answers CSV")
@@ -413,13 +434,15 @@ def main() -> int:
 
     if args.subcommand == "judge-calibration-report":
         rids = [r.strip() for r in args.runs.split(",") if r.strip()]
+        ann_arg = (args.annotator_answers or "").strip()
+        annot_opt: str | None = None if ann_arg.lower() in ("", "none", "null") else ann_arg
         try:
             rep = write_judge_calibration_report(
                 name=args.name,
                 run_ids=rids,
                 runs_dir=args.runs_dir,
                 author_answers=args.author_answers,
-                annotator_answers=args.annotator_answers,
+                annotator_answers=annot_opt,
                 sample_path=args.sample,
                 out_dir=args.out_dir,
             )
@@ -434,6 +457,9 @@ def main() -> int:
 
     if args.subcommand == "human-sample":
         return _cmd_human_sample(args)
+
+    if args.subcommand == "human-sample2":
+        return _cmd_human_sample2(args)
 
     if args.subcommand == "human-agreement":
         return _cmd_human_agreement(args)

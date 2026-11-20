@@ -69,16 +69,33 @@ def _get_or_build_bm25(index: VectorIndex) -> BM25Index:
     return bm25
 
 
-def load_inputs() -> tuple[list[dict[str, Any]], np.ndarray, VectorIndex]:
+def embedding_paths_for(dataset: str | Path) -> tuple[Path, Path]:
+    """Return (<stem>_query_embeddings.npy, <stem>_query_embeddings.json) next to dataset."""
+    ds_path = Path(dataset)
+    if ds_path == Path(DATASET):
+        return Path(EMB_NPY), Path(EMB_META)
+    stem = ds_path.stem
+    return ds_path.parent / f"{stem}_query_embeddings.npy", ds_path.parent / f"{stem}_query_embeddings.json"
+
+
+def load_inputs(dataset: str | Path | None = None) -> tuple[list[dict[str, Any]], np.ndarray, VectorIndex]:
     """Load labeled retrieval queries, precomputed query embeddings, and VectorIndex."""
-    records = load_labeled(Path(DATASET))
-    qvecs = np.load(EMB_NPY)
-    meta = json.loads(Path(EMB_META).read_text(encoding="utf-8"))
+    default_ds = Path(DATASET)
+    target_ds = Path(dataset) if dataset is not None else default_ds
+    if dataset is None or target_ds == default_ds:
+        ds_path, emb_npy_path, emb_meta_path = default_ds, Path(EMB_NPY), Path(EMB_META)
+    else:
+        ds_path = target_ds
+        emb_npy_path, emb_meta_path = embedding_paths_for(ds_path)
+
+    records = load_labeled(ds_path)
+    qvecs = np.load(emb_npy_path)
+    meta = json.loads(emb_meta_path.read_text(encoding="utf-8"))
 
     if meta.get("query_ids") != [r["id"] for r in records]:
-        raise ValueError("retrieval_query_embeddings.json query_ids do not match retrieval_labeled.jsonl")
+        raise ValueError(f"{emb_meta_path.name} query_ids do not match {ds_path.name}")
     if meta.get("dataset_sha256") != dataset_sha256(records):
-        raise ValueError("retrieval_query_embeddings.json dataset_sha256 mismatch")
+        raise ValueError(f"{emb_meta_path.name} dataset_sha256 mismatch")
     if meta.get("embedding_model") != settings.EMBEDDING_MODEL:
         raise ValueError(
             f"Embedding model mismatch: expected '{settings.EMBEDDING_MODEL}', "
@@ -124,9 +141,10 @@ def run_hybrid(
     reranker: Any | None = None,
     sleep_s: float = 0.0,
     max_consecutive_errors: int = 3,
+    dataset: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Execute resumable hybrid retrieval run over the labeled 3D dataset."""
-    records, qvecs, index = load_inputs()
+    """Execute resumable hybrid retrieval run over the labeled retrieval dataset."""
+    records, qvecs, index = load_inputs(dataset=dataset)
     active_reranker = reranker if reranker is not None else LLMReranker()
 
     out_path = Path(runs_dir) / f"{run_id}.jsonl"
@@ -485,6 +503,7 @@ def hybrid_report(
     runs_dir: str | Path = RUNS_DIR,
     out_json: str | Path = "reports/retrieval_hybrid.json",
     out_md: str | Path = "reports/retrieval_hybrid.md",
+    dataset: str | Path | None = None,
 ) -> dict[str, Any]:
     """Generate JSON and pt-BR Markdown comparison reports for one or more hybrid runs."""
     runs_base = Path(runs_dir)
@@ -493,7 +512,7 @@ def hybrid_report(
     if missing:
         raise FileNotFoundError(f"Missing run file(s): {', '.join(missing)}")
 
-    records, qvecs, index = load_inputs()
+    records, qvecs, index = load_inputs(dataset=dataset)
     chunks_by_id = {c["chunk_id"]: c for c in index.chunks}
     dense_docs = dense_baseline(records, qvecs, index)
     dense_metrics = metrics(records, dense_docs, chunks_by_id)
@@ -515,7 +534,7 @@ def hybrid_report(
         }
 
     report: dict[str, Any] = {
-        "dataset": DATASET,
+        "dataset": str(dataset) if dataset is not None else DATASET,
         "dataset_sha256": dataset_sha256(records),
         "index_chunks": len(index.chunks),
         "settings": {
@@ -547,20 +566,54 @@ def hybrid_report(
     return report
 
 
+def embed_dataset(
+    dataset: str | Path | None = None,
+    embedder: Any = None,
+    sleep_s: float = 0.5,
+) -> tuple[Path, Path]:
+    """Compute and cache query embeddings next to dataset (<stem>_query_embeddings.npy/.json)."""
+    from src.rag.calibration import run_embed
+
+    ds_path = Path(dataset) if dataset is not None else Path(DATASET)
+    npy_path, meta_path = embedding_paths_for(ds_path)
+    run_embed(ds_path, npy_path, meta_path, embedder=embedder, sleep_s=sleep_s)
+    return npy_path, meta_path
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point for hybrid retrieval evaluation."""
     parser = argparse.ArgumentParser(description="Hybrid retrieval evaluation runner and reporter.")
+    parser.add_argument("--dataset", default=DATASET, help="Path to labeled retrieval JSONL dataset.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     run_p = sub.add_parser("run", help="Execute a hybrid retrieval run over the labeled queries.")
     run_p.add_argument("--run-id", required=True, help="Run identifier (writes <run_id>.jsonl).")
     run_p.add_argument("--sleep", type=float, default=0.0, help="Seconds to sleep after each rerank call.")
+    run_p.add_argument("--dataset", default=argparse.SUPPRESS, help="Path to labeled retrieval JSONL dataset.")
 
     rep_p = sub.add_parser("report", help="Generate comparison report from recorded hybrid runs.")
     rep_p.add_argument("--runs", required=True, help="Comma-separated run IDs (e.g. rerank-1,rerank-2,rerank-3).")
     rep_p.add_argument("--name", default=None, help="Output base name under reports/ (default: retrieval_hybrid).")
+    rep_p.add_argument("--dataset", default=argparse.SUPPRESS, help="Path to labeled retrieval JSONL dataset.")
+
+    emb_p = sub.add_parser("embed", help="Build query embeddings cache beside a labeled retrieval dataset.")
+    emb_p.add_argument("--sleep", type=float, default=0.5, help="Seconds to sleep between embedding calls.")
+    emb_p.add_argument("--dataset", default=argparse.SUPPRESS, help="Path to labeled retrieval JSONL dataset.")
 
     args = parser.parse_args(argv)
+    ds_arg = getattr(args, "dataset", DATASET)
+    dataset_opt = None if ds_arg == DATASET else ds_arg
+
+    if args.command == "embed":
+        if not settings.GEMINI_API_KEY:
+            print(
+                "Error: GEMINI_API_KEY is required to embed retrieval queries.",
+                file=sys.stderr,
+            )
+            return 2
+        npy_p, meta_p = embed_dataset(dataset=ds_arg, sleep_s=args.sleep)
+        print(json.dumps({"npy": str(npy_p), "meta": str(meta_p)}, ensure_ascii=False))
+        return 0
 
     if args.command == "run":
         if not settings.GEMINI_API_KEY:
@@ -570,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         try:
-            summary = run_hybrid(run_id=args.run_id, sleep_s=args.sleep)
+            summary = run_hybrid(run_id=args.run_id, sleep_s=args.sleep, dataset=dataset_opt)
         except (LLMNotConfiguredError, LLMConfigurationError) as exc:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
@@ -591,6 +644,7 @@ def main(argv: list[str] | None = None) -> int:
                 run_ids,
                 out_json=f"reports/{out_name}.json",
                 out_md=f"reports/{out_name}.md",
+                dataset=dataset_opt,
             )
         except FileNotFoundError as exc:
             print(f"Error: {exc}", file=sys.stderr)

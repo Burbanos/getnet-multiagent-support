@@ -1,0 +1,118 @@
+groups:
+  - name: getnet-multiagent-alerts
+    rules:
+      - alert: GetnetHighErrorRate
+        expr: >
+          (
+            sum(rate(getnet_requests_total{status=~"5.."}[5m]))
+            /
+            (sum(rate(getnet_requests_total[5m])) > 0)
+          ) > 0.05
+          and sum(increase(getnet_requests_total[5m])) >= 20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa elevada de erros HTTP 5xx nos endpoints /chat"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnethigherrorrate"
+
+      - alert: GetnetHighChatLatencyP95
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(getnet_request_latency_seconds_bucket[5m]))
+          ) > 10
+          and sum(increase(getnet_request_latency_seconds_count[5m])) >= 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência p95 de /chat acima de 10 segundos"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnethighchatlatencyp95"
+
+      - alert: GetnetLLMErrorsOrFallbacks
+        expr: sum(increase(getnet_llm_calls_total{status=~"error|fallback"}[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chamadas ao provedor de LLM com falhas ou failover para fallback"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetllmerrorsorfallbacks"
+
+      - alert: GetnetGuardrailClassifierDegraded
+        expr: sum(increase(getnet_guardrail_classifier_total{status="error"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Classificador LLM de guardrail degradado (exposição em modo fail-open)"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetguardrailclassifierdegraded"
+
+      - alert: GetnetRateLimitBackendErrors
+        expr: sum(increase(getnet_rate_limit_backend_errors_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Falhas no backend Redis de rate limit com degradação para memória local"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetratelimitbackenderrors"
+
+      - alert: GetnetOperatorNotificationFailures
+        expr: sum(increase(getnet_operator_notifications_total{status="failed"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Falhas no envio de webhook de notificação para operadores"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetoperatornotificationfailures"
+
+      - alert: GetnetMerchantNotificationFailures
+        expr: sum(increase(getnet_merchant_notifications_total{status="failed"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Falhas ao publicar notificação SSE de resposta do operador"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetmerchantnotificationfailures"
+
+      - alert: GetnetOldestOpenTicketAge
+        expr: max(getnet_open_ticket_oldest_age_seconds) > 3600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chamado humano aberto há mais de 1 hora sem resposta"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetoldestopenticketage"
+
+      - alert: GetnetHighAbstentionRate
+        expr: >
+          (
+            sum(rate(getnet_abstentions_total[15m]))
+            /
+            (sum(rate(getnet_requests_total{status="200"}[15m])) > 0)
+          ) > 0.30
+          and sum(increase(getnet_requests_total{status="200"}[15m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa de abstenção acima de 30% nas respostas do assistente"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnethighabstentionrate"
+
+      - alert: GetnetEstimatedCostPerHour
+        expr: sum(increase(getnet_estimated_cost_usd_total[1h])) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Custo estimado de tokens LLM acima de US$ 2,00 na última hora"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetestimatedcostperhour"
+
+      - alert: GetnetReplicaDown
+        expr: up{job="getnet-multiagent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Réplica da API getnet-multiagent indisponível para coleta do Prometheus"
+          runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetreplicadown"

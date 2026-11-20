@@ -1,0 +1,2685 @@
+{
+  "generated_at": "2026-11-20T16:00:08.990248+00:00",
+  "max_pages": 120,
+  "max_pdfs": 15,
+  "counts_by_decision": {
+    "off_allowlist": 22,
+    "out_of_scope": 239,
+    "already_in_corpus": 23,
+    "collected": 97
+  },
+  "new_records_by_status": {
+    "ok": 95,
+    "redirect_duplicate": 1,
+    "http_error": 1
+  },
+  "candidates": [
+    {
+      "url": "https://api.whatsapp.com/send?phone=5511976946815&text=Por favor, envie esta mensagem e acesse as opções de atendimento",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://api.whatsapp.com/send?phone=5511976946815&text=Por%20favor,%20envie%20esta%20mensagem%20e%20acesse%20as%20op%C3%A7%C3%B5es%20de%20atendimento",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://api.whatsapp.com/send?phone=5511976946815&text=Por%20favor,%20envie%20esta%20mensagem%20e%20acesse%20as%20opções%20de%20atendimento",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://api.whatsapp.com/send?phone=5511976946815&text=Quero%20falar%20com%20atendente!",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://api.whatsapp.com/send?phone=5511976946815&text=Quero%20ser%20cliente%20Getnet",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://apps.apple.com/br/app/superget-mobile/id1461510055",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://apps.apple.com/br/app/superget/id1461510055",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/conta-digital/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://getnet.ethicspoint.com",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://getstore.getnet.com.br/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://minhaconta.getnet.com.br/login",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://minhaconta.getnet.com.br/portal-do-cliente/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://open.spotify.com/show/0PFQw2OFMrCmFBg4Ry1pGy?si=qZ3mAxXvS_23qkh3ZUYOZw",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://play.google.com/store/apps/details?id=br.com.getnet.supergetmobile&hl=pt-BR",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/conta-digital/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://play.google.com/store/apps/details?id=br.com.getnet.supergetmobile&hl=pt_BR",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/5-cuidados-para-evitar-golpes-ao-vender-pelas-redes-sociais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/5-dicas-essenciais-para-modernizar-as-vendas-na-feira/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/5-dicas-para-aquecer-seu-caixa-com-a-chegada-do-frio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/5-dicas-para-bares-e-restaurantes-se-prepararem-aos-jogos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/5-funcionalidades-da-maquininha-getnet-para-vender-mais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/?page_id=1392",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/?page_id=16590",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/?page_id=841",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/a-era-do-dinheiro-inteligente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/aba-nossas-iniciativas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/adquirente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/agentic-commerce-o-que-e-e-porque-seu-negocio-precisa/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/agentic-commerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/aluguel/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/antifraude/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/aumente-o-faturamento-no-inverno/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/automacao-atendimento-ao-cliente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/bandeiras/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/bem-vindo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/bem-vindos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/bem-vindos/app-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/bem-vindos/habilite-mais-bandeiras/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/bem-vindos/portal-do-cliente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/black-friday-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/blog-teste-v1w/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/blog/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/boas-vindas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/boas-vindas/mais-informacoes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/boas-vindas/manual-maquinas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/calcule-ticket-medio-do-seu-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/carnaval-2026-5-dicas-de-seguranca-para-evitar-golpes-durante-a-folia/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/carnaval-2026-veja-3-solucoes-para-vender-mais-neste-periodo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/carreiras",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/carreiras/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/carteiras-digitais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/cartoes-aceitos-hml-2/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/cartoes-aceitos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/central-de-ajuda/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/chargeback/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/checklist-do-ecommerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/checkout-de-pagamento-o-que-e/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-consultar-cnpj/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-definir-precos-justos-e-competitivos-para-produtos-e-servicos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-fazer-declaracao-de-conteudo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-fidelizar-a-venda-extra/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-inovar-seu-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-o-checkout-getnet-pode-ajudar-no-faturamento-ecommerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-organizar-as-despesas-pessoais-e-empresariais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-organizar-recebimento-de-compras/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-se-tornar-mei-comecando-com-as-ferramentas-certas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-vender-mais-no-halloween-5-dicas-para-aproveitar-a-data/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-vender-mais-no-verao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-vender-no-tiktok-shop-guia-para-empreendedores/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/como-vender-online-para-outros-paises-e-expandir-seu-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conciliacao-financeira-para-pequenos-negocios/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conheca-a-taxa-selic/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conheca-o-conversor-de-moedas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conta-digital-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conta-digital/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/contas-a-pagar-e-receber-como-equilibrar-o-fluxo-financeiro-do-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/contas-a-pagar/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/contrato-social/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conversor-de-moedas-getnet-disponivel-agora-no-tef/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conversor-de-moedas-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conversor-de-moedas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/conversor-de-moedas/sobre-o-conversor-de-moedas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/crediario/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/crescimento-vendas-online/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/datas-casadas-como-aproveitar-para-vender-mais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dia-das-maes-como-empreendedores-se-protegem-de-golpes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dia-das-maes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dias-de-festival-veja-como-preparar-seu-negocio-para-vender-mais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dicas-de-senhas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dicas-para-lucrar-mais-nas-festas-juninas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dicas-para-vender-mais-ecommerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dicas-segundo-semestre/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/dirf/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/domicilio-eletronico-trabalhista/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/documento-socioambiental/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/documentos-ouvidoria/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/documentos-produtos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/indice-comercio-varejista/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/politicas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/downloads/regulamentos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/duvidas",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/crediario/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/duvidas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/duvidas/get-tap/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/get-tap/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ecommerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/empreendedores-e-pmes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/emprestimo-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/emprestimo-out/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/emprestimo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/emprestimo/nao-cliente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/emprestimos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/entre-copas-o-que-mudou-em-4-anos-na-forma-como-pagamos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/erros-na-gestao-de-pagamentos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/erros-na-gestao-financeira/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/esg/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/eye/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/fale-conosco/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/faturamento/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ferias-de-julho-5-dicas-para-vender-mais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/financas-do-primeiro-negocio-veja-como-se-organizar-antes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/franquia/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/frete-cif/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/futuro-do-ecommerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/fve-tahto/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/fve-zaz/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/gestao-de-vendas-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/gestao-de-vendas-menos-papel-mais-controle-na-mao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-habilitar-antecipacao-automatica-pelo-app/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-habilitar-antecipacao-automatica-pelo-portal/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cadastro/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cadastro/como-atualizar-seus-dados-cadastrais-no-aplicativo-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cadastro/como-finalizar-seu-cadastro-no-aplicativo-getnet-brasil-e-comecar-a-aceitar-pagamentos/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cadastro/como-redefinir-a-senha-aplicativo-2/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cadastro/como-redefinir-a-senha-aplicativo/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cadastro/como-trocar-o-domicilio-bancario/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cancelamento/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cancelamento/como-cancelar-a-parceria/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-cancelamento/como-cancelar-produtos-e-servicos/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/como-atualizar-seus-dados-de-domicilio-bancario-no-aplicativo-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-na-maquininha-getnet/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/como-estornar-uma-venda-pelo-aplicativo-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/o-que-e-chargeback/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-chargeback/sobre-o-chargeback/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-conciliador-essencial/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-conciliador-essencial/sobre-o-conciliador-essencial/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/como-configurar-o-wi-fi-na-sua-maquininha-getnet/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/como-consultar-minhas-vendas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/configuracoes-da-sua-maquininha/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-configuracoes/funcionalidades-portal-minha-conta-e-app-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-conversor-de-moedas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-ecommerce/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-ecommerce/plugins-digitais-que-a-getnet-trabalha/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-02/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-06/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-07/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-18/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-19/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-21/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-33/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-50/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-84/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-85/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-1-87/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-3-30/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-4-23/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-4-27/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-4-30/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-4-83/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-adq-4-91/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-idl-1-04/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-idl-1-08/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-idl-1-36/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-nfc/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-erros-maquininha/erro-s-2074/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-acessar-as-minhas-vendas-realizadas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-cancelar-minhas-vendas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-consultar-os-status-das-minhas-vendas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-emitir-carta-status/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-exportar-minhas-vendas-pix/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-fazer-minha-gestao-de-venda/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/entenda-o-que-e-venda-autorizada-aprovada-e-desfeita/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/onde-consultar-uma-venda-cancelada/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/quais-possiveis-status-das-minhas-vendas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/como-acesso-a-minha-get-conta/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/como-cancelar-a-minha-get-conta/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/como-realizo-uma-transferencia-e-quais-os-limites-diarios/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/o-que-e-a-get-conta/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-conta/o-que-e-tarifa-de-inatividade/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-tap/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-tap/como-habilitar-e-vender-com-pix-no-get-tap/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-tap/como-utilizar-o-get-tap/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-get-tap/o-que-e-o-get-tap-e-como-funciona/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-imposto-de-renda/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-imposto-de-renda/o-que-e-dirf/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/adquirindo-nossos-produtos-e-servicos/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "redirect_duplicate"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/como-acessa-o-manual-da-sua-maquininha-getnet/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/como-fazer-uma-venda-na-maquininha-getnet/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/como-pedir-uma-maquininha-adicional/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/como-solicitar-a-manutencao-da-maquininha-getnet/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/simulador-calculadora-de-vendas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-maquininha/solucoes-get-smart/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-desabilitar-o-recebimento-de-vendas-via-pix-no-aplicativo-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-fazer-uma-venda-com-pix-na-maquininha/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-habilitar-o-recebimento-de-vendas-via-pix-no-aplicativo-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-habilitar-pix-pelo-portal/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-pix/como-utilizo-o-pix-por-biometria/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-rastreamento/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-rastreamento/como-acompanhar-entrega-get-mini/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-recarga-de-celular-desligamento/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-recarga-de-celular-desligamento/sobre-o-desligamento-da-recarga-de-celular/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-receba-ja/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-receba-ja/plano-de-recebimento-reduzido/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-reserva-financeira/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-reserva-financeira/antecipacao-reserva-financeira/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-reserva-financeira/reserva-financeira/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-taxas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-taxas/taxas-por-transacao/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-voucher/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-voucher/como-habilitar-vale-refeicao-va-e-vale-alimentacao-vr-no-aplicativo-getnet-brasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-voucher/o-que-e-o-pat/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-whatsapp-business/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda-whatsapp-business/descontinuacao-whatsapp-business/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/get-ajuda/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-code-promove-meetup-sobre-oportunidades-de-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-code/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-tap-03-11-25/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-tap-maquininha-de-cartao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/get-tap/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getcheckout/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnet-connects-novo-programa-de-parcerias/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnet-connects/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnet-e-comida-di-buteco/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnet-lanca-get-code-comunidade-global-de-desenvolvedores-para-inovacao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnet-reforca-posicionamento-como-parceira-do-empreendedor/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnetconnects/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getnetrestaurantes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getstore",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/getstore/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/golpe-comprovante-de-pix/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/guia-digital-marca/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/habilitar-getpay-ja-cliente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/home-copy-redirects/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/hypera/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ia-para-pequenos-empreendedores/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ideias-de-negocios-lucrativos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/imprensa/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/indicadores-que-todo-lojista-deveria-acompanhar-semanalmente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/institucional/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/liberdade-financeira/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento-2/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento-alternativa-segura/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento-vendas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento/habilitar-getpay",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/link-de-pagamento/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento/habilitar-getpay/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento/habilitar-getpay/solicitar/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/link-de-pagamento/habilitar-getpay/solicitar/sucesso/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/loja-digital/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/maquininha-de-cartao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/mc-dia-feliz-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/mei-ou-me/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/mei/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/melhor-maquininha-para-o-seu-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/mercadinho/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/mes-do-cliente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/nova-era-dos-pagamentos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/novas-regras-do-pix-contra-fraudes-como-proteger-seu-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/o-fim-do-checkout-esta-proximo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/o-que-e-checkout-movel-e-como-transformar-a-experiencia-de-pagamento/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/o-que-e-holding-e-quais-os-tipos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/o-salto-das-micro-e-pequenas-empresas-do-balcao-a-omnichannel/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ofertas",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ofertas-b/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ofertas-maquininha-de-cartao-getnet-2/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/get-ajuda-maquininha/solucoes-get-smart/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ofertas-maquininha-de-cartao-getnet-2/?ofertas=clientes",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/get-ajuda-maquininha/solucoes-get-smart/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ofertas-tef-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ofertas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/outono-2026-estacao-promete-ser-quente-para-o-varejo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ouvidoria/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-com-cartao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-digitais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-no-centro-da-estrategia-a-disrupcao-do-varejo/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-pelo-whatsapp/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-por-biometria-via-pix/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-recorrentes",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pagamentos-recorrentes/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/parceria-fit-getnet-como-economizar-na-conta-de-luz/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/parcerias-old/ecommerce/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/parcerias-old/pos-digital/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/parcerias/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/patrocinios/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/payback/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pix",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pix-lidera-pagamentos-na-black-friday/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pix-na-maquininha-getnet/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pix-no-get-tap-mais-agilidade-e-eficiencia-das-vendas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pix-por-aproximacao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/pix/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/plano-de-negocio/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/politica-de-privacidade/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/politica-de-privacidade/formulario-de-solicitacao-dos-direitos-dos-titulares/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/politica-de-seguranca-da-informacao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ponto-de-venda-como-funciona/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/portal-do-cliente",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/crediario/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/portal-do-cliente/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/crediario/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/precificacao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/prepare-seu-comercio-para-2026/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/produtos-digitais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/produtos-fisicos/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/produtos-pessoa-fisica/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/proteja-seu-negocio-de-fraudes-digitais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/proteja-seu-negocio-e-venda-com-seguranca/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/quando-vale-a-pena-antecipar-as-suas-vendas-no-cartao/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/recargas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/redirect-app-superget-mobile/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/report-vulnerability/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/santander-abc-pj/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/santander-mobile-pf/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/santander-mobile-pfb/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/santander-mobile-pfc/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/santander-mobile-pj/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/simulador-de-vendas-da-maquininha-saiba-quanto-voce-ira-faturar/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/sinais-de-que-seu-negocio-evoluiu/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/sociedade-anonima/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/split-de-pagamento-veja-como-dividir-recebimentos-com-parceiros/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/split-de-pagamento/formulario-de-split-pagamento/sucesso/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/split/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/storytelling/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/supply-chain/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/sustentabilidade/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/tap-on-phone-maquininha-no-celular/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/taxas",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/link-de-pagamento/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/taxas-exclusivas-para-pj/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/taxas-personalizadas-eye/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/taxas-personalizadas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/taxas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/tef/conciliador/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/tef/pos-tef/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/tef/solucao-tef/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/teste-ggsb/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/teste-target/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/todas-as-maquininhas",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "already_in_corpus",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/turismo-de-inverno/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/ultimo-trimestre-como-preparar-seu-negocio-para-vender-mais/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/varejo-cresce-durante-carnaval-2026-e-compras-fisicas-ganham-forca/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/varejo-e-atacado/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/venda-mais-na-black-friday/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/venda-mais-na-primavera/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vendas-crescem-na-black-week/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vendas-do-ultimo-semestre/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vendas-final-de-ano/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vender-pelo-whatsapp/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vettore/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vivoempresas/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vivoempresas/faq/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/page-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/vtex-day-2025/",
+      "kind": "other",
+      "discovered_from": "https://site.getnet.com.br/post-sitemap.xml",
+      "decision": "out_of_scope",
+      "status": null
+    },
+    {
+      "url": "https://site.getnet.com.br/wp-content/uploads/2024/02/20240215_Termo_ContaGetnet_Autocredencimento.pdf",
+      "kind": "pdf",
+      "discovered_from": "https://site.getnet.com.br/get-ajuda-get-conta/como-cancelar-a-minha-get-conta/",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/wp-content/uploads/2025/08/Contrato-de-oferta-de-maquina-em-comodato-com-pagamento-de-taxa-de-adesao.pdf",
+      "kind": "pdf",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/wp-content/uploads/2025/10/29092025-Contrato-de-Credencimento-Consolidado.pdf",
+      "kind": "pdf",
+      "discovered_from": "https://site.getnet.com.br/todas-as-maquininhas/",
+      "decision": "collected",
+      "status": "http_error"
+    },
+    {
+      "url": "https://site.getnet.com.br/wp-content/uploads/2026/10/Codigo_de_Conduta_Getnet_2026.pdf",
+      "kind": "pdf",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/wp-content/uploads/2026/10/Manul_Chargeback_2026.pdf",
+      "kind": "pdf",
+      "discovered_from": "https://site.getnet.com.br/get-ajuda-chargeback/sobre-o-chargeback/",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://site.getnet.com.br/wp-content/uploads/2026/10/Regulamento-do-Canal-Aberto-2026.pdf",
+      "kind": "pdf",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "collected",
+      "status": "ok"
+    },
+    {
+      "url": "https://twitter.com/getnetbrasil",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://wa.me/551132982400?text=Olá!%20Quero%20receber%20informações%20para%20ser%20cliente",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://wa.me/message/OGBZ5WXDE2RKO1",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://www.facebook.com/getnetbrasil",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://www.instagram.com/getnetbrasil/",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://www.linkedin.com/company/getnetworld/posts/?feedView=all",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://www.tiktok.com/@getnetbrasil",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    },
+    {
+      "url": "https://www.youtube.com/user/getnetbrasil",
+      "kind": "html",
+      "discovered_from": "https://site.getnet.com.br/",
+      "decision": "off_allowlist",
+      "status": null
+    }
+  ]
+}

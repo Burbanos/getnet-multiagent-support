@@ -1,28 +1,27 @@
 # STATUS DO REPOSITÓRIO
 
-**Subfase:** 15A — Matriz, ablação, roteamento pelo plano, código de tela, evidência do verificador, calibração do juiz
-**Base:** `8dcf972` (fim da Fase 14) | **Python:** 3.13.3
+**Subfase:** 15B — Tokens de curta duração, notificação SSE ao lojista, alertas com runbook, descoberta na central/PDFs e 2ª amostra humana
+**Base:** `fba3306` (fim da 15A) | **Python:** 3.13.3
 
-## O que mudou (15A)
+## O que mudou (15B)
 
-- **Aposentadoria da 14C e arquivos do revisor:** removidos via `git rm` `docs/phase-prompts/14C.md` e `scripts/verify_phase14c.py`; preservados intactos `docs/SPEC.md`, `docs/phase-prompts/15A.md`, `scripts/verify_phase15a.py`, os prompts em `src/prompts/` e `data/eval/cases_holdout4.jsonl`.
-- **Instrumentação de camadas e ablação:** `PLAN_COVERAGE_ENABLED=true` em `src/config.py` e `.env.example`; `layers`, `coverage`, `tool_gate`, `rejected_drafts` e `layer_latency_ms` (`verifier` e `language`, sem alterar `verification`/`language` nem `observe_turn`) gravados em `run_case` (`src/eval/runner.py`) com recusa (`ValueError`) ao retomar `layers` diferentes; `rejected_drafts` restrito ao estado e ao runner (nunca em `ChatResponse`, logs, spans ou métricas); novo módulo `src/eval/ablation.py` e subcomando CLI `ablation` (`src/eval/__main__.py`).
-- **Roteamento pelo plano (`plan_coverage`):** prompt do supervisor passa a exibir `{n}. [{delegate}] {goal}`; novo nó `plan_coverage` entre supervisor e verificador (`src/core/graph.py`), com até uma rodada corretiva (`[Plan coverage]`), métrica `getnet_plan_coverage_total{status}` (`src/core/metrics.py`) e span `graph.node.plan_coverage` (`coverage.status` em `src/core/tracing.py`).
-- **Portão de código de tela/app (`code_source`):** `TurnPlan.code_source` em `src/agents/planner.py`; `SpecialistAgent.run(..., excluded_tools=...)` (`src/agents/specialists.py`) oculta e bloqueia `diagnose_declined_transaction` no `SupportAgent` quando `code_source` é `terminal_screen` ou `app`, gravando `tool_gate`; `diagnose_terminal` (`src/tools/agent_tools.py`, `src/tools/terminal_tools.py`) aceita `screen_error_code` e retorna `screen_error` com `catalogue: "not_available"`.
-- **Evidência do verificador:** `build_verifier_conversation` restringe o histórico a `merchant:` e `operator:`; estado ganha `prior_turn_evidence` (cópia do `turn_evidence` do turno anterior da sessão) passado a `build_verifier_evidence` em blocos `[earlier turn: <agent>/<tool>]` dentro do teto de 24.000 caracteres.
-- **Calibração do juiz:** `parse_judgment` (`src/eval/judge.py`) aceita `acceptable` booleano opcional; novo módulo `src/eval/judge_calibration.py` e subcomandos CLI `judge-calibrate` e `judge-calibration-report` (`src/eval/__main__.py`), sem execuções reais nesta fase.
-- **Testes:** novos `tests/test_plan_coverage.py` (6), `tests/test_screen_code_gate.py` (4), `tests/test_verifier_prior_evidence.py` (5), `tests/test_eval_layers.py` (4), `tests/test_ablation_report.py` (4) e `tests/test_judge_calibration.py` (4), além dos 4 ajustes/substituições permitidos em `test_verifier_evidence.py` e `test_smoke_fixes.py`.
+- **Aposentadoria da 15A e dependências:** removidos via `git rm` `docs/phase-prompts/15A.md` e `scripts/verify_phase15a.py`; `pypdf>=6,<8` adicionado em `requirements-dev.txt`.
+- **Tokens de curta duração e rotação:** HS256 JWT (`src/core/tokens.py`), refresh tokens opacos com hash SHA-256 e detecção de reuso por família (`src/core/refresh_tokens.py`, tabela `refresh_tokens` em `src/core/db.py`), expiração opcional `:YYYY-MM-DD` em `API_KEYS` (`src/core/auth.py`), endpoints `/auth/token`, `/auth/refresh` e `/auth/revoke` (`src/main.py`), exigência de Bearer em produção e troca/renovação em memória JS em `/demo` e `/operator`.
+- **Notificação SSE ao lojista entre réplicas:** `InMemoryEventBroker` e `RedisEventBroker` (`src/core/events.py`), publicação em `PATCH /tickets/{ticket_id}` sem texto de resposta, stream `GET /sessions/{session_id}/events` (`src/main.py`) e assinante SSE em `/demo`.
+- **Alertas, métricas e runbook:** 11 regras em `deploy/alerts.yml`, testes promtool (disparo + silêncio por regra) em `deploy/alerts_test.yml`, `rule_files` em `deploy/prometheus.yml`, montagem em `docker-compose.yml`, runbook em pt-BR (`docs/RUNBOOK.md`) e 6 novas métricas exportadas desde a inicialização (`src/core/metrics.py`).
+- **Portão de cobertura em confirmações:** `_plan_coverage_node` (`src/core/graph.py`) retorna `skipped` quando `action_confirmation != "none"`.
+- **CI e evidência Compose:** `.github/workflows/ci.yml` inclui `promtool check/test rules`, troca de tokens e SSE entre réplicas; `scripts/compose_evidence.py` ganhou 8 checagens de produção/SSE.
+- **Corpus e retrieval:** `extract_pdf_text()` e `Ingestor.discover()` (`--discover` CLI em `src/rag/ingest.py`), `--dataset` e subcomando `embed` em `src/rag/hybrid_eval.py`.
+- **2ª amostra humana cega e calibração:** `write_human_sample2()` (`src/eval/human_validation.py`) gerou 40 itens (`g01`–`g40`, 20 reprovados / 20 aprovados, sem `answers.csv`) em `reports/human_validation_2/`; `run_judge_calibration` e relatórios aceitam múltiplos runs e avaliador único (`src/eval/judge_calibration.py`).
+- **Novos testes (42 testes em 8 arquivos):** `test_tokens.py` (10), `test_refresh_tokens.py` (7), `test_auth_endpoints.py` (7), `test_events_sse.py` (5), `test_alerts.py` (3), `test_ingest_discovery.py` (5), `test_human_sample2.py` (3) e `test_coverage_confirmation.py` (2), além da limpeza em `tests/conftest.py`.
 
-## `LEGACY_NO_COVERAGE_MODULES` (`tests/conftest.py`)
+## Descoberta de corpus (`python -m src.rag.ingest --discover`)
 
-Módulos legados em que testes existentes roteirizam o supervisor com resposta direta sem chamar o especialista indicado no plano (`delegate: "knowledge"` ou `"support"`), falhando se executados com `PLAN_COVERAGE_FORCE=1`:
-- `tests.test_planner`: fixa plano com `delegate="knowledge"` e resposta direta sem chamada de especialista.
-- `tests.test_verifier_node`: testa o nó verificador com respostas diretas do supervisor e passo delegando a especialista sem invocá-lo.
-- `tests.test_escalation_gate`: usa plano padrão com `delegate="knowledge"` em cenários que testam apenas o portão de `escalate_to_human`.
-- `tests.test_write_action_flow`: reutiliza `_plan(delegate="support")` em turnos de confirmação/recusa que chamam apenas `confirm_pending_action`.
-- `tests.test_language_enforcement`: testa reescrita de idioma com plano padrão `delegate="support"` sem simular especialista antes do texto.
+- **URLs avaliadas (381):** `collected`: 97, `already_in_corpus`: 23, `out_of_scope`: 239, `off_allowlist`: 22 (`data/corpus/discovery.json`).
+- **Novos registros em `data/corpus/pages.jsonl` (97):** 95 `ok` (90 HTML `/get-ajuda-*` e 5 PDFs em `/wp-content/uploads/`), 1 `redirect_duplicate`, 1 `http_error`, 0 `internal_document` armazenado.
+- **Integridade:** as 33 linhas iniciais de `pages.jsonl` e `data/index/` permaneceram inalteradas; `manifest.json` totaliza 130 registros (127 `ok`).
 
-## Verificações (`python scripts/verify_phase15a.py`)
+## Verificações (`python scripts/verify_phase15b.py`)
 
 ```text
 INFO python 3.13.3
@@ -33,48 +32,53 @@ PASS A3.scope
 PASS A4.frozen
 PASS A5.existing_tests_only_grow
 PASS S1.status
-PASS A6.no_case_tuning
-PASS M1.requirements_matrix :: 57 rows
-PASS P1.coverage_corrected_once
-PASS P2.coverage_incomplete_no_loop
-PASS P3.coverage_skipped_complete_disabled
-PASS P4.coverage_metric
-PASS T1.decline_tool_not_offered_for_screen_codes
-PASS T2.gate_only_for_screen_and_app
-PASS T3.no_plan_no_gate
-PASS T4.diagnose_terminal_screen_code
-PASS E1.conversation_without_assistant
-PASS E2.previous_turn_raw_result_supports
-PASS E3.earlier_assistant_answer_is_not_evidence
-PASS E4.evidence_order_and_caps
-PASS E5.prompt_contracts
-PASS L1.turn_records_layers_latency_drafts
-PASS L2.resume_with_other_layers_refused
-PASS L3.rejected_drafts_only_in_eval_records
-PASS AB1.ablation_report_lossy
-PASS AB2.ablation_rule_switches_off
-PASS AB3.mixed_layers_refused
-PASS J1.calibration_records
-PASS J2.resume_with_other_prompt_refused
-PASS J3.calibration_report
+PASS A6.no_case_ids_in_code
+PASS A7.dependencies
+PASS K1.access_token_roundtrip
+PASS K2.access_token_rejections
+PASS K3.signing_key_rotation
+PASS K4.production_refuses_weak_signing_keys
+PASS K5.refresh_rotation_and_reuse
+PASS K6.auth_endpoints_development
+PASS K7.production_bearer_only_and_key_expiry
+PASS K8.api_key_expiry_format
+PASS K9.tokens_never_logged
+PASS N1.event_broker_isolated_and_cross_replica
+PASS N2.operator_reply_publishes_event_without_text
+PASS N3.sse_endpoint
+PASS AL1.alert_rules_and_runbook
+PASS AL2.alert_metrics_exported_from_start
+PASS AL3.rule_unit_tests_and_wiring
+INFO AL4.promtool :: promtool not found: run by the reviewer and by CI
+PASS C1.coverage_skipped_on_confirmation_turns
+PASS D1.discovery_records
+PASS D2.discovery_report_and_manifest
+PASS D3.discovery_caps
+PASS D4.corpus_committed :: 95 new ok records (5 PDF)
+PASS E1.retrieval_dataset_option
+PASS H1.second_sample_blind_and_balanced
+PASS H2.second_sample_committed
+PASS H3.calibration_on_second_sample
+PASS W1.ci_compose_evidence_env
 PASS G1.write_action_gate_unchanged
-PASS G2.no_message_evidence_or_draft_text_in_logs
+PASS G2.no_message_text_in_logs
 PASS R1.production_fail_fast
 PASS R2.trace_and_span_privacy
 PASS R3.no_raw_pii_in_checkpoints
 PASS R4.probes_left_tree_clean
 PASS Q1.ruff_clean
-PASS Q2.pytest_offline_no_key :: 542 passed, 13 deselected in 88.49s (0:01:28)
-PASS Q6.new_tests_written :: {'tests/test_plan_coverage.py': 6, 'tests/test_screen_code_gate.py': 4, 'tests/test_verifier_prior_evidence.py': 5, 'tests/test_eval_layers.py': 4, 'tests/test_ablation_report.py': 4, 'tests/test_judge_calibration.py': 4}
+PASS Q2.pytest_offline_no_key :: 584 passed, 13 deselected in 104.27s (0:01:44)
+PASS Q6.new_tests_written :: {'tests/test_tokens.py': 10, 'tests/test_refresh_tokens.py': 7, 'tests/test_auth_endpoints.py': 7, 'tests/test_events_sse.py': 5, 'tests/test_alerts.py': 3, 'tests/test_ingest_discovery.py': 5, 'tests/test_human_sample2.py': 3, 'tests/test_coverage_confirmation.py': 2}
 PASS Q8.legacy_modules_without_gate_justified :: 5 modules: ['tests.test_escalation_gate', 'tests.test_language_enforcement', 'tests.test_planner', 'tests.test_verifier_node', 'tests.test_write_action_flow']
 PASS Q5.offline_eval
 INFO Q7.integration_suite :: TEST_DATABASE_URL/TEST_REDIS_URL not set: run by the reviewer and by the CI job
 PASS Q3.tree_unchanged
 PASS Q4.tests_do_not_touch_data
 
-SUMMARY: 44/44 passed
+SUMMARY: 47/47 passed
 ```
 
 ## Perguntas / divergências
 
-Nenhuma divergência em aberto com `docs/SPEC.md` ou `docs/phase-prompts/15A.md`.
+- **Colisão de regex em `H1.second_sample_blind_and_balanced` (resolvida pelo revisor):** `scripts/verify_phase15b.py` foi atualizado pelo revisor para ignorar os cabeçalhos dos itens (`### gNN`) e a frase que cita o intervalo `g01` a `g40` antes de procurar vazamentos de `case_id` em `form.md`, passando `47/47`.
+- **`AL4.promtool` e `Q7.integration_suite`:** ficam para execução no CI e no ambiente do revisor (`promtool`, `TEST_DATABASE_URL` e `TEST_REDIS_URL` não estão configurados localmente).

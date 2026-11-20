@@ -439,66 +439,184 @@
       }
     };
 
+    let authState = { apiKey: '', accessToken: '', refreshToken: '', expiresAt: 0 };
     let pollTimerId = null;
     let pollKnownIds = new Set();
     let pollInitialized = false;
     let pollStartedAt = 0;
     let pollInFlight = false;
+    let sseAbortController = null;
+    let sseActiveSession = null;
+
+    async function exchangeDemoKey(apiKey) {
+      const resp = await fetch('/auth/token', {
+        method: 'POST',
+        headers: { 'X-API-Key': apiKey }
+      });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} em /auth/token`);
+      }
+      const data = await resp.json();
+      authState = {
+        apiKey,
+        accessToken: data.access_token || '',
+        refreshToken: data.refresh_token || '',
+        expiresAt: Date.now() + Number(data.expires_in || 900) * 1000
+      };
+      return authState.accessToken;
+    }
+
+    async function refreshDemoToken(apiKey) {
+      if (!authState.refreshToken || authState.apiKey !== apiKey) {
+        return exchangeDemoKey(apiKey);
+      }
+      const resp = await fetch('/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: authState.refreshToken })
+      });
+      if (!resp.ok) {
+        authState.refreshToken = '';
+        return exchangeDemoKey(apiKey);
+      }
+      const data = await resp.json();
+      authState = {
+        apiKey,
+        accessToken: data.access_token || '',
+        refreshToken: data.refresh_token || '',
+        expiresAt: Date.now() + Number(data.expires_in || 900) * 1000
+      };
+      return authState.accessToken;
+    }
+
+    async function ensureDemoToken(apiKey, forceRefresh = false) {
+      if (!authState.accessToken || authState.apiKey !== apiKey) {
+        return exchangeDemoKey(apiKey);
+      }
+      if (forceRefresh || Date.now() >= authState.expiresAt - 30000) {
+        return refreshDemoToken(apiKey);
+      }
+      return authState.accessToken;
+    }
+
+    async function fetchWithBearer(url, apiKey, options = {}) {
+      let token = await ensureDemoToken(apiKey, false);
+      const makeOpts = (t) => ({
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          'Authorization': `Bearer ${t}`
+        }
+      });
+      let resp = await fetch(url, makeOpts(token));
+      if (resp.status === 401) {
+        token = await ensureDemoToken(apiKey, true);
+        resp = await fetch(url, makeOpts(token));
+      }
+      return resp;
+    }
 
     function stopTicketPolling() {
       if (pollTimerId !== null) {
         clearInterval(pollTimerId);
         pollTimerId = null;
       }
+      if (sseAbortController !== null) {
+        sseAbortController.abort();
+        sseAbortController = null;
+      }
+      sseActiveSession = null;
       pollKnownIds = new Set();
       pollInitialized = false;
       pollStartedAt = 0;
       pollInFlight = false;
     }
 
+    async function syncSessionMessages(sessionId, apiKey) {
+      if (pollInFlight) return false;
+      pollInFlight = true;
+      try {
+        const resp = await fetchWithBearer(`/sessions/${encodeURIComponent(sessionId)}/messages`, apiKey, {
+          method: 'GET'
+        });
+        if (!resp.ok) return false;
+        const payload = await resp.json();
+        const msgs = Array.isArray(payload.messages) ? payload.messages : [];
+        if (!pollInitialized) {
+          for (const m of msgs) {
+            if (m && m.id) pollKnownIds.add(m.id);
+          }
+          pollInitialized = true;
+          return false;
+        }
+        let delivered = false;
+        for (const m of msgs) {
+          if (!m || !m.id || pollKnownIds.has(m.id)) continue;
+          pollKnownIds.add(m.id);
+          if (m.role === 'assistant') {
+            appendMessage('agent', m.content, 'SupervisorAgent');
+            delivered = true;
+          }
+        }
+        if (delivered) {
+          stopTicketPolling();
+        }
+        return delivered;
+      } catch (_) {
+        return false;
+      } finally {
+        pollInFlight = false;
+      }
+    }
+
+    async function listenTicketEvents(sessionId, apiKey) {
+      sseActiveSession = sessionId;
+      while (sseActiveSession === sessionId && Date.now() - pollStartedAt < 10 * 60 * 1000) {
+        const controller = new AbortController();
+        sseAbortController = controller;
+        try {
+          const resp = await fetchWithBearer(`/sessions/${encodeURIComponent(sessionId)}/events`, apiKey, {
+            method: 'GET',
+            headers: { 'Accept': 'text/event-stream' },
+            signal: controller.signal
+          });
+          if (!resp.ok || !resp.body) break;
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          while (sseActiveSession === sessionId) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const blocks = buffer.split(/\r?\n\r?\n/);
+            buffer = blocks.pop() || '';
+            for (const block of blocks) {
+              if (!block || block.startsWith(':')) continue;
+              if (block.includes('event: operator_reply')) {
+                await syncSessionMessages(sessionId, apiKey);
+              }
+            }
+          }
+        } catch (err) {
+          if (controller.signal.aborted || sseActiveSession !== sessionId) return;
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      }
+    }
+
     function startTicketPolling(sessionId, apiKey) {
       stopTicketPolling();
       pollStartedAt = Date.now();
-      const pollOnce = async () => {
-        if (pollInFlight) return;
+      syncSessionMessages(sessionId, apiKey).then(() => {
+        listenTicketEvents(sessionId, apiKey);
+      });
+      pollTimerId = setInterval(() => {
         if (Date.now() - pollStartedAt >= 10 * 60 * 1000) {
           stopTicketPolling();
           return;
         }
-        pollInFlight = true;
-        try {
-          const resp = await fetch(`/sessions/${encodeURIComponent(sessionId)}/messages`, {
-            method: 'GET',
-            headers: {
-              'X-API-Key': apiKey
-            }
-          });
-          if (!resp.ok) return;
-          const payload = await resp.json();
-          const msgs = Array.isArray(payload.messages) ? payload.messages : [];
-          if (!pollInitialized) {
-            for (const m of msgs) {
-              if (m && m.id) pollKnownIds.add(m.id);
-            }
-            pollInitialized = true;
-            return;
-          }
-          for (const m of msgs) {
-            if (!m || !m.id || pollKnownIds.has(m.id)) continue;
-            pollKnownIds.add(m.id);
-            if (m.role === 'assistant') {
-              appendMessage('agent', m.content, 'SupervisorAgent');
-              stopTicketPolling();
-              return;
-            }
-          }
-        } catch (_) {
-        } finally {
-          pollInFlight = false;
-        }
-      };
-      pollOnce();
-      pollTimerId = setInterval(pollOnce, 5000);
+        syncSessionMessages(sessionId, apiKey);
+      }, 30000);
     }
 
     function resetSession() {
@@ -540,11 +658,10 @@
       document.getElementById('telemetryState').className = 'text-[10px] bg-red-950 text-red-400 px-2 py-0.5 rounded-full border border-red-800 animate-pulse';
 
       try {
-        const response = await fetch('/chat', {
+        const response = await fetchWithBearer('/chat', apiKey, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ message: text, session_id: sessionId })
         });

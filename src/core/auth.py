@@ -5,8 +5,10 @@ import getpass
 import hashlib
 import hmac
 import math
+import re
 import sys
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 
 import redis
 from fastapi import Header, HTTPException
@@ -15,6 +17,7 @@ from src.config import settings
 from src.core.rate_limit import RateLimiter, RedisRateLimiter
 
 ROLES = ("customer", "operator")
+_EXPIRY_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 DEV_API_KEYS: dict[str, tuple[str, str]] = {
     "getnet-dev-key": ("cliente1988", "customer"),
@@ -27,6 +30,7 @@ class Principal:
     user_id: str
     role: str
     key_id: str
+    not_after: str | None = None
 
 
 def hash_api_key(key: str) -> str:
@@ -38,20 +42,29 @@ def parse_api_keys(spec: str) -> dict[str, Principal]:
     """
     Parse an API_KEYS specification string.
 
-    Format: hash:user_id:role;hash:user_id:role;...
-    Raises ValueError on invalid hash length/casing, empty user_id, invalid role, or duplicates.
+    Format: hash:user_id:role[:YYYY-MM-DD];...
+    Raises ValueError on invalid hash length/casing, empty user_id, invalid role, bad expiry date, or duplicates.
     """
     table: dict[str, Principal] = {}
     entries = [entry.strip() for entry in spec.split(";") if entry.strip()]
 
     for entry in entries:
         parts = entry.split(":")
-        if len(parts) != 3:
-            raise ValueError(f"Invalid API key entry format (expected hash:user_id:role): {entry!r}")
+        if len(parts) not in (3, 4):
+            raise ValueError(
+                f"Invalid API key entry format (expected hash:user_id:role[:YYYY-MM-DD]): {entry!r}"
+            )
 
         h = parts[0].strip()
         user_id = parts[1].strip()
         role = parts[2].strip()
+        not_after: str | None = None
+        if len(parts) == 4:
+            raw_date = parts[3].strip()
+            if not _EXPIRY_DATE_RE.fullmatch(raw_date):
+                raise ValueError(f"Invalid API key expiry date (expected YYYY-MM-DD): {raw_date!r}")
+            date.fromisoformat(raw_date)
+            not_after = raw_date
 
         if len(h) != 64 or not all(c in "0123456789abcdef" for c in h):
             raise ValueError(f"Invalid hash format (must be 64 lowercase hex characters): {h!r}")
@@ -69,9 +82,18 @@ def parse_api_keys(spec: str) -> dict[str, Principal]:
             user_id=user_id,
             role=role,
             key_id=h[:12],
+            not_after=not_after,
         )
 
     return table
+
+
+def is_principal_expired(principal: Principal, today_utc: date | None = None) -> bool:
+    """Return True if principal carries a not_after YYYY-MM-DD date strictly before today (UTC)."""
+    if not principal.not_after:
+        return False
+    today = today_utc or datetime.now(UTC).date()
+    return today > date.fromisoformat(principal.not_after)
 
 
 def auth_mode() -> str:
@@ -90,10 +112,13 @@ def auth_mode() -> str:
 
 def validate_auth_config() -> str:
     """
-    Validate authentication configuration on startup.
-    Raises ValueError if API_KEYS is malformed, otherwise returns active auth_mode.
+    Validate authentication and JWT signing configuration on startup.
+    Raises ValueError if API_KEYS or JWT_SIGNING_KEYS is invalid, otherwise returns active auth_mode.
     """
+    from src.core.tokens import validate_signing_keys_config
+
     get_principal_table()
+    validate_signing_keys_config()
     return auth_mode()
 
 
@@ -146,11 +171,20 @@ def reset_rate_limiter() -> None:
     _rate_limiter_instance = None
 
 
-def authenticate(x_api_key: str | None = Header(None, alias="X-API-Key")) -> Principal:
-    """
-    FastAPI dependency to authenticate requests using X-API-Key header.
-    Validates against principal table and enforces rate limit.
-    """
+def enforce_rate_limit(bucket_key: str) -> None:
+    """Apply sliding-window rate limit for the given bucket key, raising 429 on excess."""
+    wait = get_rate_limiter().hit(bucket_key)
+    if wait is not None:
+        retry_after = str(max(1, math.ceil(wait)))
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please try again later.",
+            headers={"Retry-After": retry_after},
+        )
+
+
+def authenticate_api_key(x_api_key: str | None) -> Principal:
+    """Validate X-API-Key against configured or development principals and check key expiry."""
     try:
         table = get_principal_table()
     except ValueError as exc:
@@ -160,7 +194,11 @@ def authenticate(x_api_key: str | None = Header(None, alias="X-API-Key")) -> Pri
         ) from exc
 
     if not x_api_key:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key.")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid API key.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     incoming_hash = hash_api_key(x_api_key)
 
@@ -171,17 +209,67 @@ def authenticate(x_api_key: str | None = Header(None, alias="X-API-Key")) -> Pri
             break
 
     if matched is None:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key.")
-
-    wait = get_rate_limiter().hit(matched.key_id)
-    if wait is not None:
-        retry_after = str(max(1, math.ceil(wait)))
         raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded. Please try again later.",
-            headers={"Retry-After": retry_after},
+            status_code=401,
+            detail="Missing or invalid API key.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if is_principal_expired(matched):
+        raise HTTPException(
+            status_code=401,
+            detail="API key expired.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return matched
+
+
+def authenticate(
+    authorization: str | None = Header(None, alias="Authorization"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> Principal:
+    """
+    FastAPI dependency authenticating requests via Bearer access token (or X-API-Key outside production).
+    Validates signature/key and enforces per-key_id rate limit.
+    """
+    if authorization is not None:
+        scheme, _, raw_token = authorization.strip().partition(" ")
+        if scheme.lower() != "bearer" or not raw_token.strip():
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authorization header.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        from src.core.tokens import TokenError, decode_access_token
+
+        try:
+            principal = decode_access_token(raw_token.strip())
+        except TokenError as exc:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid or expired token ({exc.reason}).",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
+        enforce_rate_limit(principal.key_id)
+        return principal
+
+    if settings.APP_ENV.lower() == "production":
+        try:
+            get_principal_table()
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication misconfigured: check API_KEYS.",
+            ) from exc
+        raise HTTPException(
+            status_code=401,
+            detail="Bearer token required in production: exchange X-API-Key at POST /auth/token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    matched = authenticate_api_key(x_api_key)
+    enforce_rate_limit(matched.key_id)
     return matched
 
 

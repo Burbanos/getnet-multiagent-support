@@ -1,0 +1,248 @@
+{
+  "seed": "getnet-human-validation-2-2026-11-20",
+  "size": 40,
+  "failing_count": 20,
+  "passing_count": 20,
+  "items": [
+    {
+      "hid": "g01",
+      "case_id": "m04",
+      "run_id": "v2-15",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g02",
+      "case_id": "off08",
+      "run_id": "v2-6",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g03",
+      "case_id": "r05",
+      "run_id": "rh-9",
+      "cases_file": "data/eval/cases_routing_holdout.jsonl"
+    },
+    {
+      "hid": "g04",
+      "case_id": "u01",
+      "run_id": "v2-5",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g05",
+      "case_id": "e01",
+      "run_id": "v2-1",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g06",
+      "case_id": "k03",
+      "run_id": "v2-12",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g07",
+      "case_id": "off05",
+      "run_id": "v2-15",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g08",
+      "case_id": "d04",
+      "run_id": "v2-12",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g09",
+      "case_id": "d06",
+      "run_id": "v2-1",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g10",
+      "case_id": "n05",
+      "run_id": "rh2-1",
+      "cases_file": "data/eval/cases_routing_holdout2.jsonl"
+    },
+    {
+      "hid": "g11",
+      "case_id": "t08",
+      "run_id": "h3-1",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g12",
+      "case_id": "r04",
+      "run_id": "rh-5",
+      "cases_file": "data/eval/cases_routing_holdout.jsonl"
+    },
+    {
+      "hid": "g13",
+      "case_id": "n01",
+      "run_id": "rh2-6",
+      "cases_file": "data/eval/cases_routing_holdout2.jsonl"
+    },
+    {
+      "hid": "g14",
+      "case_id": "e05",
+      "run_id": "v2-1",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g15",
+      "case_id": "t05",
+      "run_id": "h3-4",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g16",
+      "case_id": "u05",
+      "run_id": "v2-7",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g17",
+      "case_id": "r02",
+      "run_id": "rh-6",
+      "cases_file": "data/eval/cases_routing_holdout.jsonl"
+    },
+    {
+      "hid": "g18",
+      "case_id": "m06",
+      "run_id": "v2-2",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g19",
+      "case_id": "t31",
+      "run_id": "h3-2",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g20",
+      "case_id": "t27",
+      "run_id": "h3-2",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g21",
+      "case_id": "n06",
+      "run_id": "rh2-7",
+      "cases_file": "data/eval/cases_routing_holdout2.jsonl"
+    },
+    {
+      "hid": "g22",
+      "case_id": "s01",
+      "run_id": "v2-14",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g23",
+      "case_id": "k16",
+      "run_id": "v2-3",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g24",
+      "case_id": "s02",
+      "run_id": "v2-2",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g25",
+      "case_id": "r03",
+      "run_id": "rh-8",
+      "cases_file": "data/eval/cases_routing_holdout.jsonl"
+    },
+    {
+      "hid": "g26",
+      "case_id": "off04",
+      "run_id": "v2-8",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g27",
+      "case_id": "g04",
+      "run_id": "v2-14",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g28",
+      "case_id": "x02",
+      "run_id": "v2-3",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g29",
+      "case_id": "n09",
+      "run_id": "rh2-3",
+      "cases_file": "data/eval/cases_routing_holdout2.jsonl"
+    },
+    {
+      "hid": "g30",
+      "case_id": "t26",
+      "run_id": "h3-3",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g31",
+      "case_id": "r06",
+      "run_id": "rh-4",
+      "cases_file": "data/eval/cases_routing_holdout.jsonl"
+    },
+    {
+      "hid": "g32",
+      "case_id": "d05",
+      "run_id": "v2-10",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g33",
+      "case_id": "s04",
+      "run_id": "v2-2",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g34",
+      "case_id": "u06",
+      "run_id": "v2-1",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g35",
+      "case_id": "o04",
+      "run_id": "v2-9",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g36",
+      "case_id": "t21",
+      "run_id": "h3-1",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g37",
+      "case_id": "t11",
+      "run_id": "h3-1",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g38",
+      "case_id": "o02",
+      "run_id": "v2-13",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    },
+    {
+      "hid": "g39",
+      "case_id": "t02",
+      "run_id": "h3-2",
+      "cases_file": "data/eval/cases_holdout3.jsonl"
+    },
+    {
+      "hid": "g40",
+      "case_id": "k17",
+      "run_id": "v2-5",
+      "cases_file": "data/eval/cases_v2.jsonl"
+    }
+  ]
+}

@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 from src.config import settings
+from src.core import metrics
 from src.core.log_context import exc_brief
 from src.core.tracing import set_attributes, span
 
@@ -144,6 +145,7 @@ def invoke_model_with_fallback(
     ):
         try:
             ai_message = bound_model.invoke(messages)
+            metrics.inc_llm_call(caller_name, "ok")
             set_attributes(
                 {
                     "llm.model": primary_name,
@@ -154,6 +156,7 @@ def invoke_model_with_fallback(
             )
             return ai_message, bound_model
         except (LLMNotConfiguredError, LLMConfigurationError):
+            metrics.inc_llm_call(caller_name, "error")
             set_attributes({"llm.model": primary_name, "llm.fallback_used": False, "llm.status": "error"})
             raise
         except (
@@ -163,6 +166,7 @@ def invoke_model_with_fallback(
             ModelInvalidRequestError,
         ) as exc:
             logger.error(f"{caller_name} primary model configuration error [trace_id={trace_id}]: {exc_brief(exc)}")
+            metrics.inc_llm_call(caller_name, "error")
             set_attributes({"llm.model": primary_name, "llm.fallback_used": False, "llm.status": "error"})
             raise LLMConfigurationError(str(exc)) from exc
         except Exception as exc:
@@ -174,6 +178,7 @@ def invoke_model_with_fallback(
                 )
                 try:
                     ai_message = bound_fallback.invoke(messages)
+                    metrics.inc_llm_call(caller_name, "fallback")
                     set_attributes(
                         {
                             "llm.model": fb_name,
@@ -184,6 +189,7 @@ def invoke_model_with_fallback(
                     )
                     return ai_message, bound_fallback
                 except (LLMNotConfiguredError, LLMConfigurationError):
+                    metrics.inc_llm_call(caller_name, "error")
                     set_attributes({"llm.model": fb_name, "llm.fallback_used": True, "llm.status": "error"})
                     raise
                 except (
@@ -195,6 +201,7 @@ def invoke_model_with_fallback(
                     logger.error(
                         f"{caller_name} fallback model configuration error [trace_id={trace_id}]: {exc_brief(fb_cfg_err)}"
                     )
+                    metrics.inc_llm_call(caller_name, "error")
                     set_attributes({"llm.model": fb_name, "llm.fallback_used": True, "llm.status": "error"})
                     raise LLMConfigurationError(str(fb_cfg_err)) from fb_cfg_err
                 except Exception as fb_exc:
@@ -202,9 +209,11 @@ def invoke_model_with_fallback(
                         f"Both primary ('{primary_name}') and fallback ('{fb_name}') models failed "
                         f"[trace_id={trace_id}]: {exc_brief(fb_exc)}"
                     )
+                    metrics.inc_llm_call(caller_name, "error")
                     set_attributes({"llm.model": fb_name, "llm.fallback_used": True, "llm.status": "error"})
                     raise LLMUnavailableError(str(fb_exc)) from fb_exc
             else:
                 logger.error(f"{caller_name} primary model invocation failed [trace_id={trace_id}]: {exc_brief(exc)}")
+                metrics.inc_llm_call(caller_name, "error")
                 set_attributes({"llm.model": primary_name, "llm.fallback_used": False, "llm.status": "error"})
                 raise LLMUnavailableError(str(exc)) from exc

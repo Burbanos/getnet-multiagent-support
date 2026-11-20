@@ -9,6 +9,7 @@ import re
 import secrets
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -88,12 +89,20 @@ def make_api_keys() -> tuple[dict[str, str], str]:
     return keys, ";".join(entries)
 
 
-def render_env(pg_password: str, api_keys_spec: str) -> str:
+def render_env(
+    pg_password: str,
+    api_keys_spec: str,
+    jwt_signing_keys: str | None = None,
+    jwt_active_kid: str = "k1",
+) -> str:
     """Render the temporary Compose .env file without persisting GEMINI_API_KEY to disk."""
+    signing_keys = jwt_signing_keys or f"{jwt_active_kid}:{secrets.token_hex(24)}"
     return (
         "\n".join([
             f"POSTGRES_PASSWORD={pg_password}",
             f"API_KEYS={api_keys_spec}",
+            f"JWT_SIGNING_KEYS={signing_keys}",
+            f"JWT_ACTIVE_KID={jwt_active_kid}",
             "RATE_LIMIT_PER_MINUTE=6",
             "TRACING_EXPORTER=otlp",
         ])
@@ -185,12 +194,15 @@ def _http_json(
     url: str,
     *,
     api_key: str | None = None,
+    bearer_token: str | None = None,
     body: dict[str, Any] | None = None,
     timeout: float = 45.0,
 ) -> tuple[int, dict[str, str], dict[str, Any]]:
     headers: dict[str, str] = {"Accept": "application/json"}
     data_bytes: bytes | None = None
-    if api_key:
+    if bearer_token:
+        headers["Authorization"] = f"Bearer {bearer_token}"
+    elif api_key:
         headers["X-API-Key"] = api_key
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -389,6 +401,57 @@ def _render_report_md(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+_EXPECTED_ALERTS: frozenset[str] = frozenset({
+    "GetnetHighErrorRate",
+    "GetnetHighChatLatencyP95",
+    "GetnetLLMErrorsOrFallbacks",
+    "GetnetGuardrailClassifierDegraded",
+    "GetnetRateLimitBackendErrors",
+    "GetnetOperatorNotificationFailures",
+    "GetnetMerchantNotificationFailures",
+    "GetnetOldestOpenTicketAge",
+    "GetnetHighAbstentionRate",
+    "GetnetEstimatedCostPerHour",
+    "GetnetReplicaDown",
+})
+
+
+def _tamper_jwt(token: str) -> str:
+    parts = token.split(".")
+    if len(parts) != 3 or not parts[2]:
+        return token + "x"
+    last = "A" if parts[2][-1] != "A" else "B"
+    return f"{parts[0]}.{parts[1]}.{parts[2][:-1]}{last}"
+
+
+def _read_sse_for_reply(
+    url: str,
+    bearer_token: str,
+    ready_evt: threading.Event,
+    out_lines: list[str],
+    timeout_s: float = 12.0,
+) -> None:
+    req = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {bearer_token}", "Accept": "text/event-stream"},
+        method="GET",
+    )
+    deadline = time.monotonic() + timeout_s
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            ready_evt.set()
+            while time.monotonic() < deadline:
+                raw_ln = resp.readline()
+                if not raw_ln:
+                    break
+                ln = raw_ln.decode("utf-8", errors="replace").rstrip("\r\n")
+                out_lines.append(ln)
+                if ln.startswith("data:") and "ticket_id" in ln:
+                    break
+    except Exception:  # noqa: BLE001
+        ready_evt.set()
+
+
 def run_compose_evidence(run_id: str) -> int:
     """Execute the end-to-end Docker Compose verification and persist JSON/Markdown reports."""
     gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -404,8 +467,11 @@ def run_compose_evidence(run_id: str) -> int:
     orig_env = env_path.read_text(encoding="utf-8") if had_env else ""
 
     pg_password = secrets.token_hex(16)
+    jwt_signing_keys = f"k1:{secrets.token_hex(24)}"
     keys, api_keys_spec = make_api_keys()
-    temp_env = render_env(pg_password, api_keys_spec)
+    temp_env = render_env(pg_password, api_keys_spec, jwt_signing_keys=jwt_signing_keys, jwt_active_kid="k1")
+
+    raw_refresh_tokens: list[str] = []
 
     report: dict[str, Any] = {
         "run_id": run_id,
@@ -414,21 +480,31 @@ def run_compose_evidence(run_id: str) -> int:
         "git_dirty": git_dirty,
         "compose_ps": [],
         "health": {},
+        "auth_tokens": {},
         "conversation_across_replicas": {},
         "ticket_across_replicas": {},
         "pii": {},
         "rate_limit": {},
         "traces": {},
+        "alerts": {},
         "checks": {
             "replicas_healthy": False,
+            "token_cross_replica": False,
+            "api_key_rejected_in_production": False,
+            "refresh_rotation_cross_replica": False,
+            "refresh_reuse_revokes_family": False,
+            "tampered_token_rejected": False,
             "conversation_across_replicas": False,
             "ticket_across_replicas": False,
             "reply_delivered": False,
+            "sse_cross_replica": False,
             "rate_limit_shared": False,
             "pii_absent_postgres": False,
             "pii_absent_logs": False,
+            "no_raw_refresh_tokens_in_dump": False,
             "trace_exported": False,
             "trace_private": False,
+            "alert_rules_loaded": False,
         },
         "error": None,
     }
@@ -480,14 +556,93 @@ def run_compose_evidence(run_id: str) -> int:
             and h_b.get("rate_limit_backend") == "redis"
         )
 
+        # Step 3b: Production Bearer auth, cross-replica tokens, rotation & reuse revocation
+        direct_st, _, direct_body = _http_json(
+            "GET",
+            "http://localhost:8000/tickets",
+            api_key=keys["operator"],
+        )
+        report["checks"]["api_key_rejected_in_production"] = (
+            direct_st == 401 and "/auth/token" in json.dumps(direct_body, ensure_ascii=False)
+        )
+
+        tokens: dict[str, str] = {}
+        refreshes: dict[str, str] = {}
+        for scenario, raw_key in keys.items():
+            tk_st, _, tk_body = _http_json("POST", "http://localhost:8000/auth/token", api_key=raw_key)
+            if tk_st == 200 and tk_body.get("access_token") and tk_body.get("refresh_token"):
+                tokens[scenario] = str(tk_body["access_token"])
+                refreshes[scenario] = str(tk_body["refresh_token"])
+                raw_refresh_tokens.append(str(tk_body["refresh_token"]))
+
+        conv_tok = tokens.get("conversation", "")
+        op_tok = tokens.get("operator", "")
+        tkt_tok = tokens.get("ticket", "")
+        pii_tok = tokens.get("pii", "")
+        rl_tok = tokens.get("rate_limit", "")
+
+        cross_st, _, _ = _http_json(
+            "GET",
+            f"http://localhost:8001/sessions/compose-probe-{run_id}/messages",
+            bearer_token=conv_tok,
+        )
+        report["checks"]["token_cross_replica"] = bool(conv_tok and cross_st == 200)
+
+        tampered_st, _, _ = _http_json(
+            "GET",
+            f"http://localhost:8001/sessions/compose-probe-{run_id}/messages",
+            bearer_token=_tamper_jwt(conv_tok),
+        )
+        report["checks"]["tampered_token_rejected"] = tampered_st == 401
+
+        rot_st, _, rot_body = _http_json(
+            "POST",
+            "http://localhost:8001/auth/refresh",
+            body={"refresh_token": refreshes.get("conversation", "")},
+        )
+        if rot_st == 200 and rot_body.get("access_token") and rot_body.get("refresh_token"):
+            conv_tok = str(rot_body["access_token"])
+            raw_refresh_tokens.append(str(rot_body["refresh_token"]))
+            rot_use_st, _, _ = _http_json(
+                "GET",
+                f"http://localhost:8000/sessions/compose-probe-{run_id}/messages",
+                bearer_token=conv_tok,
+            )
+            report["checks"]["refresh_rotation_cross_replica"] = rot_use_st == 200
+
+        # Dedicated family to test reuse detection across replicas
+        _, _, fam_init = _http_json("POST", "http://localhost:8000/auth/token", api_key=keys["conversation"])
+        fam_r1 = str(fam_init.get("refresh_token") or "")
+        if fam_r1:
+            raw_refresh_tokens.append(fam_r1)
+        fam_rot_st, _, fam_rot = _http_json(
+            "POST",
+            "http://localhost:8001/auth/refresh",
+            body={"refresh_token": fam_r1},
+        )
+        fam_r2 = str(fam_rot.get("refresh_token") or "")
+        if fam_r2:
+            raw_refresh_tokens.append(fam_r2)
+        reuse_st, _, _ = _http_json("POST", "http://localhost:8000/auth/refresh", body={"refresh_token": fam_r1})
+        sibling_st, _, _ = _http_json("POST", "http://localhost:8001/auth/refresh", body={"refresh_token": fam_r2})
+        report["checks"]["refresh_reuse_revokes_family"] = (
+            fam_rot_st == 200 and reuse_st == 401 and sibling_st == 401
+        )
+        report["auth_tokens"] = {
+            "direct_key_status": direct_st,
+            "cross_replica_status": cross_st,
+            "tampered_status": tampered_st,
+            "rotation_status": rot_st,
+            "reuse_status": reuse_st,
+            "sibling_after_reuse_status": sibling_st,
+        }
+
         # Step 4: Conversation across replicas (propose on app-a, confirm on app-b)
         conv_session = f"compose-conv-{run_id}-{uuid.uuid4().hex[:8]}"
-        conv_key = keys["conversation"]
-        op_key = keys["operator"]
         t1_st, t1_hdr, t1_body = _http_json(
             "POST",
             "http://localhost:8000/chat",
-            api_key=conv_key,
+            bearer_token=conv_tok,
             body={
                 "message": "Minha maquininha GET-883921 está com a tela quebrada e quero trocar.",
                 "session_id": conv_session,
@@ -496,7 +651,7 @@ def run_compose_evidence(run_id: str) -> int:
         t2_st, t2_hdr, t2_body = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=conv_key,
+            bearer_token=conv_tok,
             body={"message": "Sim, pode solicitar a troca.", "session_id": conv_session},
         )
         t1_rec = _extract_turn_record(8000, t1_st, t1_hdr, t1_body)
@@ -506,10 +661,10 @@ def run_compose_evidence(run_id: str) -> int:
         sess_st, _, sess_body = _http_json(
             "GET",
             f"http://localhost:8000/sessions/{urllib.parse.quote(conv_session)}/messages",
-            api_key=conv_key,
+            bearer_token=conv_tok,
         )
-        rep_b_st, _, rep_b_body = _http_json("GET", "http://localhost:8001/replacements", api_key=conv_key)
-        rep_a_st, _, rep_a_body = _http_json("GET", "http://localhost:8000/replacements", api_key=conv_key)
+        rep_b_st, _, rep_b_body = _http_json("GET", "http://localhost:8001/replacements", bearer_token=conv_tok)
+        rep_a_st, _, rep_a_body = _http_json("GET", "http://localhost:8000/replacements", bearer_token=conv_tok)
 
         req_id = (t2_rec.get("action") or {}).get("request_id") if isinstance(t2_rec.get("action"), dict) else None
         audit_conv_st = 0
@@ -518,7 +673,7 @@ def run_compose_evidence(run_id: str) -> int:
             audit_conv_st, _, audit_conv_body = _http_json(
                 "GET",
                 f"http://localhost:8000/audit?target_id={urllib.parse.quote(str(req_id))}",
-                api_key=op_key,
+                bearer_token=op_tok,
             )
 
         reps_a = [r.get("request_id") for r in (rep_a_body.get("replacements") or [])]
@@ -554,37 +709,63 @@ def run_compose_evidence(run_id: str) -> int:
             and len(audit_conv_body.get("events") or []) >= 1
         )
 
-        # Step 5: Ticket across replicas
+        # Step 5: Ticket across replicas + cross-replica SSE notification
         tkt_session = f"compose-tkt-{run_id}-{uuid.uuid4().hex[:8]}"
-        tkt_key = keys["ticket"]
         tk1_st, tk1_hdr, tk1_body = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=tkt_key,
+            bearer_token=tkt_tok,
             body={"message": "Quero falar com um atendente humano, por favor.", "session_id": tkt_session},
         )
         tk1_rec = _extract_turn_record(8001, tk1_st, tk1_hdr, tk1_body)
         ticket_id = tk1_rec.get("ticket_id")
         op_reply = "Olá, analisamos seu chamado e concluímos o atendimento."
+        sse_lines: list[str] = []
+        sse_ready = threading.Event()
+        sse_thread = threading.Thread(
+            target=_read_sse_for_reply,
+            args=(
+                f"http://localhost:8000/sessions/{urllib.parse.quote(tkt_session)}/events",
+                tkt_tok,
+                sse_ready,
+                sse_lines,
+            ),
+            daemon=True,
+        )
+        if ticket_id:
+            sse_thread.start()
+            sse_ready.wait(timeout=5.0)
+            time.sleep(0.3)
+
         patch_st = 0
         patch_body: dict[str, Any] = {}
         if ticket_id:
             patch_st, _, patch_body = _http_json(
                 "PATCH",
-                f"http://localhost:8000/tickets/{urllib.parse.quote(str(ticket_id))}",
-                api_key=op_key,
+                f"http://localhost:8001/tickets/{urllib.parse.quote(str(ticket_id))}",
+                bearer_token=op_tok,
                 body={"reply": op_reply},
             )
+            sse_thread.join(timeout=8.0)
+
+        sse_joined = "\n".join(sse_lines)
+        report["checks"]["sse_cross_replica"] = bool(
+            ticket_id
+            and "event: operator_reply" in sse_joined
+            and str(ticket_id) in sse_joined
+            and op_reply not in sse_joined
+        )
+
         tkt_sess_st, _, tkt_sess_body = _http_json(
             "GET",
             f"http://localhost:8001/sessions/{urllib.parse.quote(tkt_session)}/messages",
-            api_key=tkt_key,
+            bearer_token=tkt_tok,
         )
         messages_after_patch = list(tkt_sess_body.get("messages") or []) if tkt_sess_st == 200 else []
         tk2_st, tk2_hdr, tk2_body = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=tkt_key,
+            bearer_token=tkt_tok,
             body={"message": "Alguma novidade?", "session_id": tkt_session},
         )
         tk2_rec = _extract_turn_record(8001, tk2_st, tk2_hdr, tk2_body)
@@ -595,7 +776,7 @@ def run_compose_evidence(run_id: str) -> int:
             audit_tkt_st, _, audit_tkt_body = _http_json(
                 "GET",
                 f"http://localhost:8001/audit?target_id={urllib.parse.quote(str(ticket_id))}",
-                api_key=op_key,
+                bearer_token=op_tok,
             )
 
         tkt_audit_actions = [str(e.get("action")) for e in (audit_tkt_body.get("events") or []) if e.get("action")]
@@ -609,6 +790,7 @@ def run_compose_evidence(run_id: str) -> int:
             "patch_resume_status": (patch_body.get("resume") or {}).get("status")
             if isinstance(patch_body.get("resume"), dict)
             else None,
+            "sse_event_received": report["checks"]["sse_cross_replica"],
             "messages_after_patch_http_status": tkt_sess_st,
             "messages_after_patch_count": len(messages_after_patch),
             "turn2": tk2_rec,
@@ -623,13 +805,13 @@ def run_compose_evidence(run_id: str) -> int:
             tk1_st == 200 and ticket_id and tk2_st == 200 and tkt_eval["reply_delivered"]
         )
 
-        # Step 6: PII persistence vs masking & log hygiene
+        # Step 6: PII persistence vs masking & token hygiene
         marker = f"evpii-{run_id}-{uuid.uuid4().hex[:10]}"
         pii_session = f"compose-pii-{run_id}-{uuid.uuid4().hex[:8]}"
         pii_st, pii_hdr, _ = _http_json(
             "POST",
             "http://localhost:8000/chat",
-            api_key=keys["pii"],
+            bearer_token=pii_tok,
             body={
                 "message": f"Meu cartão {TEST_CARD_SPACED} e CPF {TEST_CPF_FORMATTED} ref {marker}",
                 "session_id": pii_session,
@@ -642,11 +824,13 @@ def run_compose_evidence(run_id: str) -> int:
         pg_scan = scan_dump(dump_text, marker)
         pg_pii = pg_scan["pii"]
         pg_marker_count = pg_scan["marker"]
+        raw_tokens_in_dump = sum(dump_text.count(tok) for tok in raw_refresh_tokens if tok)
 
         logs_res = _run_cmd(["docker", "compose", "logs", "--no-color", "app-a", "app-b"])
         logs_text = (logs_res.stdout or "") + "\n" + (logs_res.stderr or "")
         logs_pii = scan_pii(logs_text)
         logs_marker_count = logs_text.count(marker)
+        raw_tokens_in_logs = sum(logs_text.count(tok) for tok in raw_refresh_tokens if tok)
 
         report["pii"] = {
             "http_status": pii_st,
@@ -654,9 +838,11 @@ def run_compose_evidence(run_id: str) -> int:
             "pg_bytea_values": pg_scan["bytea_values"],
             "pg_marker_count": pg_marker_count,
             "pg_pii": pg_pii,
+            "raw_refresh_tokens_in_dump": raw_tokens_in_dump,
             "logs_bytes": len(logs_text.encode("utf-8")),
             "logs_marker_count": logs_marker_count,
             "logs_pii": logs_pii,
+            "raw_refresh_tokens_in_logs": raw_tokens_in_logs,
         }
         report["checks"]["pii_absent_postgres"] = (
             pii_st == 200 and dump_res.returncode == 0 and pg_marker_count >= 1 and _zero_pii(pg_pii)
@@ -664,24 +850,26 @@ def run_compose_evidence(run_id: str) -> int:
         report["checks"]["pii_absent_logs"] = (
             logs_res.returncode == 0 and logs_marker_count == 0 and _zero_pii(logs_pii)
         )
+        report["checks"]["no_raw_refresh_tokens_in_dump"] = (
+            dump_res.returncode == 0 and bool(raw_refresh_tokens) and raw_tokens_in_dump == 0 and raw_tokens_in_logs == 0
+        )
 
         # Step 7: Shared rate limit across 8000 / 8001 (limit = 6)
         rl_session = f"compose-rl-{run_id}-{uuid.uuid4().hex[:8]}"
-        rl_key = keys["rate_limit"]
         ports = [8000, 8001, 8000, 8001, 8000, 8001]
         initial_statuses: list[int] = []
         for port in ports:
             st, _, _ = _http_json(
                 "POST",
                 f"http://localhost:{port}/chat",
-                api_key=rl_key,
+                bearer_token=rl_tok,
                 body={"message": "oi", "session_id": rl_session},
             )
             initial_statuses.append(st)
         seventh_st, seventh_hdr, _ = _http_json(
             "POST",
             "http://localhost:8001/chat",
-            api_key=rl_key,
+            bearer_token=rl_tok,
             body={"message": "oi", "session_id": rl_session},
         )
         retry_after = seventh_hdr.get("retry-after")
@@ -735,6 +923,26 @@ def run_compose_evidence(run_id: str) -> int:
             and not conv_summary["marker_in_attributes"]
             and not pii_summary["marker_in_attributes"]
         )
+
+        # Step 9: Prometheus loaded alert rules
+        alert_names: set[str] = set()
+        rules_st = 0
+        prom_deadline = time.monotonic() + 20.0
+        while time.monotonic() < prom_deadline:
+            rules_st, _, rules_body = _http_json("GET", "http://localhost:9090/api/v1/rules", timeout=5.0)
+            if rules_st == 200 and rules_body.get("status") == "success":
+                groups = (rules_body.get("data") or {}).get("groups") or []
+                alert_names = {
+                    str(r.get("name"))
+                    for grp in groups
+                    for r in (grp.get("rules") or [])
+                    if r.get("type") == "alerting" and r.get("name")
+                }
+                if _EXPECTED_ALERTS <= alert_names:
+                    break
+            time.sleep(2.0)
+        report["alerts"] = {"http_status": rules_st, "loaded_alerts": sorted(alert_names)}
+        report["checks"]["alert_rules_loaded"] = rules_st == 200 and _EXPECTED_ALERTS <= alert_names
 
     except Exception as exc:  # noqa: BLE001
         report["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"

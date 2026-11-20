@@ -1,0 +1,312 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'getnet_requests_total{status="200"}'
+        values: '0+4x20'
+      - series: 'getnet_requests_total{status="500"}'
+        values: '0+2x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: GetnetHighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Taxa elevada de erros HTTP 5xx nos endpoints /chat"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnethigherrorrate"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_requests_total{status="200"}'
+        values: '0+10x20'
+      - series: 'getnet_requests_total{status="500"}'
+        values: '0+0x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: GetnetHighErrorRate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_request_latency_seconds_bucket{le="0.5"}'
+        values: '0+0x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="1.0"}'
+        values: '0+0x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="2.0"}'
+        values: '0+0x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="5.0"}'
+        values: '0+0x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="10.0"}'
+        values: '0+0x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="20.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="30.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="60.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="+Inf"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_count'
+        values: '0+5x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GetnetHighChatLatencyP95
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Latência p95 de /chat acima de 10 segundos"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnethighchatlatencyp95"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_request_latency_seconds_bucket{le="0.5"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="1.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="2.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="5.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="10.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="20.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="30.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="60.0"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_bucket{le="+Inf"}'
+        values: '0+5x20'
+      - series: 'getnet_request_latency_seconds_count'
+        values: '0+5x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GetnetHighChatLatencyP95
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_llm_calls_total{caller="Supervisor",status="error"}'
+        values: '0+2x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GetnetLLMErrorsOrFallbacks
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Chamadas ao provedor de LLM com falhas ou failover para fallback"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetllmerrorsorfallbacks"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_llm_calls_total{caller="Supervisor",status="ok"}'
+        values: '0+5x20'
+      - series: 'getnet_llm_calls_total{caller="Supervisor",status="error"}'
+        values: '0+0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GetnetLLMErrorsOrFallbacks
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_guardrail_classifier_total{status="error"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetGuardrailClassifierDegraded
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Classificador LLM de guardrail degradado (exposição em modo fail-open)"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetguardrailclassifierdegraded"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_guardrail_classifier_total{status="ok"}'
+        values: '0+5x15'
+      - series: 'getnet_guardrail_classifier_total{status="error"}'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetGuardrailClassifierDegraded
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_rate_limit_backend_errors_total'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetRateLimitBackendErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Falhas no backend Redis de rate limit com degradação para memória local"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetratelimitbackenderrors"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_rate_limit_backend_errors_total'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetRateLimitBackendErrors
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_operator_notifications_total{status="failed"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetOperatorNotificationFailures
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Falhas no envio de webhook de notificação para operadores"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetoperatornotificationfailures"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_operator_notifications_total{status="sent"}'
+        values: '0+3x15'
+      - series: 'getnet_operator_notifications_total{status="failed"}'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetOperatorNotificationFailures
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_merchant_notifications_total{status="failed"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetMerchantNotificationFailures
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Falhas ao publicar notificação SSE de resposta do operador"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetmerchantnotificationfailures"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_merchant_notifications_total{status="published"}'
+        values: '0+3x15'
+      - series: 'getnet_merchant_notifications_total{status="failed"}'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: GetnetMerchantNotificationFailures
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_open_ticket_oldest_age_seconds'
+        values: '4000x15'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: GetnetOldestOpenTicketAge
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Chamado humano aberto há mais de 1 hora sem resposta"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetoldestopenticketage"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_open_ticket_oldest_age_seconds'
+        values: '300x15'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: GetnetOldestOpenTicketAge
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_requests_total{status="200"}'
+        values: '0+2x30'
+      - series: 'getnet_abstentions_total'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GetnetHighAbstentionRate
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Taxa de abstenção acima de 30% nas respostas do assistente"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnethighabstentionrate"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_requests_total{status="200"}'
+        values: '0+10x30'
+      - series: 'getnet_abstentions_total'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: GetnetHighAbstentionRate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_estimated_cost_usd_total'
+        values: '0+0.5x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: GetnetEstimatedCostPerHour
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Custo estimado de tokens LLM acima de US$ 2,00 na última hora"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetestimatedcostperhour"
+
+  - interval: 1m
+    input_series:
+      - series: 'getnet_estimated_cost_usd_total'
+        values: '0+0.01x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: GetnetEstimatedCostPerHour
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="getnet-multiagent",instance="app-a:8000"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: GetnetReplicaDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: getnet-multiagent
+              instance: app-a:8000
+            exp_annotations:
+              summary: "Réplica da API getnet-multiagent indisponível para coleta do Prometheus"
+              runbook_url: "https://github.com/Burbanos/getnet-multiagent-support/blob/main/docs/RUNBOOK.md#getnetreplicadown"
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="getnet-multiagent",instance="app-a:8000"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: GetnetReplicaDown
+        exp_alerts: []

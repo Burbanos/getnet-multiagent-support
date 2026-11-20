@@ -6,6 +6,8 @@ import csv
 import hashlib
 import json
 import math
+import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -16,10 +18,18 @@ from src.eval.judge import build_judge_input, load_judgments, should_judge
 from src.eval.runner import load_results
 
 SEED = "getnet-human-validation-2026-11-12"
+SEED2 = "getnet-human-validation-2-2026-11-20"
 SOURCE_RUN = "v2-1"
 SAMPLE_SIZE = 30
 CASES_FILE = "data/eval/cases_v2.jsonl"
 SAMPLE_DIR = "reports/human_validation"
+SAMPLE2_RUN_RE = re.compile(r"^(v2|rh|rh2|h3)-(\d+)$")
+SAMPLE2_CASES_BY_PREFIX: dict[str, str] = {
+    "v2": "data/eval/cases_v2.jsonl",
+    "rh": "data/eval/cases_routing_holdout.jsonl",
+    "rh2": "data/eval/cases_routing_holdout2.jsonl",
+    "h3": "data/eval/cases_holdout3.jsonl",
+}
 ROUTES = ("conhecimento", "conta", "ambos", "humano", "nenhum")
 FIELDS = ("id", "rota", "deveria_abster", "aceitavel", "absteve", "fundamentacao")
 WILSON_Z = 1.959964
@@ -156,13 +166,28 @@ def render_form(
     results: dict[str, dict[str, Any]],
 ) -> str:
     """Render the two-part blind Markdown validation form matching the judge's evidence."""
-    lines: list[str] = [FORM_INSTRUCTIONS.rstrip("\n"), ""]
+    return _render_form_with(
+        items,
+        lookup_case=lambda it: cases_by_id[it["case_id"]],
+        lookup_result=lambda it: results[it["case_id"]],
+        instructions=FORM_INSTRUCTIONS,
+    )
+
+
+def _render_form_with(
+    items: list[dict[str, Any]],
+    *,
+    lookup_case: Callable[[dict[str, Any]], dict[str, Any]],
+    lookup_result: Callable[[dict[str, Any]], dict[str, Any]],
+    instructions: str,
+) -> str:
+    lines: list[str] = [instructions.rstrip("\n"), ""]
 
     lines.append("## Parte 1: mensagens do lojista")
     lines.append("")
     for item in items:
         hid = item["hid"]
-        case = cases_by_id[item["case_id"]]
+        case = lookup_case(item)
         lines.append(f"### {hid}")
         lines.append("")
         for idx, turn_text in enumerate(case["turns"], 1):
@@ -175,8 +200,8 @@ def render_form(
     lines.append("")
     for item in items:
         hid = item["hid"]
-        case = cases_by_id[item["case_id"]]
-        result = results[item["case_id"]]
+        case = lookup_case(item)
+        result = lookup_result(item)
         payload = json.loads(build_judge_input(case, result))
 
         lines.append(f"### {hid}")
@@ -222,6 +247,170 @@ def render_form(
             lines.append("")
 
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _sample2_hash(seed: str, *parts: str) -> str:
+    return hashlib.sha256(":".join((seed, *parts)).encode("utf-8")).hexdigest()
+
+
+def _sample2_instructions(size: int) -> str:
+    first_hid = f"g{1:02d}"
+    last_hid = f"g{size:02d}"
+    return (
+        "# Segunda amostra de validação humana dos rótulos e do juiz\n\n"
+        f"Amostra cega de {size} casos de execuções anteriores, sorteada com semente fixa em `sample.json`. "
+        f"Os ids `{first_hid}` a `{last_hid}` não revelam o caso, a execução nem o resultado das checagens.\n\n"
+        "Até terminar, não abra `sample.json`, os conjuntos em `data/eval/` nem os registros em "
+        "`reports/eval_runs/`.\n\n"
+        "Copie `answers_template.csv` para `answers.csv` na mesma pasta e preencha com um editor de texto: "
+        "uma linha por item, separador `;`, valores sem acento.\n\n"
+        "## Como preencher\n\n"
+        "Parte 1 (só as mensagens do lojista). Preencha `rota` de todos os itens antes de abrir a Parte 2:\n\n"
+        "- `rota`: quem deveria tratar a última mensagem: `conhecimento` (produtos, taxas, prazos e regras da "
+        "Getnet, clima, câmbio, notícias), `conta` (dados da conta do próprio lojista: vendas, depósitos, "
+        "transações recusadas, maquininha), `ambos`, `humano` (o lojista pede um atendente ou faz uma reclamação "
+        "formal) ou `nenhum` (cumprimento ou assunto fora do suporte, que o assistente trata sem consultar nada).\n\n"
+        "Parte 2 (resposta final e evidências que o assistente tinha, as mesmas que o juiz recebeu):\n\n"
+        "- `deveria_abster` (`S` ou `N`): `S` se, com as evidências mostradas, o certo era dizer que a informação "
+        "não está disponível ou recusar o assunto; `N` se as evidências permitiam responder.\n"
+        "- `aceitavel` (`S` ou `N`): `S` se você enviaria essa resposta a um lojista sem correção (fatos certos, "
+        "responde ao que foi pedido, no idioma da pergunta).\n"
+        "- `absteve` (`S` ou `N`): `S` se a resposta não dá uma resposta substantiva e só diz que não encontrou, "
+        "que não pode ajudar ou que encaminha a um atendente; `N` se dá uma resposta substantiva, mesmo errada.\n"
+        "- `fundamentacao` (1 a 5, a escala do juiz): 5 = toda afirmação factual está nas evidências ou decorre "
+        "delas, ou a resposta não faz afirmação factual; 4 = apoiada, com redação além das evidências que não "
+        "muda nenhum fato; 3 = quase tudo apoiado, mas ao menos um detalhe não está nas evidências; 2 = uma "
+        "afirmação importante não está nas evidências; 1 = a afirmação principal contradiz as evidências ou é "
+        "inventada. Conhecimento geral que não é sobre a Getnet, seus produtos ou a conta do lojista não "
+        "precisa de evidência; valores de clima e câmbio precisam.\n"
+    )
+
+
+def write_human_sample2(
+    out_dir: str | Path = "reports/human_validation_2",
+    size: int = 40,
+    seed: str = SEED2,
+    runs_dir: str | Path = Path("reports/eval_runs"),
+    first_sample_path: str | Path = Path("reports/human_validation/sample.json"),
+) -> dict[str, Any]:
+    """Build deterministic blind second sample (half failing, half passing) across eligible eval runs."""
+    if size < 2 or size % 2 != 0:
+        raise ValueError(f"size must be an even integer >= 2, got {size}")
+
+    first_pairs: set[tuple[str, str]] = set()
+    first_p = Path(first_sample_path)
+    if first_p.exists():
+        first_obj = json.loads(first_p.read_text(encoding="utf-8"))
+        src_run = str(first_obj.get("source_run") or "")
+        for it in first_obj.get("items") or []:
+            if it.get("case_id"):
+                first_pairs.add((str(it.get("run_id") or src_run), str(it["case_id"])))
+
+    runs_base = Path(runs_dir)
+    cases_cache: dict[str, dict[str, dict[str, Any]]] = {}
+    results_cache: dict[str, dict[str, dict[str, Any]]] = {}
+
+    failing_candidates: dict[tuple[str, str], list[str]] = {}
+    passing_candidates: dict[tuple[str, str], list[str]] = {}
+
+    for run_file in sorted(runs_base.glob("*.jsonl")):
+        if run_file.name.endswith(".judge.jsonl"):
+            continue
+        rid = run_file.stem
+        m = SAMPLE2_RUN_RE.match(rid)
+        if not m:
+            continue
+        cases_file = SAMPLE2_CASES_BY_PREFIX[m.group(1)]
+        if cases_file not in cases_cache:
+            cases_cache[cases_file] = {c["id"]: c for c in load_cases(cases_file)}
+        cases_map = cases_cache[cases_file]
+        res_map = load_results(run_file)
+        results_cache[rid] = res_map
+
+        for cid, res in res_map.items():
+            if res.get("status") != "ok" or cid not in cases_map:
+                continue
+            if (rid, cid) in first_pairs:
+                continue
+            passed = bool(evaluate_case(cases_map[cid], res)["passed"])
+            key = (cases_file, cid)
+            if passed:
+                passing_candidates.setdefault(key, []).append(rid)
+            else:
+                failing_candidates.setdefault(key, []).append(rid)
+
+    n_each = size // 2
+    failing_keys = sorted(
+        failing_candidates,
+        key=lambda k: _sample2_hash(seed, "pick_fail", k[0], k[1]),
+    )
+    if len(failing_keys) < n_each:
+        raise ValueError(f"Need at least {n_each} distinct failing cases, found {len(failing_keys)}")
+    picked_fail_keys = failing_keys[:n_each]
+    picked_set = set(picked_fail_keys)
+
+    passing_keys = sorted(
+        [k for k in passing_candidates if k not in picked_set],
+        key=lambda k: _sample2_hash(seed, "pick_pass", k[0], k[1]),
+    )
+    if len(passing_keys) < (size - n_each):
+        raise ValueError(f"Need at least {size - n_each} distinct passing cases, found {len(passing_keys)}")
+    picked_pass_keys = passing_keys[: size - n_each]
+
+    selected_pairs: list[tuple[str, str, str]] = []
+    for cf, cid in picked_fail_keys:
+        best_run = min(
+            failing_candidates[(cf, cid)],
+            key=lambda rid: _sample2_hash(seed, "run_fail", cf, cid, rid),
+        )
+        selected_pairs.append((cf, cid, best_run))
+    for cf, cid in picked_pass_keys:
+        best_run = min(
+            passing_candidates[(cf, cid)],
+            key=lambda rid: _sample2_hash(seed, "run_pass", cf, cid, rid),
+        )
+        selected_pairs.append((cf, cid, best_run))
+
+    ordered_pairs = sorted(
+        selected_pairs,
+        key=lambda item: _sample2_hash(seed, "order", item[0], item[1]),
+    )
+    items = [
+        {
+            "hid": f"g{idx:02d}",
+            "case_id": cid,
+            "run_id": rid,
+            "cases_file": cf,
+        }
+        for idx, (cf, cid, rid) in enumerate(ordered_pairs, 1)
+    ]
+
+    sample_obj: dict[str, Any] = {
+        "seed": seed,
+        "size": size,
+        "failing_count": n_each,
+        "passing_count": size - n_each,
+        "items": items,
+    }
+    form_text = _render_form_with(
+        items,
+        lookup_case=lambda it: cases_cache[it["cases_file"]][it["case_id"]],
+        lookup_result=lambda it: results_cache[it["run_id"]][it["case_id"]],
+        instructions=_sample2_instructions(size),
+    )
+    template_lines = [";".join(FIELDS)] + [f"{it['hid']};;;;;" for it in items]
+    template_text = "\n".join(template_lines) + "\n"
+
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    (out_path / "sample.json").write_text(
+        json.dumps(sample_obj, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    (out_path / "form.md").write_text(form_text, encoding="utf-8", newline="\n")
+    (out_path / "answers_template.csv").write_text(template_text, encoding="utf-8", newline="\n")
+    return sample_obj
 
 
 def write_sample(

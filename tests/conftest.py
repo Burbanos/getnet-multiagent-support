@@ -171,16 +171,21 @@ def reset_auth_settings(monkeypatch):
     """Ensure consistent authentication, rate limiting, and storage settings across unit tests."""
     from src.config import settings
     from src.core.auth import reset_rate_limiter
+    from src.core.events import reset_event_broker
     from src.core.tickets_db import reset_tickets_repository
 
     monkeypatch.setattr(settings, "APP_ENV", "development")
     monkeypatch.setattr(settings, "API_KEYS", "")
+    monkeypatch.setattr(settings, "JWT_SIGNING_KEYS", "")
+    monkeypatch.setattr(settings, "JWT_ACTIVE_KID", "")
     monkeypatch.setattr(settings, "DATABASE_URL", "")
     monkeypatch.setattr(settings, "REDIS_URL", "")
     monkeypatch.setattr(settings, "TRACING_EXPORTER", "none")
     reset_rate_limiter()
+    reset_event_broker()
     yield
     reset_rate_limiter()
+    reset_event_broker()
     reset_tickets_repository()
 
 

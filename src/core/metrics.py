@@ -60,6 +60,9 @@ LANGUAGE_STATUSES: frozenset[str] = frozenset({
 })
 ESCALATION_GATE_DECISIONS: frozenset[str] = frozenset({"allowed", "rejected", "allowed_no_plan"})
 PLAN_COVERAGE_STATUSES: frozenset[str] = frozenset({"complete", "corrected", "incomplete", "skipped", "disabled"})
+LLM_CALL_STATUSES: frozenset[str] = frozenset({"ok", "fallback", "error"})
+GUARDRAIL_CLASSIFIER_STATUSES: frozenset[str] = frozenset({"ok", "invalid", "error"})
+MERCHANT_NOTIFICATION_STATUSES: frozenset[str] = frozenset({"published", "failed"})
 
 # Cumulative histogram bucket thresholds
 LATENCY_BUCKETS: tuple[float, ...] = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
@@ -83,11 +86,17 @@ _language_outcomes: dict[str, int] = {}
 _escalation_gate_decisions: dict[str, int] = {}
 _plan_coverage_outcomes: dict[str, int] = {}
 _rate_limit_backend_errors_total: int = 0
+_llm_calls: dict[tuple[str, str], int] = {}
+_guardrail_classifier_outcomes: dict[str, int] = {}
+_estimated_cost_usd_total: float = 0.0
+_merchant_notifications: dict[str, int] = {}
+_sse_connections: int = 0
 
 
 def reset() -> None:
     """Reset all in-memory counters and histogram buckets to zero."""
     global _latency_sum, _latency_count, _escalations_total, _abstentions_total, _rate_limit_backend_errors_total
+    global _estimated_cost_usd_total, _sse_connections
     with _lock:
         _requests.clear()
         _latency_buckets.clear()
@@ -109,6 +118,11 @@ def reset() -> None:
         _escalation_gate_decisions.clear()
         _plan_coverage_outcomes.clear()
         _rate_limit_backend_errors_total = 0
+        _llm_calls.clear()
+        _guardrail_classifier_outcomes.clear()
+        _estimated_cost_usd_total = 0.0
+        _merchant_notifications.clear()
+        _sse_connections = 0
 
 
 def inc_request(status_code: int | str, latency_s: float) -> None:
@@ -221,8 +235,50 @@ def add_tokens(input_tokens: int | None, output_tokens: int | None) -> None:
         _tokens["output"] += out
 
 
+def inc_llm_call(caller: str, status: str) -> None:
+    """Increment LLM call outcome counter per caller and status (ok, fallback, error)."""
+    norm_caller = str(caller or "unknown")
+    norm_status = status if status in LLM_CALL_STATUSES else "error"
+    with _lock:
+        key = (norm_caller, norm_status)
+        _llm_calls[key] = _llm_calls.get(key, 0) + 1
+
+
+def inc_guardrail_classifier(status: str) -> None:
+    """Increment guardrail LLM classifier outcome counter (ok, invalid, error)."""
+    norm = status if status in GUARDRAIL_CLASSIFIER_STATUSES else "error"
+    with _lock:
+        _guardrail_classifier_outcomes[norm] = _guardrail_classifier_outcomes.get(norm, 0) + 1
+
+
+def add_estimated_cost(usd: float | None) -> None:
+    """Accumulate estimated LLM cost in USD across requests."""
+    global _estimated_cost_usd_total
+    if usd is None or usd <= 0:
+        return
+    with _lock:
+        _estimated_cost_usd_total += float(usd)
+
+
+def inc_merchant_notification(status: str) -> None:
+    """Increment real-time merchant SSE notification publish counter (published, failed)."""
+    norm = status if status in MERCHANT_NOTIFICATION_STATUSES else "failed"
+    with _lock:
+        _merchant_notifications[norm] = _merchant_notifications.get(norm, 0) + 1
+
+
+def inc_sse_connections(delta: int = 1) -> None:
+    """Adjust the active merchant SSE connection gauge."""
+    global _sse_connections
+    with _lock:
+        _sse_connections = max(0, _sse_connections + int(delta))
+
+
 def render() -> str:
     """Render all metrics in Prometheus text exposition format (version 0.0.4)."""
+    from src.core.tickets_db import compute_oldest_open_ticket_age_seconds
+
+    oldest_age_s = round(compute_oldest_open_ticket_age_seconds(), 2)
     with _lock:
         lines: list[str] = [
             "# HELP getnet_requests_total Total number of HTTP requests processed for chat endpoints.",
@@ -248,13 +304,19 @@ def render() -> str:
         for (tool, st), count in sorted(_tool_calls.items()):
             lines.append(f'getnet_tool_calls_total{{tool="{tool}",status="{st}"}} {count}')
 
-        if _guardrail_decisions:
-            lines.extend([
-                "# HELP getnet_guardrail_decisions_total Total number of guardrail decisions.",
-                "# TYPE getnet_guardrail_decisions_total counter",
-            ])
-            for dec, count in sorted(_guardrail_decisions.items()):
-                lines.append(f'getnet_guardrail_decisions_total{{decision="{dec}"}} {count}')
+        lines.extend([
+            "# HELP getnet_guardrail_decisions_total Total number of guardrail decisions.",
+            "# TYPE getnet_guardrail_decisions_total counter",
+        ])
+        for dec, count in sorted(_guardrail_decisions.items()):
+            lines.append(f'getnet_guardrail_decisions_total{{decision="{dec}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_guardrail_classifier_total Total number of guardrail classifier outcomes.",
+            "# TYPE getnet_guardrail_classifier_total counter",
+        ])
+        for st, count in sorted(_guardrail_classifier_outcomes.items()):
+            lines.append(f'getnet_guardrail_classifier_total{{status="{st}"}} {count}')
 
         lines.extend([
             "# HELP getnet_operator_notifications_total Total number of operator webhook notifications.",
@@ -262,6 +324,13 @@ def render() -> str:
         ])
         for st, count in sorted(_notifications.items()):
             lines.append(f'getnet_operator_notifications_total{{status="{st}"}} {count}')
+
+        lines.extend([
+            "# HELP getnet_merchant_notifications_total Total number of merchant SSE reply notifications.",
+            "# TYPE getnet_merchant_notifications_total counter",
+        ])
+        for st, count in sorted(_merchant_notifications.items()):
+            lines.append(f'getnet_merchant_notifications_total{{status="{st}"}} {count}')
 
         lines.extend([
             "# HELP getnet_answer_checks_total Total number of final answer verification outcomes.",
@@ -306,6 +375,14 @@ def render() -> str:
             lines.append(f'getnet_plan_coverage_total{{status="{st}"}} {count}')
 
         lines.extend([
+            "# HELP getnet_llm_calls_total Total number of LLM calls by caller and outcome status.",
+            "# TYPE getnet_llm_calls_total counter",
+        ])
+        for (caller, st), count in sorted(_llm_calls.items()):
+            lines.append(f'getnet_llm_calls_total{{caller="{caller}",status="{st}"}} {count}')
+
+        cost_str = "0" if _estimated_cost_usd_total == 0.0 else str(round(_estimated_cost_usd_total, 8))
+        lines.extend([
             "# HELP getnet_escalations_total Total number of tickets escalated to human.",
             "# TYPE getnet_escalations_total counter",
             f"getnet_escalations_total {_escalations_total}",
@@ -316,9 +393,18 @@ def render() -> str:
             "# TYPE getnet_llm_tokens_total counter",
             f'getnet_llm_tokens_total{{direction="input"}} {_tokens["input"]}',
             f'getnet_llm_tokens_total{{direction="output"}} {_tokens["output"]}',
+            "# HELP getnet_estimated_cost_usd_total Cumulative estimated LLM cost in USD.",
+            "# TYPE getnet_estimated_cost_usd_total counter",
+            f"getnet_estimated_cost_usd_total {cost_str}",
             "# HELP getnet_rate_limit_backend_errors_total Total number of rate limit backend errors falling back to local memory.",
             "# TYPE getnet_rate_limit_backend_errors_total counter",
             f"getnet_rate_limit_backend_errors_total {_rate_limit_backend_errors_total}",
+            "# HELP getnet_open_ticket_oldest_age_seconds Age in seconds of the oldest open or in-progress ticket.",
+            "# TYPE getnet_open_ticket_oldest_age_seconds gauge",
+            f"getnet_open_ticket_oldest_age_seconds {oldest_age_s}",
+            "# HELP getnet_sse_connections Current number of active merchant SSE event streams.",
+            "# TYPE getnet_sse_connections gauge",
+            f"getnet_sse_connections {_sse_connections}",
         ])
 
         return "\n".join(lines) + "\n"

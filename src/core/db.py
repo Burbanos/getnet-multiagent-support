@@ -99,6 +99,21 @@ audit_events = Table(
     Column("otel_trace_id", Text, nullable=True),
 )
 
+refresh_tokens = Table(
+    "refresh_tokens",
+    metadata,
+    Column("token_hash", Text, primary_key=True),
+    Column("family_id", Text, nullable=False),
+    Column("user_id", Text, nullable=False),
+    Column("role", Text, nullable=False),
+    Column("key_id", Text, nullable=False),
+    Column("issued_at", Text, nullable=False),
+    Column("expires_at", Text, nullable=False),
+    Column("used_at", Text, nullable=True),
+    Column("revoked_at", Text, nullable=True),
+    Index("ix_refresh_tokens_family_id", "family_id"),
+)
+
 
 def is_postgres_url(target: str) -> bool:
     """Return True if target uses a postgresql:// or postgresql+psycopg:// scheme."""

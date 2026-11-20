@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     PLAN_COVERAGE_ENABLED: bool = True
     API_KEYS: str = ""
     RATE_LIMIT_PER_MINUTE: int = 30
+    JWT_SIGNING_KEYS: str = ""
+    JWT_ACTIVE_KID: str = ""
+    JWT_ISSUER: str = "getnet-multiagent"
+    JWT_AUDIENCE: str = "getnet-multiagent-api"
+    ACCESS_TOKEN_TTL_S: int = 900
+    REFRESH_TOKEN_TTL_S: int = 28800
+    SSE_HEARTBEAT_S: float = 15.0
+    SSE_MAX_CONNECTION_S: float = 300.0
     CHECKPOINT_DB_PATH: str = "data/checkpoints.db"
     TICKETS_DB_PATH: str = "data/tickets.db"
     DATABASE_URL: str = ""

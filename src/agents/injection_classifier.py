@@ -17,6 +17,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from src.config import settings
+from src.core import metrics
 from src.core.llm import (
     LLMConfigurationError,
     LLMNotConfiguredError,
@@ -125,13 +126,22 @@ class InjectionClassifier:
             try:
                 response = self._bound_model.invoke(messages)
             except (LLMNotConfiguredError, LLMConfigurationError):
+                metrics.inc_llm_call(caller_name, "error")
+                if caller_name == "InjectionClassifier":
+                    metrics.inc_guardrail_classifier("error")
                 set_attributes({"llm.status": "error"})
                 raise
             except CONFIG_EXCEPTIONS as exc:
+                metrics.inc_llm_call(caller_name, "error")
+                if caller_name == "InjectionClassifier":
+                    metrics.inc_guardrail_classifier("error")
                 set_attributes({"llm.status": "error"})
                 raise LLMConfigurationError(type(exc).__name__) from exc
             except Exception as exc:  # noqa: BLE001
                 latency = round((time.perf_counter() - t0) * 1000, 2)
+                metrics.inc_llm_call(caller_name, "error")
+                if caller_name == "InjectionClassifier":
+                    metrics.inc_guardrail_classifier("error")
                 set_attributes({"llm.status": "error"})
                 return ClassifierResult(
                     status="error",
@@ -143,6 +153,7 @@ class InjectionClassifier:
                     model=self._model_name,
                 )
 
+            metrics.inc_llm_call(caller_name, "ok")
             usage = getattr(response, "usage_metadata", None)
             span_attrs: dict[str, Any] = {"llm.status": "ok"}
             if isinstance(usage, dict):
@@ -157,6 +168,8 @@ class InjectionClassifier:
         tool_calls = getattr(response, "tool_calls", None) or []
         verdict_call = next((tc for tc in tool_calls if tc.get("name") == "GuardrailVerdict"), None)
         if not verdict_call:
+            if caller_name == "InjectionClassifier":
+                metrics.inc_guardrail_classifier("invalid")
             return ClassifierResult(
                 status="invalid",
                 verdict="block",
@@ -171,6 +184,8 @@ class InjectionClassifier:
         try:
             parsed = GuardrailVerdict(**args)
         except Exception:  # noqa: BLE001
+            if caller_name == "InjectionClassifier":
+                metrics.inc_guardrail_classifier("invalid")
             return ClassifierResult(
                 status="invalid",
                 verdict="block",
@@ -182,6 +197,8 @@ class InjectionClassifier:
             )
 
         if (parsed.verdict == "allow") != (parsed.category == "none"):
+            if caller_name == "InjectionClassifier":
+                metrics.inc_guardrail_classifier("invalid")
             return ClassifierResult(
                 status="invalid",
                 verdict="block",
@@ -192,6 +209,8 @@ class InjectionClassifier:
                 model=self._model_name,
             )
 
+        if caller_name == "InjectionClassifier":
+            metrics.inc_guardrail_classifier("ok")
         return ClassifierResult(
             status="ok",
             verdict=parsed.verdict,
