@@ -1,0 +1,368 @@
+{
+  "run_id": "compose-3",
+  "timestamp_utc": "2026-11-20T21:01:47.637980+00:00",
+  "git_commit": "38ba91fe8b3a10f84b29178af46ea558ad4a682c",
+  "git_dirty": false,
+  "compose_ps": [
+    {
+      "service": "app-a",
+      "image": "getnet-multiagent-app:local",
+      "state": "running"
+    },
+    {
+      "service": "app-b",
+      "image": "getnet-multiagent-app:local",
+      "state": "running"
+    },
+    {
+      "service": "grafana",
+      "image": "grafana/grafana:11.3.1",
+      "state": "running"
+    },
+    {
+      "service": "jaeger",
+      "image": "jaegertracing/jaeger:2.6.0",
+      "state": "running"
+    },
+    {
+      "service": "postgres",
+      "image": "postgres:16-alpine",
+      "state": "running"
+    },
+    {
+      "service": "prometheus",
+      "image": "prom/prometheus:v2.55.1",
+      "state": "running"
+    },
+    {
+      "service": "redis",
+      "image": "redis:7-alpine",
+      "state": "running"
+    }
+  ],
+  "health": {
+    "app_a": {
+      "port": 8000,
+      "http_status": 200,
+      "replica": "app-a",
+      "environment": "production",
+      "state_backend": "postgres",
+      "rate_limit_backend": "redis",
+      "tracing_exporter": "otlp"
+    },
+    "app_b": {
+      "port": 8001,
+      "http_status": 200,
+      "replica": "app-b",
+      "environment": "production",
+      "state_backend": "postgres",
+      "rate_limit_backend": "redis",
+      "tracing_exporter": "otlp"
+    }
+  },
+  "auth_tokens": {
+    "direct_key_status": 401,
+    "cross_replica_status": 200,
+    "tampered_status": 401,
+    "rotation_status": 200,
+    "reuse_status": 401,
+    "sibling_after_reuse_status": 401
+  },
+  "conversation_across_replicas": {
+    "session_id": "compose-conv-compose-3-578dd6bf",
+    "turn1": {
+      "port": 8000,
+      "http_status": 200,
+      "x_trace_id": "trc-b04938200e82",
+      "traceparent": "00-52ac4d6cae558ca93e73d165d37e8ced-d838944f41f7e389-03",
+      "action": {
+        "tool": "request_terminal_replacement",
+        "status": "pending_confirmation",
+        "action_id": "ACT-20261120-A33F0E3F16",
+        "request_id": null
+      },
+      "ticket_id": null,
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent",
+        "SupportAgent"
+      ],
+      "tools_used": [
+        "request_terminal_replacement"
+      ],
+      "response": "Para solicitar a troca da sua maquininha Get Smart (número de série **GET-883921**) por motivo de **tela quebrada**, preciso da sua confirmação. \n\nVocê confirma essa solicitação de troca?"
+    },
+    "turn2": {
+      "port": 8001,
+      "http_status": 200,
+      "x_trace_id": "trc-782f35f6dee2",
+      "traceparent": "00-89f549fb40121589d9338146ac602b0c-759964c48af98fc6-03",
+      "action": {
+        "tool": "confirm_pending_action",
+        "status": "executed",
+        "action_id": "ACT-20261120-A33F0E3F16",
+        "request_id": "GET-TRC-20261120-77BBDA8403"
+      },
+      "ticket_id": null,
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent"
+      ],
+      "tools_used": [
+        "confirm_pending_action"
+      ],
+      "response": "A troca da sua maquininha com o número de série GET-883921 foi solicitada com sucesso. \n\nO ID da sua solicitação é **GET-TRC-20261120-77BBDA8403**."
+    },
+    "session_messages_http_status": 200,
+    "session_message_count": 4,
+    "replacements_http_status_a": 429,
+    "replacements_http_status_b": 200,
+    "replacements_seen_a": false,
+    "replacements_seen_b": true,
+    "request_id": "GET-TRC-20261120-77BBDA8403",
+    "audit_http_status": 200,
+    "audit_event_count": 1,
+    "audit_actions": [
+      "replacement_executed"
+    ]
+  },
+  "ticket_across_replicas": {
+    "session_id": "compose-tkt-compose-3-a6a76271",
+    "ticket_id": "GET-TKT-20261120-BF5D92786B",
+    "turn1": {
+      "port": 8001,
+      "http_status": 200,
+      "x_trace_id": "trc-b1b637d506f2",
+      "traceparent": "00-114eb170cda1f1f4d6cb5e0632e12639-8da45cfa1e2c1ff2-03",
+      "action": null,
+      "ticket_id": "GET-TKT-20261120-BF5D92786B",
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent"
+      ],
+      "tools_used": [
+        "escalate_to_human"
+      ],
+      "response": "Seu pedido foi registrado para o time de atendimento humano sob o protocolo **GET-TKT-20261120-BF5D92786B**. A resposta aparecerá nesta mesma conversa."
+    },
+    "patch_http_status": 200,
+    "patch_status": "answered",
+    "patch_resume_status": "resumed",
+    "sse_event_received": true,
+    "messages_after_patch_http_status": 200,
+    "messages_after_patch_count": 3,
+    "turn2": {
+      "port": 8001,
+      "http_status": 200,
+      "x_trace_id": "trc-cf04004ea3ee",
+      "traceparent": "00-6e6fb387538418b35e79c96d26b6c2da-b508741bbf6dff48-03",
+      "action": null,
+      "ticket_id": null,
+      "handoff": null,
+      "agents_used": [
+        "SupervisorAgent",
+        "SupportAgent"
+      ],
+      "tools_used": [],
+      "response": "O atendimento humano para o protocolo **GET-TKT-20261120-BF5D92786B** foi concluído com a mensagem: \"Olá, analisamos seu chamado e concluímos o atendimento.\" Caso precise de algo mais, estou à disposição!"
+    },
+    "audit_http_status": 200,
+    "audit_event_count": 4,
+    "audit_actions": [
+      "ticket_reply_delivered",
+      "ticket_replied",
+      "ticket_updated",
+      "ticket_created"
+    ]
+  },
+  "pii": {
+    "http_status": 200,
+    "pg_dump_bytes": 872900,
+    "pg_bytea_values": 712,
+    "pg_marker_count": 20,
+    "pg_pii": {
+      "card_spaced": 0,
+      "card_digits": 0,
+      "cpf_formatted": 0,
+      "cpf_digits": 0
+    },
+    "raw_refresh_tokens_in_dump": 0,
+    "logs_bytes": 48727,
+    "logs_marker_count": 0,
+    "logs_pii": {
+      "card_spaced": 0,
+      "card_digits": 0,
+      "cpf_formatted": 0,
+      "cpf_digits": 0
+    },
+    "raw_refresh_tokens_in_logs": 0
+  },
+  "rate_limit": {
+    "initial_ports": [
+      8000,
+      8001,
+      8000,
+      8001,
+      8000,
+      8001
+    ],
+    "initial_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "seventh_port": 8001,
+    "seventh_status": 429,
+    "seventh_retry_after": "46"
+  },
+  "traces": {
+    "conversation_turn1": {
+      "found": true,
+      "trace_id": "52ac4d6cae558ca93e73d165d37e8ced",
+      "summary": {
+        "trace_id": "52ac4d6cae558ca93e73d165d37e8ced",
+        "span_count": 22,
+        "span_names": [
+          "chat.request",
+          "graph.node.abstention_check",
+          "graph.node.answer_check",
+          "graph.node.guardrail",
+          "graph.node.guardrail_classifier",
+          "graph.node.handoff_gate",
+          "graph.node.language_check",
+          "graph.node.plan_coverage",
+          "graph.node.planner",
+          "graph.node.supervisor",
+          "graph.node.tools",
+          "graph.node.verifier",
+          "llm.call",
+          "tool.call"
+        ],
+        "attribute_keys": [
+          "agent.name",
+          "app.trace_id",
+          "coverage.status",
+          "graph.node",
+          "http.route",
+          "http.status_code",
+          "llm.caller",
+          "llm.fallback_used",
+          "llm.input_tokens",
+          "llm.model",
+          "llm.output_tokens",
+          "llm.status",
+          "otel.scope.name",
+          "rate_limit.backend",
+          "service.replica",
+          "span.kind",
+          "tool.name",
+          "tool.status",
+          "user.hash"
+        ],
+        "services": [
+          "getnet-multiagent"
+        ],
+        "marker_in_attributes": false
+      },
+      "scan_pii": {
+        "card_spaced": 0,
+        "card_digits": 0,
+        "cpf_formatted": 0,
+        "cpf_digits": 0
+      }
+    },
+    "pii_turn": {
+      "found": true,
+      "trace_id": "fc28bd2020db3ad2cbd87011bca97ac4",
+      "summary": {
+        "trace_id": "fc28bd2020db3ad2cbd87011bca97ac4",
+        "span_count": 20,
+        "span_names": [
+          "chat.request",
+          "graph.node.abstention_check",
+          "graph.node.answer_check",
+          "graph.node.guardrail",
+          "graph.node.guardrail_classifier",
+          "graph.node.handoff_gate",
+          "graph.node.language_check",
+          "graph.node.plan_coverage",
+          "graph.node.planner",
+          "graph.node.supervisor",
+          "graph.node.tools",
+          "graph.node.verifier",
+          "llm.call",
+          "tool.call"
+        ],
+        "attribute_keys": [
+          "app.trace_id",
+          "coverage.status",
+          "graph.node",
+          "http.route",
+          "http.status_code",
+          "llm.caller",
+          "llm.fallback_used",
+          "llm.input_tokens",
+          "llm.model",
+          "llm.output_tokens",
+          "llm.status",
+          "otel.scope.name",
+          "rate_limit.backend",
+          "service.replica",
+          "span.kind",
+          "tool.name",
+          "tool.status",
+          "user.hash"
+        ],
+        "services": [
+          "getnet-multiagent"
+        ],
+        "marker_in_attributes": false
+      },
+      "scan_pii": {
+        "card_spaced": 0,
+        "card_digits": 0,
+        "cpf_formatted": 0,
+        "cpf_digits": 0
+      }
+    }
+  },
+  "alerts": {
+    "http_status": 200,
+    "loaded_alerts": [
+      "GetnetEstimatedCostPerHour",
+      "GetnetGuardrailClassifierDegraded",
+      "GetnetHighAbstentionRate",
+      "GetnetHighChatLatencyP95",
+      "GetnetHighErrorRate",
+      "GetnetLLMErrorsOrFallbacks",
+      "GetnetMerchantNotificationFailures",
+      "GetnetOldestOpenTicketAge",
+      "GetnetOperatorNotificationFailures",
+      "GetnetRateLimitBackendErrors",
+      "GetnetReplicaDown"
+    ]
+  },
+  "checks": {
+    "replicas_healthy": true,
+    "token_cross_replica": true,
+    "api_key_rejected_in_production": true,
+    "refresh_rotation_cross_replica": true,
+    "refresh_reuse_revokes_family": true,
+    "tampered_token_rejected": true,
+    "conversation_across_replicas": false,
+    "ticket_across_replicas": true,
+    "reply_delivered": true,
+    "sse_cross_replica": true,
+    "rate_limit_shared": true,
+    "pii_absent_postgres": true,
+    "pii_absent_logs": true,
+    "no_raw_refresh_tokens_in_dump": true,
+    "trace_exported": true,
+    "trace_private": true,
+    "alert_rules_loaded": true
+  },
+  "error": null
+}
