@@ -5,6 +5,7 @@ import hashlib
 import logging
 import secrets
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -94,8 +95,9 @@ class RefreshTokenRepository:
         self,
         token: str,
         now: float | datetime | None = None,
+        key_check: Callable[[Principal], str | None] | None = None,
     ) -> tuple[Principal, str, int]:
-        """Rotate a valid refresh token, or revoke its whole family when reuse of a spent token is detected."""
+        """Rotate a valid refresh token, or revoke its whole family on reuse or credential failure."""
         if not isinstance(token, str) or not token.strip():
             raise TokenError("unknown")
 
@@ -142,54 +144,74 @@ class RefreshTokenRepository:
             elif now_dt >= datetime.fromisoformat(str(row["expires_at"])):
                 error_reason = "expired"
             else:
-                res = conn.execute(
-                    update(refresh_tokens)
-                    .where(
-                        and_(
-                            refresh_tokens.c.token_hash == token_hash,
-                            refresh_tokens.c.used_at.is_(None),
-                            refresh_tokens.c.revoked_at.is_(None),
-                        )
-                    )
-                    .values(used_at=now_iso)
+                principal = Principal(
+                    user_id=str(row["user_id"]),
+                    role=str(row["role"]),
+                    key_id=str(row["key_id"]),
                 )
-                if (res.rowcount or 0) == 0:
-                    error_reason = "reused"
-                else:
-                    ttl = int(settings.REFRESH_TOKEN_TTL_S)
-                    new_raw = secrets.token_urlsafe(32)
-                    new_hash = _hash_token(new_raw)
-                    new_expires = (now_dt + timedelta(seconds=ttl)).isoformat()
+                problem = key_check(principal) if key_check is not None else None
+                if problem:
                     family_id = str(row["family_id"])
                     conn.execute(
-                        insert(refresh_tokens).values(
-                            token_hash=new_hash,
-                            family_id=family_id,
-                            user_id=str(row["user_id"]),
-                            role=str(row["role"]),
-                            key_id=str(row["key_id"]),
-                            issued_at=now_iso,
-                            expires_at=new_expires,
-                            used_at=None,
-                            revoked_at=None,
-                        )
+                        update(refresh_tokens)
+                        .where(and_(refresh_tokens.c.family_id == family_id, refresh_tokens.c.revoked_at.is_(None)))
+                        .values(revoked_at=now_iso)
                     )
                     insert_audit(
                         conn,
                         actor_type=str(row["role"]),
                         actor_id=str(row["user_id"]),
-                        action="auth.refresh_rotated",
+                        action="auth.refresh_revoked",
                         target_type="refresh_family",
                         target_id=family_id,
-                        outcome="ok",
-                        details={"status": "rotated"},
+                        outcome="revoked",
+                        details={"status": str(problem)},
                     )
-                    principal = Principal(
-                        user_id=str(row["user_id"]),
-                        role=str(row["role"]),
-                        key_id=str(row["key_id"]),
+                    error_reason = str(problem)
+                else:
+                    res = conn.execute(
+                        update(refresh_tokens)
+                        .where(
+                            and_(
+                                refresh_tokens.c.token_hash == token_hash,
+                                refresh_tokens.c.used_at.is_(None),
+                                refresh_tokens.c.revoked_at.is_(None),
+                            )
+                        )
+                        .values(used_at=now_iso)
                     )
-                    result = (principal, new_raw, ttl)
+                    if (res.rowcount or 0) == 0:
+                        error_reason = "reused"
+                    else:
+                        ttl = int(settings.REFRESH_TOKEN_TTL_S)
+                        new_raw = secrets.token_urlsafe(32)
+                        new_hash = _hash_token(new_raw)
+                        new_expires = (now_dt + timedelta(seconds=ttl)).isoformat()
+                        family_id = str(row["family_id"])
+                        conn.execute(
+                            insert(refresh_tokens).values(
+                                token_hash=new_hash,
+                                family_id=family_id,
+                                user_id=str(row["user_id"]),
+                                role=str(row["role"]),
+                                key_id=str(row["key_id"]),
+                                issued_at=now_iso,
+                                expires_at=new_expires,
+                                used_at=None,
+                                revoked_at=None,
+                            )
+                        )
+                        insert_audit(
+                            conn,
+                            actor_type=str(row["role"]),
+                            actor_id=str(row["user_id"]),
+                            action="auth.refresh_rotated",
+                            target_type="refresh_family",
+                            target_id=family_id,
+                            outcome="ok",
+                            details={"status": "rotated"},
+                        )
+                        result = (principal, new_raw, ttl)
 
         if error_reason is not None:
             raise TokenError(error_reason)

@@ -1,13 +1,29 @@
 """Text chunking module with boilerplate removal and size-capped chunk creation."""
 from __future__ import annotations
 
+import hashlib
 from collections import Counter
 from typing import Any
+from urllib.parse import urlparse
 
 
 def _norm(line: str) -> str:
     """Normalize a line for boilerplate comparison."""
     return " ".join(line.split()).lower()
+
+
+def _parent_section(url: str) -> tuple[str, tuple[str, ...]] | None:
+    """Return (host, parent_segments) for non-root URL paths, or None for root/empty URLs."""
+    if not url:
+        return None
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return None
+    segments = [seg for seg in parsed.path.split("/") if seg]
+    if len(segments) < 2:
+        return None
+    return host, tuple(segments[:-1])
 
 
 def _make_chunk(
@@ -19,9 +35,10 @@ def _make_chunk(
     market: str,
     fetched_at: str,
 ) -> dict[str, Any]:
-    """Assemble a chunk record dictionary."""
+    """Assemble a chunk record with a deterministic per-URL chunk_id."""
+    url_prefix = hashlib.sha256(doc_url.encode("utf-8")).hexdigest()[:12]
     return {
-        "chunk_id": f"{doc_sha256[:12]}-{idx:03d}",
+        "chunk_id": f"{url_prefix}-{idx:03d}",
         "doc_url": doc_url,
         "title": title,
         "market": market,
@@ -37,13 +54,15 @@ def build_chunks(
     boilerplate_min_pages: int = 4,
     min_chars: int = 0,
     boilerplate_min_run: int = 2,
+    boilerplate_section_exempt: bool = False,
 ) -> list[dict[str, Any]]:
     """
     Split clean 'ok' records into deterministic, verbatim text chunks.
 
     Filters empty lines, lines without any alphanumeric character (e.g. '—'),
     and contiguous runs of at least boilerplate_min_run lines whose normalized text
-    appears in boilerplate_min_pages or more pages.
+    appears in boilerplate_min_pages or more pages (optionally exempting lines confined
+    to a single non-root URL parent directory when boilerplate_section_exempt is True).
     Groups remaining lines verbatim into chunks capped at max_chars characters.
     If min_chars > 0, pages with less than min_chars of retained text are dropped,
     and a trailing chunk smaller than min_chars is merged into the previous chunk.
@@ -52,14 +71,26 @@ def build_chunks(
 
     # Identify boilerplate lines across distinct ok pages
     page_line_counts: Counter[str] = Counter()
+    page_line_sections: dict[str, set[tuple[str, tuple[str, ...]] | None]] = {}
     for rec in ok_records:
         text = rec.get("text") or ""
+        doc_url = rec.get("url") or rec.get("doc_url") or ""
         page_norm_lines = {_norm(ln) for ln in text.split("\n") if _norm(ln)}
         page_line_counts.update(page_norm_lines)
+        if boilerplate_section_exempt:
+            sec = _parent_section(doc_url)
+            for nline in page_norm_lines:
+                page_line_sections.setdefault(nline, set()).add(sec)
 
-    boilerplate = {
-        nline for nline, count in page_line_counts.items() if count >= boilerplate_min_pages
-    }
+    boilerplate: set[str] = set()
+    for nline, count in page_line_counts.items():
+        if count < boilerplate_min_pages:
+            continue
+        if boilerplate_section_exempt:
+            secs = page_line_sections.get(nline, set())
+            if len(secs) == 1 and next(iter(secs)) is not None:
+                continue
+        boilerplate.add(nline)
 
     chunks: list[dict[str, Any]] = []
 

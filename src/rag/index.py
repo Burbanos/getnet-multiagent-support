@@ -12,6 +12,15 @@ import numpy as np
 
 logger = logging.getLogger("multiagent.rag.index")
 
+INDEX_EXCLUDED_URLS: dict[str, str] = {
+    "https://site.getnet.com.br/wp-content/uploads/2026/10/Codigo_de_Conduta_Getnet_2026.pdf": (
+        "Código de conduta corporativo, fora do escopo de suporte ao lojista"
+    ),
+    "https://site.getnet.com.br/wp-content/uploads/2026/10/Regulamento-do-Canal-Aberto-2026.pdf": (
+        "Regulamento do canal de denúncias corporativo, fora do escopo de suporte ao lojista"
+    ),
+}
+
 
 def build_index(
     chunks: list[dict[str, Any]],
@@ -21,6 +30,7 @@ def build_index(
     dim: int,
     corpus_sha256: str | None = None,
     chunking: dict[str, Any] | None = None,
+    excluded_urls: list[str] | set[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """
     Generate embeddings for chunks, L2-normalize them, and persist the index artifacts.
@@ -60,6 +70,8 @@ def build_index(
     }
     if chunking is not None:
         meta["chunking"] = dict(chunking)
+    if excluded_urls is not None:
+        meta["excluded_urls"] = sorted(excluded_urls)
     (out_path / "index_meta.json").write_text(
         json.dumps(meta, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -159,7 +171,8 @@ def main() -> None:
         return
 
     pages = [json.loads(line) for line in corpus_file.read_text(encoding="utf-8").splitlines() if line.strip()]
-    ok_pages = [p for p in pages if p.get("status") == "ok"]
+    excluded_set = set(INDEX_EXCLUDED_URLS)
+    ok_pages = [p for p in pages if p.get("status") == "ok" and p.get("url") not in excluded_set]
 
     corpus_sha = hashlib.sha256("".join(p["sha256"] for p in ok_pages).encode("utf-8")).hexdigest()
     chunking_cfg = {
@@ -167,6 +180,7 @@ def main() -> None:
         "boilerplate_min_pages": 4,
         "boilerplate_min_run": 2,
         "min_chars": settings.RAG_MIN_CHUNK_CHARS,
+        "boilerplate_section_exempt": True,
     }
     chunks = build_chunks(ok_pages, **chunking_cfg)
 
@@ -179,6 +193,7 @@ def main() -> None:
         dim=settings.EMBEDDING_DIM,
         corpus_sha256=corpus_sha,
         chunking=chunking_cfg,
+        excluded_urls=sorted(excluded_set),
     )
 
     print(f"Built index with {meta['n_chunks']} chunks from {len(ok_pages)} ok pages (dim={meta['dim']}).")

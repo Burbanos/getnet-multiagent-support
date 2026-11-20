@@ -96,6 +96,29 @@ def is_principal_expired(principal: Principal, today_utc: date | None = None) ->
     return today > date.fromisoformat(principal.not_after)
 
 
+def credential_problem(principal: Principal, today_utc: date | None = None) -> str | None:
+    """
+    Re-check an already-issued Principal against the current API_KEYS configuration.
+
+    Returns 'key_revoked' if the key is no longer configured or its user_id/role changed,
+    'key_expired' if the key's last valid day has passed, or None if valid.
+    Raises ValueError if API_KEYS configuration is malformed.
+    """
+    table = get_principal_table()
+    matched: Principal | None = None
+    for candidate in table.values():
+        if hmac.compare_digest(candidate.key_id, principal.key_id):
+            matched = candidate
+            break
+    if matched is None:
+        return "key_revoked"
+    if matched.user_id != principal.user_id or matched.role != principal.role:
+        return "key_revoked"
+    if is_principal_expired(matched, today_utc=today_utc):
+        return "key_expired"
+    return None
+
+
 def auth_mode() -> str:
     """Determine the active authentication mode from configuration."""
     raw_keys = settings.API_KEYS.strip()
@@ -251,6 +274,19 @@ def authenticate(
                 detail=f"Invalid or expired token ({exc.reason}).",
                 headers={"WWW-Authenticate": "Bearer"},
             ) from exc
+        try:
+            problem = credential_problem(principal)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication misconfigured: check API_KEYS.",
+            ) from exc
+        if problem is not None:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid or expired token ({problem}).",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         enforce_rate_limit(principal.key_id)
         return principal
 

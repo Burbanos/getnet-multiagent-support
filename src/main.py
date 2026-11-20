@@ -23,6 +23,7 @@ from src.core.auth import (
     auth_mode,
     authenticate,
     authenticate_api_key,
+    credential_problem,
     enforce_rate_limit,
     validate_auth_config,
 )
@@ -301,12 +302,20 @@ def refresh_token_endpoint(payload: RefreshTokenRequest) -> TokenResponse:
     key_id = repo.peek_key_id(payload.refresh_token) or "unknown"
     enforce_rate_limit(f"auth:{key_id}")
     try:
-        principal, new_refresh, refresh_expires_in = repo.rotate(payload.refresh_token)
+        principal, new_refresh, refresh_expires_in = repo.rotate(
+            payload.refresh_token,
+            key_check=credential_problem,
+        )
     except TokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid or expired refresh token ({exc.reason}).",
             headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication misconfigured: check API_KEYS.",
         ) from exc
     try:
         access_token, expires_in = issue_access_token(principal)

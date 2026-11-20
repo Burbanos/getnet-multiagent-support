@@ -46,7 +46,8 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 Phase 14 closed (`8dcf972`, CI green: `test`, `integration`, `docker`). Real feedback v3: **9.2/10**, "Excelente / finalista",
 9th place. Its "Caminho para 9,5" is the scope of Phase 15. Decided by the author: no new labels from an annotator outside the
 project in Phase 15 (the README declares it as pending); judge calibration as in §3.5 (options a and c). 15A closed
-(`fba3306`, 44/44, CI green). **Next: 15B.**
+(`fba3306`, 44/44, CI green). 15B closed (`dd9e8d3`, 48/48 with promtool, CI green). **Next: 15C** (pre-round fixes and
+the reviewer's pre-round files), then the round, then 15D.
 
 ---
 
@@ -63,7 +64,7 @@ justification. A drop in a row of class **E** blocks the resubmission. A drop in
 README states it with its reason (for example, a layer removed by the ablation to cut cost). "Drop": a rate below the baseline
 as printed with one decimal; latency or cost above it; a presence item whose evidence or test no longer exists or passes. The
 comparison uses the configuration shipped as default after the ablation (§3.4); holdouts, actions and retrieval use the
-round's runs. The final verifier of each phase that resubmits (15C in Phase 15) recomputes every row from the committed
+round's runs. The final verifier of each phase that resubmits (15D in Phase 15) recomputes every row from the committed
 records and fails on an undeclared drop. Rows whose Phase 15 target is higher than the baseline say so in the last column.
 
 ### Challenge statement
@@ -100,7 +101,7 @@ records and fails on an undeclared drop. Rows whose Phase 15 target is higher th
 | ID | Item | Evidence at `8dcf972` | Value at `8dcf972` | Class | Phase 15 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | V2.1 | Notify the operator and resume the supervisor | `src/core/notifier.py`, `/operator`, `PATCH /tickets/{id}` resume; `compose-1` | fixed | F | keep |
-| V2.2 | Hybrid search with reranking; abstention on the 10 uncovered | `src/rag/`; `rerank-7` | hit@1 1.000; uncovered 0.900; off-domain 1.000 | F | keep (§3.6) |
+| V2.2 | Hybrid search with reranking; abstention on the 10 uncovered | `src/rag/`; `rerank-7` | hit@1 1.000; uncovered 0.900; off-domain 1.000 | F | keep; uncovered compared as failures (§3.4) |
 | V2.3 | Human validation of labels and judge, with agreement | `reports/human_validation*`; route κ 0.87 / 0.80 | fixed | F | keep |
 | V2.4 | `s04`/`s06` decline codes routed to the KB | holdout 1 (`rh-10`); `s04`/`s06` pass in `v2-13..15` | 100.0% | F | keep |
 | V2.5 | No verification before sending | `src/agents/verifier.py` | fixed | F | ablation (§3.4) |
@@ -185,10 +186,10 @@ Orchestrator (Neon) from 13D-2.
 
 ## 3. Phase 15 — the "Caminho para 9,5"
 
-Three sub-phases and one round of real runs, no fix sub-phase planned in advance. 15A changes the orchestration and the
-evaluation tooling; 15B the production surface (tokens, merchant notification, alerts) and the corpus; then the reviewer
-writes the labelled sets that need the new corpus, the author rebuilds the index, runs the Compose evidence and the round;
-15C publishes it. Implementer: Antigravity, Orchestrator (Neon).
+Four sub-phases and one round of real runs, no fix sub-phase planned in advance. 15A changes the orchestration and the
+evaluation tooling; 15B the production surface (tokens, merchant notification, alerts) and the corpus; 15C (short, added after
+the 15B review) fixes what that review found and commits the reviewer's pre-round files; the author rebuilds the index, runs
+the Compose evidence and the round; 15D publishes it. Implementer: Antigravity, Orchestrator (Neon).
 
 ### 3.1 Diagnosis (reviewer, from the `8dcf972` records)
 
@@ -395,13 +396,72 @@ Checked by `scripts/verify_phase15b.py`; prompt `docs/phase-prompts/15B.md`. Rev
 **Before the round (author):** fills `reports/human_validation_2/answers.csv` (§3.3) without opening `sample.json`, the
 records or the judgments, and commits it.
 
-**Before the round (reviewer, after 15B is reviewed, committed before any run):** `data/eval/retrieval_labeled2.jsonl`
-(answerable queries whose answer is only in the new pages, plus uncovered and off-domain queries), written from the collected
-corpus text and before any retrieval run; the list, in this SPEC, of `retrieval_labeled.jsonl` uncovered queries whose answer
-now appears verbatim in a new page (excluded from the uncovered denominator, reported); the judge candidate prompt(s) of §3.5;
-the exact commands.
+**Before the round (reviewer, committed in 15C, before any run):** `data/eval/retrieval_labeled2.jsonl` (20 answerable
+queries whose answer is only in the new pages, 4 uncovered, 2 off-domain), written from the collected corpus text and before any
+retrieval run, with every gold snippet checked against the chunks of the 15C chunking; the judge candidate prompt
+`src/prompts/judge_acceptable.md` (§3.5); the list and the commands below.
 
-**Order:** (1) `python -m src.rag.index` and query embeddings → commit `index: …`; (2) `scripts/compose_evidence.py` in
+**Uncovered queries of `retrieval_labeled.jsonl` now covered** (decided from the corpus text at `dd9e8d3`, before any run):
+`u02` (Central de Relacionamento phone numbers on the help pages), `u05` (the "como cancelar a parceria" page: contact the
+Central de Relacionamento), `u08` (Shopify on the digital plugins page), `u09` (12 calendar days to send the chargeback defence,
+help page and the chargeback manual). They leave the uncovered denominator and are reported (answered or not, with the URL).
+Still uncovered: `u01`, `u03`, `u04`, `u06`, `u07`, `u10`. The labels are not edited (immutable).
+
+**Known risk, declared before the round:** `off10` (official WhatsApp payment scenario) passes `sources_ok` only when the
+gold URL `getnet.net/en/our-solutions/online-payments` is cited; the corpus now also has the help page about the
+discontinuation of WhatsApp Business payments, which may be cited instead. If `off10` fails for this reason the README says so;
+the label is not changed.
+
+**Commands of the round** (Codespaces or the author's machine; the Tier 1 key only in the environment, never in a file;
+`EVAL_JUDGE_MODEL=gemini-3.6-flash` set before any `judge`; every run id new; a command interrupted is resumed with the same
+id). Steps 1–2 are committed before step 3 starts.
+```
+# 1. index (commit "index: ..."; data/index/ and the new query-embedding cache; the cache of retrieval_labeled.jsonl is
+#    unchanged: same queries, same embedding model)
+python -m src.rag.index
+python -m src.rag.hybrid_eval --dataset data/eval/retrieval_labeled2.jsonl embed
+# 2. Compose evidence (Codespaces, Docker; commit reports/integration/compose-2.*)
+python scripts/compose_evidence.py run --run-id compose-2
+# 3. v2: full (all flags at their defaults = on), then the two ablations; judge every run except v2-22
+python -m src.eval run   --run-id v2-16 --cases data/eval/cases_v2.jsonl      # likewise v2-17, v2-18
+python -m src.eval judge --run-id v2-16 --cases data/eval/cases_v2.jsonl      # likewise v2-17, v2-18
+VERIFIER_ENABLED=false python -m src.eval run --run-id v2-19 --cases data/eval/cases_v2.jsonl   # v2-20, v2-21; judge each
+PLANNER_ENABLED=false  python -m src.eval run --run-id v2-22 --cases data/eval/cases_v2.jsonl
+# 4. holdouts and actions, full configuration, one run each
+python -m src.eval run --run-id rh-11 --cases data/eval/cases_routing_holdout.jsonl
+python -m src.eval run --run-id rh2-8 --cases data/eval/cases_routing_holdout2.jsonl
+python -m src.eval run --run-id h3-5  --cases data/eval/cases_holdout3.jsonl
+python -m src.eval run --run-id h4-1  --cases data/eval/cases_holdout4.jsonl
+python -m src.eval run --run-id act-5 --cases data/eval/cases_actions.jsonl
+# 5. guardrail (36 labelled, then the author holdout)
+python -m src.eval guardrail-run --run-id hybrid-4            # likewise hybrid-5, hybrid-6; guardrail-report for each
+python -m src.eval guardrail-run --run-id author-2 --set data/eval/guardrail_author_holdout.jsonl   # author-3, author-4
+python -m src.eval guardrail-report --run-id author-2 --set data/eval/guardrail_author_holdout.jsonl
+python -m src.eval guardrail-summary --run-ids hybrid-4,hybrid-5,hybrid-6
+# 6. retrieval
+python -m src.rag.hybrid_eval run --run-id rerank-8
+python -m src.rag.hybrid_eval --dataset data/eval/retrieval_labeled2.jsonl run --run-id rerank2-1
+python -m src.rag.hybrid_eval report --runs rerank-8 --name retrieval_hybrid_15
+python -m src.rag.hybrid_eval --dataset data/eval/retrieval_labeled2.jsonl report --runs rerank2-1 --name retrieval_hybrid2_15
+# 7. judge calibration: §3.5
+# 8. context and reports
+python -m src.eval context --tier paid_tier_1 --run-ids v2-16,v2-17,v2-18,v2-19,v2-20,v2-21,v2-22,rh-11,rh2-8,h3-5,h4-1,act-5
+python -m src.eval compare --name v2_phase15 --cases data/eval/cases_v2.jsonl --group "14=v2-13,v2-14,v2-15" \
+    --group "full=v2-16,v2-17,v2-18" --group "no_verifier=v2-19,v2-20,v2-21" --group "no_planner=v2-22"
+python -m src.eval ablation --name ablation_phase15 --cases data/eval/cases_v2.jsonl --baseline full \
+    --config full=v2-16,v2-17,v2-18 --config no_verifier=v2-19,v2-20,v2-21 --config no_planner=v2-22
+python -m src.eval compare --name routing_holdout_phase15  --cases data/eval/cases_routing_holdout.jsonl  --group "14=rh-10"  --group "15=rh-11"
+python -m src.eval compare --name routing_holdout2_phase15 --cases data/eval/cases_routing_holdout2.jsonl --group "14=rh2-7" --group "15=rh2-8"
+python -m src.eval compare --name holdout3_phase15 --cases data/eval/cases_holdout3.jsonl --group "14=h3-4" --group "15=h3-5"
+python -m src.eval compare --name holdout4_phase15 --cases data/eval/cases_holdout4.jsonl --group "15=h4-1"
+python -m src.eval compare --name actions_phase15  --cases data/eval/cases_actions.jsonl  --group "14=act-4" --group "15=act-5"
+# 9. one commit: "eval: phase 15 round (...)"
+```
+The `--sleep` defaults are those of Phase 14. Old retrieval runs (`rerank-1..7`) are not re-reported: their records hold chunk
+ids of the old index. A command that fails is fixed only when the failure is in tooling outside the measured system (published
+with the fix); never by changing code, prompts or labels of the measured system during the round.
+
+**Order:** (1) `python -m src.rag.index` and the query embeddings of the new set → commit `index: …`; (2) `scripts/compose_evidence.py` in
 Codespaces → `reports/integration/compose-2.md`; (3) with the code of that commit, Tier 1, product model, `EVAL_JUDGE_MODEL=
 gemini-3.6-flash`, no code, prompt or label change until the round is committed:
 - v2, configuration `full` (all layers on): `v2-16`, `v2-17`, `v2-18`, run + judge;
@@ -420,7 +480,7 @@ Estimated cost: about US$ 10 (seven v2 runs, six judged; calibration 9 × 70 jud
 **Ablation rule (declared before the round).** For the verifier: ΔQ = mean cases passed per run in `full` minus in
 `no_verifier` (78 cases); G = gate counts (`unrequested_tickets` + `wrong_language` + `out_of_scope_tools`) summed over the
 three runs. The verifier stays on by default **iff** ΔQ ≥ 1.0 or G(`no_verifier`) > G(`full`); otherwise
-`VERIFIER_ENABLED` defaults to false in 15C (code, tests and flag stay; the README reports the saving and what the rejected
+`VERIFIER_ENABLED` defaults to false in 15D (code, tests and flag stay; the README reports the saving and what the rejected
 drafts were). The language check stays on iff the `full` records show at least one rewritten turn or its cost share is below
 1%. The planner stays (feature dependency, diagnosis 1); its `no_planner` run is reported. `plan_coverage` is not ablated (no
 model call). The shipped default is one of the measured configurations; the matrix compares it.
@@ -429,8 +489,9 @@ model call). The shipped default is one of the measured configurations; the matr
 - C1 shipped configuration (mean of its three v2 runs): official scenarios ≥ 96.7%; routing ≥ 99.5%; tools ≥ 99.5%;
   escalation 100.0%; cost per run ≤ US$ 0.401;
 - C2 `rh2-8`: `n05` and `n06` pass;
-- C3 retrieval: `rerank-8` hit@3 1.000 on the 30 answerable, uncovered abstention ≥ 0.900 on the queries still uncovered,
-  off-domain 1.000; `rerank2-1` hit@3 ≥ 0.900 on its answerable queries and abstention ≥ 0.900 on the others;
+- C3 retrieval: `rerank-8` hit@3 1.000 on the 30 answerable, at most one abstention failure on the six queries still
+  uncovered (the baseline failed one of ten), off-domain 1.000; `rerank2-1` hit@3 ≥ 0.900 on its 20 answerable queries
+  (at least 18) and at most one abstention failure on its six other queries;
 - C4 guardrail: false positives < 10% (mean of `hybrid-4..6`) with 20/20 attacks blocked in each run; `author-2..4`: 10/10
   attacks and at most 1/10 false positive in each run;
 - C5 `compose-2`: every check passes (tokens across replicas, refresh rotation and reuse detection, SSE across replicas, alert
@@ -453,20 +514,70 @@ answered ("would you send this answer to the merchant without correction?") and 
 
 - **C6 (criterion):** the calibration report is published with κ, AC1 and the verdict on every rejected item, per candidate,
   sample and rater, as it comes out; no κ threshold.
+- Commands (3 runs per candidate and sample; `jc1-*` on the first sample, `jc2-*` on the second):
+```
+python -m src.eval judge-calibrate --run-id jc1-a-1 --judge-model gemini-3.6-flash --judge-prompt src/prompts/judge.md
+python -m src.eval judge-calibrate --run-id jc1-b-1 --judge-model gemini-3.6-flash --judge-prompt src/prompts/judge_acceptable.md
+python -m src.eval judge-calibrate --run-id jc1-c-1 --judge-model gemini-3.8-flash --judge-prompt src/prompts/judge_acceptable.md
+python -m src.eval judge-calibrate --run-id jc2-a-1 --judge-model gemini-3.6-flash --judge-prompt src/prompts/judge.md \
+    --sample reports/human_validation_2/sample.json                       # and jc2-b-*, jc2-c-*; runs -1, -2, -3 of each
+python -m src.eval judge-calibration-report --name judge_calibration_1 --runs jc1-a-1,...,jc1-c-3
+python -m src.eval judge-calibration-report --name judge_calibration_2 --runs jc2-a-1,...,jc2-c-3 \
+    --sample reports/human_validation_2/sample.json --author-answers reports/human_validation_2/answers.csv --annotator-answers none
+```
 - **Selection (declared before the round):** the candidate with the highest κ against the author on the second sample; ties go to
   the cheaper one, then to the current judge. The selected judge also judges `v2-16..18` (into
   `reports/eval_runs/judge_<candidate>/`) when it is not the current one; the matrix keeps comparing the current judge.
 
-### 3.6 15C — Publication and the matrix check
+### 3.6 15C — Pre-round fixes (from the 15B review) and the reviewer's pre-round files
 
-Checked by `scripts/verify_phase15c.py` (written after the round): the README with the round, criterion by criterion, the
+Checked by `scripts/verify_phase15c.py`; prompt `docs/phase-prompts/15C.md`. Reviewer files in 15C: this SPEC, the prompt,
+the verifier, `data/eval/retrieval_labeled2.jsonl`, `src/prompts/judge_acceptable.md`. The 15B prompt and verifier are retired;
+the 15C verifier re-runs the 15B verifier from `dd9e8d3` and lists as superseded only its diff, scope, retirement, test-growth
+and STATUS checks (A1–A5, S1), which 15C checks again against `dd9e8d3`.
+
+**Credentials re-checked after issue** (`src/core/auth.py`, `src/core/refresh_tokens.py`, `src/main.py`)
+- `credential_problem(principal) -> str | None` in `src/core/auth.py`: looks up the principal's `key_id` in the current
+  principal table (`get_principal_table()`); returns `"key_revoked"` when the key is no longer configured or its `user_id` or
+  `role` differ from the principal's, `"key_expired"` when the key's last valid day has passed, `None` otherwise. A malformed
+  table raises `ValueError` (callers answer 503 as today).
+- Bearer: `authenticate` calls it after `decode_access_token`; a problem gives 401 with `WWW-Authenticate: Bearer` and the
+  reason in the detail (`Invalid or expired token (key_revoked).`). A removed or expired key stops working at once, not when
+  the access token expires.
+- Refresh: `RefreshTokenRepository.rotate(token, now=None, key_check=None)`; when the stored token is otherwise valid and
+  `key_check(principal)` returns a reason, the whole family is revoked in the same transaction, the audit event
+  `auth.refresh_revoked` is written with `details={"status": <reason>}`, and `TokenError(<reason>)` is raised. `/auth/refresh`
+  passes `key_check=credential_problem` and answers 401 with the reason. Restoring the key does not revive the family.
+
+**Corpus index**
+- `chunk_id` = the first 12 hex characters of SHA-256 of the page URL (UTF-8), `-`, the three-digit chunk index. Unique per
+  URL (today two different URLs with the same text collide); deterministic.
+- `build_chunks(..., boilerplate_section_exempt: bool = False)`: when true, a normalized line present in at least
+  `boilerplate_min_pages` pages is not boilerplate if all those pages have the same parent directory (host plus the URL path
+  without its last segment) and that directory is not the root. Keeps the steps that the help-center error pages of one
+  section share (e.g. `/get-ajuda-erros-maquininha/`), still removes site-wide menus and footers. Default false (existing
+  behaviour); the index passes true.
+- `src/rag/index.py`: `INDEX_EXCLUDED_URLS` (a dict URL → reason) with exactly the two corporate PDFs that are not merchant
+  support content: `Codigo_de_Conduta_Getnet_2026.pdf` (code of conduct) and `Regulamento-do-Canal-Aberto-2026.pdf`
+  (whistleblowing channel rules), both under `https://site.getnet.com.br/wp-content/uploads/2026/10/`. Their records stay in
+  `data/corpus/pages.jsonl`. `main()` indexes the `ok` records not in the list, passes `boilerplate_section_exempt=True` in
+  the chunking configuration (recorded in `index_meta.json`) and records `excluded_urls` (sorted) in `index_meta.json`
+  (`build_index(..., excluded_urls=None)`); `corpus_sha256` is computed over the indexed records.
+- Invariants (reviewer-simulated at `dd9e8d3`, checked by the verifier): the chunks of the 33 original pages are, as
+  (URL, text) pairs, exactly those of the committed `data/index/chunks.jsonl` (103); every answerable query of both retrieval
+  sets has a chunk of a gold URL containing a gold snippet; chunk ids are unique. `data/index/` is not rebuilt in 15C (the
+  author rebuilds it with the embedding key before the round).
+
+### 3.7 15D — Publication and the matrix check
+
+Checked by `scripts/verify_phase15d.py` (written after the round): the README with the round, criterion by criterion, the
 ablation and its decision, the calibration, the new holdout and what is no longer clean; `docs/STATUS.md`; flag defaults set by
 the ablation rule (only those); the matrix recomputed from the records with every drop declared or failing; the README states
 that new labels from someone outside the project are pending.
 
 ### Acceptance (Phase 15)
 
-- AC15.1 The matrix (§R) is in this SPEC before 15A code and is recomputed by the 15C verifier.
+- AC15.1 The matrix (§R) is in this SPEC before 15A code and is recomputed by the 15D verifier.
 - AC15.2 Ablation: each run records its layers; the ablation report applies the rule of §3.4; the shipped default is a measured
   configuration.
 - AC15.3 Every plan step assigned to a specialist is executed or corrected once; screen and app codes never reach the decline
