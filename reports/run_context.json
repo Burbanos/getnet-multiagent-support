@@ -238,6 +238,54 @@
     "rerank-7": {
       "date": "2026-11-19",
       "tier": "paid_tier_1"
+    },
+    "v2-16": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-17": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-18": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-19": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-20": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-21": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-22": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "rh-11": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "rh2-8": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "h3-5": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "h4-1": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "act-5": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
     }
   }
 }

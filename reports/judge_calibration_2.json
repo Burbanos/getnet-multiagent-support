@@ -1,0 +1,120 @@
+{
+  "items": 40,
+  "humans": null,
+  "candidates": [
+    {
+      "judge_model": "gemini-3.6-flash",
+      "prompt_sha256": "0922b4a14198ecf465cd0a836279dad1f17e15c75bf150352aaa10c6c15c03c9",
+      "runs": [
+        "jc2-a-1",
+        "jc2-a-2",
+        "jc2-a-3"
+      ],
+      "raters": {
+        "autor": {
+          "agreement": 34,
+          "n": 40,
+          "kappa": 0.4893617021276596,
+          "ac1": 0.789103690685413,
+          "judge_on_rater_negatives": {
+            "g06": true,
+            "g08": false,
+            "g10": true,
+            "g17": true,
+            "g18": true,
+            "g19": true,
+            "g26": false,
+            "g32": false,
+            "g35": false
+          }
+        }
+      },
+      "abstention_kappa": {
+        "autor": 0.43005181347150245
+      },
+      "grounding": {
+        "autor": {
+          "exact": 39,
+          "mean_abs_diff": 0.1
+        }
+      },
+      "stability": 1.0
+    },
+    {
+      "judge_model": "gemini-3.6-flash",
+      "prompt_sha256": "f423be42c5f1f758ff13ba0037d03182f70d42679e31980a9eeeb7ce53c52034",
+      "runs": [
+        "jc2-b-1",
+        "jc2-b-2",
+        "jc2-b-3"
+      ],
+      "raters": {
+        "autor": {
+          "agreement": 35,
+          "n": 40,
+          "kappa": 0.626865671641791,
+          "ac1": 0.8121183654297792,
+          "judge_on_rater_negatives": {
+            "g06": true,
+            "g08": false,
+            "g10": true,
+            "g17": false,
+            "g18": false,
+            "g19": false,
+            "g26": true,
+            "g32": false,
+            "g35": false
+          }
+        }
+      },
+      "abstention_kappa": {
+        "autor": 0.6068796068796068
+      },
+      "grounding": {
+        "autor": {
+          "exact": 39,
+          "mean_abs_diff": 0.1
+        }
+      },
+      "stability": 1.0
+    },
+    {
+      "judge_model": "gemini-3.8-flash",
+      "prompt_sha256": "f423be42c5f1f758ff13ba0037d03182f70d42679e31980a9eeeb7ce53c52034",
+      "runs": [
+        "jc2-c-1",
+        "jc2-c-2",
+        "jc2-c-3"
+      ],
+      "raters": {
+        "autor": {
+          "agreement": 36,
+          "n": 40,
+          "kappa": 0.7132616487455197,
+          "ac1": 0.8464491362763914,
+          "judge_on_rater_negatives": {
+            "g06": true,
+            "g08": false,
+            "g10": true,
+            "g17": false,
+            "g18": false,
+            "g19": false,
+            "g26": false,
+            "g32": false,
+            "g35": false
+          }
+        }
+      },
+      "abstention_kappa": {
+        "autor": 0.6068796068796068
+      },
+      "grounding": {
+        "autor": {
+          "exact": 39,
+          "mean_abs_diff": 0.1
+        }
+      },
+      "stability": 1.0
+    }
+  ]
+}

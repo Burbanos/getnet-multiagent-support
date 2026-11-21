@@ -1,0 +1,597 @@
+{
+  "name": "ablation_phase15",
+  "cases_sha256": "e32b61a20c57fd3fb6c919b848339b56c6c57a7f7cf9b74959cb617f3b28bb10",
+  "baseline": "full",
+  "configs": {
+    "full": {
+      "runs": [
+        "v2-16",
+        "v2-17",
+        "v2-18"
+      ],
+      "layers": {
+        "planner": true,
+        "verifier": true,
+        "language": true,
+        "plan_coverage": true
+      },
+      "metrics": {
+        "pass_rate": {
+          "values": [
+            0.9358974358974359,
+            0.8974358974358975,
+            0.9230769230769231
+          ],
+          "mean": 0.9188034188034188,
+          "min": 0.8974358974358975,
+          "max": 0.9358974358974359
+        },
+        "official_pass_rate": {
+          "values": [
+            0.8,
+            0.8,
+            0.8
+          ],
+          "mean": 0.8000000000000002,
+          "min": 0.8,
+          "max": 0.8
+        },
+        "routing_rate": {
+          "values": [
+            0.9692307692307692,
+            0.9692307692307692,
+            0.9538461538461539
+          ],
+          "mean": 0.9641025641025641,
+          "min": 0.9538461538461539,
+          "max": 0.9692307692307692
+        },
+        "tools_rate": {
+          "values": [
+            0.9714285714285714,
+            0.9714285714285714,
+            0.9714285714285714
+          ],
+          "mean": 0.9714285714285714,
+          "min": 0.9714285714285714,
+          "max": 0.9714285714285714
+        },
+        "escalation_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "facts_rate": {
+          "values": [
+            0.9487179487179487,
+            0.8974358974358975,
+            0.9230769230769231
+          ],
+          "mean": 0.923076923076923,
+          "min": 0.8974358974358975,
+          "max": 0.9487179487179487
+        },
+        "sources_rate": {
+          "values": [
+            0.96,
+            0.96,
+            0.92
+          ],
+          "mean": 0.9466666666666667,
+          "min": 0.92,
+          "max": 0.96
+        },
+        "language_rate": {
+          "values": [
+            1.0,
+            0.9861111111111112,
+            1.0
+          ],
+          "mean": 0.9953703703703703,
+          "min": 0.9861111111111112,
+          "max": 1.0
+        },
+        "judge_grounded_mean": {
+          "values": [
+            4.986111111111111,
+            4.888888888888889,
+            5.0
+          ],
+          "mean": 4.958333333333333,
+          "min": 4.888888888888889,
+          "max": 5.0
+        },
+        "judge_answers_mean": {
+          "values": [
+            4.833333333333333,
+            4.777777777777778,
+            4.777777777777778
+          ],
+          "mean": 4.796296296296297,
+          "min": 4.777777777777778,
+          "max": 4.833333333333333
+        },
+        "judge_abstention_precision": {
+          "values": [
+            1.0,
+            0.8461538461538461,
+            0.9230769230769231
+          ],
+          "mean": 0.923076923076923,
+          "min": 0.8461538461538461,
+          "max": 1.0
+        },
+        "judge_abstention_recall": {
+          "values": [
+            0.6666666666666666,
+            0.7333333333333333,
+            0.8
+          ],
+          "mean": 0.7333333333333334,
+          "min": 0.6666666666666666,
+          "max": 0.8
+        },
+        "latency_ms_p50": {
+          "values": [
+            7255.6,
+            7202.8,
+            7470.0
+          ],
+          "mean": 7309.466666666667,
+          "min": 7202.8,
+          "max": 7470.0
+        },
+        "latency_ms_p95": {
+          "values": [
+            15279.6,
+            15700.199999999999,
+            14524.4
+          ],
+          "mean": 15168.066666666666,
+          "min": 14524.4,
+          "max": 15700.199999999999
+        },
+        "tokens_total": {
+          "values": [
+            1189525,
+            1165358,
+            1157501
+          ],
+          "mean": 1170794.6666666667,
+          "min": 1157501,
+          "max": 1189525
+        },
+        "estimated_cost_usd": {
+          "values": [
+            0.454892,
+            0.446942,
+            0.442398
+          ],
+          "mean": 0.4480773333333334,
+          "min": 0.442398,
+          "max": 0.454892
+        }
+      },
+      "passed_per_run": [
+        73,
+        70,
+        72
+      ],
+      "cost_by_agent": {
+        "GuardrailClassifier": 0.0246678,
+        "KnowledgeAgent": 0.1616918,
+        "LanguageRewriter": 0.0001672,
+        "Planner": 0.0467951,
+        "SupervisorAgent": 0.1394022,
+        "SupportAgent": 0.01995043,
+        "Verifier": 0.05540273
+      },
+      "gates": {
+        "unrequested_tickets": 0,
+        "wrong_language": 1,
+        "out_of_scope_tools": 0
+      }
+    },
+    "no_verifier": {
+      "runs": [
+        "v2-19",
+        "v2-20",
+        "v2-21"
+      ],
+      "layers": {
+        "planner": true,
+        "verifier": false,
+        "language": true,
+        "plan_coverage": true
+      },
+      "metrics": {
+        "pass_rate": {
+          "values": [
+            0.8846153846153846,
+            0.9230769230769231,
+            0.9358974358974359
+          ],
+          "mean": 0.9145299145299145,
+          "min": 0.8846153846153846,
+          "max": 0.9358974358974359
+        },
+        "official_pass_rate": {
+          "values": [
+            0.7,
+            0.8,
+            0.7
+          ],
+          "mean": 0.7333333333333334,
+          "min": 0.7,
+          "max": 0.8
+        },
+        "routing_rate": {
+          "values": [
+            0.9384615384615385,
+            0.9692307692307692,
+            0.9538461538461539
+          ],
+          "mean": 0.9538461538461539,
+          "min": 0.9384615384615385,
+          "max": 0.9692307692307692
+        },
+        "tools_rate": {
+          "values": [
+            0.9571428571428572,
+            0.9714285714285714,
+            0.9571428571428572
+          ],
+          "mean": 0.9619047619047619,
+          "min": 0.9571428571428572,
+          "max": 0.9714285714285714
+        },
+        "escalation_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "facts_rate": {
+          "values": [
+            0.8717948717948718,
+            0.9230769230769231,
+            0.9743589743589743
+          ],
+          "mean": 0.923076923076923,
+          "min": 0.8717948717948718,
+          "max": 0.9743589743589743
+        },
+        "sources_rate": {
+          "values": [
+            0.92,
+            0.96,
+            0.96
+          ],
+          "mean": 0.9466666666666667,
+          "min": 0.92,
+          "max": 0.96
+        },
+        "language_rate": {
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "judge_grounded_mean": {
+          "values": [
+            4.944444444444445,
+            5.0,
+            5.0
+          ],
+          "mean": 4.981481481481482,
+          "min": 4.944444444444445,
+          "max": 5.0
+        },
+        "judge_answers_mean": {
+          "values": [
+            4.763888888888889,
+            4.791666666666667,
+            4.763888888888889
+          ],
+          "mean": 4.773148148148149,
+          "min": 4.763888888888889,
+          "max": 4.791666666666667
+        },
+        "judge_abstention_precision": {
+          "values": [
+            0.8461538461538461,
+            1.0,
+            0.9166666666666666
+          ],
+          "mean": 0.9209401709401709,
+          "min": 0.8461538461538461,
+          "max": 1.0
+        },
+        "judge_abstention_recall": {
+          "values": [
+            0.7333333333333333,
+            0.7333333333333333,
+            0.7333333333333333
+          ],
+          "mean": 0.7333333333333333,
+          "min": 0.7333333333333333,
+          "max": 0.7333333333333333
+        },
+        "latency_ms_p50": {
+          "values": [
+            6833.2,
+            6372.4,
+            6266.1
+          ],
+          "mean": 6490.566666666667,
+          "min": 6266.1,
+          "max": 6833.2
+        },
+        "latency_ms_p95": {
+          "values": [
+            15016.3,
+            12833.0,
+            12536.6
+          ],
+          "mean": 13461.966666666667,
+          "min": 12536.6,
+          "max": 15016.3
+        },
+        "tokens_total": {
+          "values": [
+            999913,
+            1002513,
+            982684
+          ],
+          "mean": 995036.6666666666,
+          "min": 982684,
+          "max": 1002513
+        },
+        "estimated_cost_usd": {
+          "values": [
+            0.387846,
+            0.388827,
+            0.382994
+          ],
+          "mean": 0.3865556666666667,
+          "min": 0.382994,
+          "max": 0.388827
+        }
+      },
+      "passed_per_run": [
+        69,
+        72,
+        73
+      ],
+      "cost_by_agent": {
+        "GuardrailClassifier": 0.02445727,
+        "KnowledgeAgent": 0.1656823,
+        "LanguageRewriter": 0.00022543,
+        "Planner": 0.04672163,
+        "SupervisorAgent": 0.1305851,
+        "SupportAgent": 0.018884
+      },
+      "gates": {
+        "unrequested_tickets": 0,
+        "wrong_language": 0,
+        "out_of_scope_tools": 0
+      }
+    },
+    "no_planner": {
+      "runs": [
+        "v2-22"
+      ],
+      "layers": {
+        "planner": false,
+        "verifier": true,
+        "language": true,
+        "plan_coverage": true
+      },
+      "metrics": {
+        "pass_rate": {
+          "values": [
+            0.9358974358974359
+          ],
+          "mean": 0.9358974358974359,
+          "min": 0.9358974358974359,
+          "max": 0.9358974358974359
+        },
+        "official_pass_rate": {
+          "values": [
+            0.7
+          ],
+          "mean": 0.7,
+          "min": 0.7,
+          "max": 0.7
+        },
+        "routing_rate": {
+          "values": [
+            0.9692307692307692
+          ],
+          "mean": 0.9692307692307692,
+          "min": 0.9692307692307692,
+          "max": 0.9692307692307692
+        },
+        "tools_rate": {
+          "values": [
+            0.9714285714285714
+          ],
+          "mean": 0.9714285714285714,
+          "min": 0.9714285714285714,
+          "max": 0.9714285714285714
+        },
+        "escalation_rate": {
+          "values": [
+            1.0
+          ],
+          "mean": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "facts_rate": {
+          "values": [
+            0.9487179487179487
+          ],
+          "mean": 0.9487179487179487,
+          "min": 0.9487179487179487,
+          "max": 0.9487179487179487
+        },
+        "sources_rate": {
+          "values": [
+            0.96
+          ],
+          "mean": 0.96,
+          "min": 0.96,
+          "max": 0.96
+        },
+        "language_rate": {
+          "values": [
+            0.9861111111111112
+          ],
+          "mean": 0.9861111111111112,
+          "min": 0.9861111111111112,
+          "max": 0.9861111111111112
+        },
+        "judge_grounded_mean": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_answers_mean": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_precision": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "judge_abstention_recall": {
+          "values": [
+            null
+          ],
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "latency_ms_p50": {
+          "values": [
+            5367.5
+          ],
+          "mean": 5367.5,
+          "min": 5367.5,
+          "max": 5367.5
+        },
+        "latency_ms_p95": {
+          "values": [
+            10957.900000000001
+          ],
+          "mean": 10957.900000000001,
+          "min": 10957.900000000001,
+          "max": 10957.900000000001
+        },
+        "tokens_total": {
+          "values": [
+            900156
+          ],
+          "mean": 900156.0,
+          "min": 900156,
+          "max": 900156
+        },
+        "estimated_cost_usd": {
+          "values": [
+            0.344897
+          ],
+          "mean": 0.344897,
+          "min": 0.344897,
+          "max": 0.344897
+        }
+      },
+      "passed_per_run": [
+        73
+      ],
+      "cost_by_agent": {
+        "GuardrailClassifier": 0.024352,
+        "KnowledgeAgent": 0.1617865,
+        "LanguageRewriter": 0.0011517,
+        "SupervisorAgent": 0.1345426,
+        "SupportAgent": 0.0230646
+      },
+      "gates": {
+        "unrequested_tickets": 0,
+        "wrong_language": 1,
+        "out_of_scope_tools": 1
+      }
+    }
+  },
+  "paired": {
+    "no_verifier": {
+      "lost": [
+        "s06",
+        "x01"
+      ],
+      "gained": []
+    },
+    "no_planner": {
+      "lost": [
+        "k14",
+        "o02",
+        "off03",
+        "off08"
+      ],
+      "gained": [
+        "k13",
+        "m04",
+        "off05",
+        "s03"
+      ]
+    }
+  },
+  "language_estimate": {
+    "rewritten_turns": 1,
+    "cost_usd_per_run": 0.0001672,
+    "cost_share": 0.00037314987293859985
+  },
+  "decisions": {
+    "verifier": {
+      "config": "no_verifier",
+      "delta_q": 0.3333333333333428,
+      "gates_baseline": 1,
+      "gates_ablated": 0,
+      "keep": false
+    },
+    "language": {
+      "rewritten_turns": 1,
+      "cost_share": 0.00037314987293859985,
+      "keep": true
+    },
+    "planner": {
+      "config": "no_planner",
+      "keep": true,
+      "reason": "feature_dependency"
+    }
+  }
+}

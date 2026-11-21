@@ -1,0 +1,133 @@
+{
+  "dataset": "data/eval/retrieval_labeled2.jsonl",
+  "dataset_sha256": "7cbb17ef977f4d22e9f78986805772015e76e0ad502d4d8c0ec70003ad033753",
+  "index_chunks": 361,
+  "settings": {
+    "min_score": 0.61,
+    "top_k": 4,
+    "dense_candidates": 6,
+    "lexical_candidates": 6,
+    "min_relevance": 2,
+    "rrf_k": 60
+  },
+  "dense": {
+    "metrics": {
+      "answer_rate": 1.0,
+      "hit@1": 0.85,
+      "hit@3": 0.9,
+      "mrr": 0.875,
+      "answer_hit@3": 0.75,
+      "off_topic_abstain_rate": 1.0,
+      "uncovered_abstain_rate": 0.0,
+      "answer_chunk_rank": {
+        "r2a01": 2,
+        "r2a02": null,
+        "r2a03": 4,
+        "r2a04": null,
+        "r2a05": 2,
+        "r2a06": 1,
+        "r2a07": 1,
+        "r2a08": 2,
+        "r2a09": 1,
+        "r2a10": 1,
+        "r2a11": 1,
+        "r2a12": 1,
+        "r2a13": 1,
+        "r2a14": 1,
+        "r2a15": 1,
+        "r2a16": 1,
+        "r2a17": 1,
+        "r2a18": null,
+        "r2a19": null,
+        "r2a20": 1
+      }
+    }
+  },
+  "runs": {
+    "rerank2-1": {
+      "complete": true,
+      "counts": {
+        "ok": 24,
+        "invalid": 0,
+        "errors": 0,
+        "gated": 2
+      },
+      "model": "gemini-3.5-flash-lite",
+      "metrics": {
+        "answer_rate": 1.0,
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "answer_hit@3": 1.0,
+        "off_topic_abstain_rate": 1.0,
+        "uncovered_abstain_rate": 1.0,
+        "answer_chunk_rank": {
+          "r2a01": 1,
+          "r2a02": 1,
+          "r2a03": 1,
+          "r2a04": 1,
+          "r2a05": 1,
+          "r2a06": 1,
+          "r2a07": 1,
+          "r2a08": 1,
+          "r2a09": 1,
+          "r2a10": 1,
+          "r2a11": 1,
+          "r2a12": 1,
+          "r2a13": 1,
+          "r2a14": 1,
+          "r2a15": 1,
+          "r2a16": 1,
+          "r2a17": 1,
+          "r2a18": 1,
+          "r2a19": 2,
+          "r2a20": 1
+        }
+      },
+      "rerank_latency_p50_ms": 797.35,
+      "rerank_latency_p95_ms": 868.29,
+      "tokens_mean_per_call": {
+        "input_tokens": 2801.5,
+        "output_tokens": 109.45833333333333
+      },
+      "cost_usd_per_call": 0.0011141
+    }
+  },
+  "summary": {
+    "answer_rate": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "hit@1": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "hit@3": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "mrr": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "answer_hit@3": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "off_topic_abstain_rate": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "uncovered_abstain_rate": {
+      "mean": 1.0,
+      "min": 1.0,
+      "max": 1.0
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "items": 30,
+  "humans": {
+    "agreement": 25,
+    "kappa": -0.05633802816901448,
+    "ac1": 0.8032786885245903
+  },
+  "candidates": [
+    {
+      "judge_model": "gemini-3.6-flash",
+      "prompt_sha256": "0922b4a14198ecf465cd0a836279dad1f17e15c75bf150352aaa10c6c15c03c9",
+      "runs": [
+        "jc1-a-1",
+        "jc1-a-2",
+        "jc1-a-3"
+      ],
+      "raters": {
+        "autor": {
+          "agreement": 27,
+          "n": 30,
+          "kappa": -0.04651162790697707,
+          "ac1": 0.8895027624309393,
+          "judge_on_rater_negatives": {
+            "h02": true
+          }
+        },
+        "anotador": {
+          "agreement": 26,
+          "n": 30,
+          "kappa": 0.2682926829268297,
+          "ac1": 0.8373983739837398,
+          "judge_on_rater_negatives": {
+            "h03": true,
+            "h06": false,
+            "h23": true,
+            "h30": true
+          }
+        }
+      },
+      "abstention_kappa": {
+        "autor": 0.9112426035502958,
+        "anotador": 0.38016528925619864
+      },
+      "grounding": {
+        "autor": {
+          "exact": 30,
+          "mean_abs_diff": 0.0
+        },
+        "anotador": {
+          "exact": 28,
+          "mean_abs_diff": 0.13333333333333333
+        }
+      },
+      "stability": 0.9333333333333332
+    },
+    {
+      "judge_model": "gemini-3.6-flash",
+      "prompt_sha256": "f423be42c5f1f758ff13ba0037d03182f70d42679e31980a9eeeb7ce53c52034",
+      "runs": [
+        "jc1-b-1",
+        "jc1-b-2",
+        "jc1-b-3"
+      ],
+      "raters": {
+        "autor": {
+          "agreement": 28,
+          "n": 30,
+          "kappa": 0.47368421052631604,
+          "ac1": 0.9238578680203046,
+          "judge_on_rater_negatives": {
+            "h02": false
+          }
+        },
+        "anotador": {
+          "agreement": 25,
+          "n": 30,
+          "kappa": 0.19354838709677435,
+          "ac1": 0.7900629811056683,
+          "judge_on_rater_negatives": {
+            "h03": true,
+            "h06": true,
+            "h23": true,
+            "h30": false
+          }
+        }
+      },
+      "abstention_kappa": {
+        "autor": 1.0,
+        "anotador": 0.32835820895522383
+      },
+      "grounding": {
+        "autor": {
+          "exact": 29,
+          "mean_abs_diff": 0.06666666666666667
+        },
+        "anotador": {
+          "exact": 29,
+          "mean_abs_diff": 0.06666666666666667
+        }
+      },
+      "stability": 1.0
+    },
+    {
+      "judge_model": "gemini-3.8-flash",
+      "prompt_sha256": "f423be42c5f1f758ff13ba0037d03182f70d42679e31980a9eeeb7ce53c52034",
+      "runs": [
+        "jc1-c-1",
+        "jc1-c-2",
+        "jc1-c-3"
+      ],
+      "raters": {
+        "autor": {
+          "agreement": 28,
+          "n": 30,
+          "kappa": 0.47368421052631604,
+          "ac1": 0.9238578680203046,
+          "judge_on_rater_negatives": {
+            "h02": false
+          }
+        },
+        "anotador": {
+          "agreement": 25,
+          "n": 30,
+          "kappa": 0.19354838709677435,
+          "ac1": 0.7900629811056683,
+          "judge_on_rater_negatives": {
+            "h03": true,
+            "h06": true,
+            "h23": true,
+            "h30": false
+          }
+        }
+      },
+      "abstention_kappa": {
+        "autor": 0.9112426035502958,
+        "anotador": 0.38016528925619864
+      },
+      "grounding": {
+        "autor": {
+          "exact": 29,
+          "mean_abs_diff": 0.06666666666666667
+        },
+        "anotador": {
+          "exact": 29,
+          "mean_abs_diff": 0.06666666666666667
+        }
+      },
+      "stability": 1.0
+    }
+  ]
+}
