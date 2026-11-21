@@ -71,8 +71,9 @@ def scan_dump(dump_text: str, marker: str) -> dict[str, Any]:
 
 
 def make_api_keys() -> tuple[dict[str, str], str]:
-    """Generate five distinct scenario API keys and build their SHA-256 API_KEYS specification."""
+    """Generate six distinct scenario API keys and build their SHA-256 API_KEYS specification."""
     specs = (
+        ("auth", "cliente_auth", "customer"),
         ("conversation", "cliente1988", "customer"),
         ("ticket", "cliente1988", "customer"),
         ("pii", "cliente1988", "customer"),
@@ -452,6 +453,81 @@ def _read_sse_for_reply(
         ready_evt.set()
 
 
+def auth_checks(keys: dict[str, str], run_id: str, http: Any | None = None) -> dict[str, Any]:
+    """Run cross-replica token, tamper, rotation, and reuse checks using only keys['auth']."""
+    http_fn = http or _http_json
+    auth_key = keys["auth"]
+    raw_refresh_tokens: list[str] = []
+
+    _, _, tk_body = http_fn("POST", "http://localhost:8000/auth/token", api_key=auth_key)
+    acc1 = str(tk_body.get("access_token") or "")
+    ref1 = str(tk_body.get("refresh_token") or "")
+    if ref1:
+        raw_refresh_tokens.append(ref1)
+
+    cross_st, _, _ = http_fn(
+        "GET",
+        f"http://localhost:8001/sessions/compose-probe-{run_id}/messages",
+        bearer_token=acc1,
+    )
+    tampered_st, _, _ = http_fn(
+        "GET",
+        f"http://localhost:8001/sessions/compose-probe-{run_id}/messages",
+        bearer_token=_tamper_jwt(acc1),
+    )
+
+    rot_st, _, rot_body = http_fn(
+        "POST",
+        "http://localhost:8001/auth/refresh",
+        body={"refresh_token": ref1},
+    )
+    rot_acc = str(rot_body.get("access_token") or "") if rot_st == 200 else ""
+    rot_ref = str(rot_body.get("refresh_token") or "") if rot_st == 200 else ""
+    if rot_ref:
+        raw_refresh_tokens.append(rot_ref)
+    rot_use_st = 0
+    if rot_acc and rot_ref:
+        rot_use_st, _, _ = http_fn(
+            "GET",
+            f"http://localhost:8000/sessions/compose-probe-{run_id}/messages",
+            bearer_token=rot_acc,
+        )
+
+    _, _, fam_init = http_fn("POST", "http://localhost:8000/auth/token", api_key=auth_key)
+    fam_r1 = str(fam_init.get("refresh_token") or "")
+    if fam_r1:
+        raw_refresh_tokens.append(fam_r1)
+    fam_rot_st, _, fam_rot = http_fn(
+        "POST",
+        "http://localhost:8001/auth/refresh",
+        body={"refresh_token": fam_r1},
+    )
+    fam_r2 = str(fam_rot.get("refresh_token") or "") if fam_rot_st == 200 else ""
+    if fam_r2:
+        raw_refresh_tokens.append(fam_r2)
+    reuse_st, _, _ = http_fn("POST", "http://localhost:8000/auth/refresh", body={"refresh_token": fam_r1})
+    sibling_st, _, _ = http_fn("POST", "http://localhost:8001/auth/refresh", body={"refresh_token": fam_r2})
+
+    return {
+        "checks": {
+            "token_cross_replica": bool(acc1 and cross_st == 200),
+            "tampered_token_rejected": bool(acc1 and tampered_st == 401),
+            "refresh_rotation_cross_replica": bool(rot_acc and rot_use_st == 200),
+            "refresh_reuse_revokes_family": bool(
+                fam_r1 and fam_rot_st == 200 and reuse_st == 401 and sibling_st == 401
+            ),
+        },
+        "raw_refresh_tokens": raw_refresh_tokens,
+        "auth_tokens": {
+            "cross_replica_status": cross_st,
+            "tampered_status": tampered_st,
+            "rotation_status": rot_st,
+            "reuse_status": reuse_st,
+            "sibling_after_reuse_status": sibling_st,
+        },
+    }
+
+
 def run_compose_evidence(run_id: str) -> int:
     """Execute the end-to-end Docker Compose verification and persist JSON/Markdown reports."""
     gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -566,13 +642,19 @@ def run_compose_evidence(run_id: str) -> int:
             direct_st == 401 and "/auth/token" in json.dumps(direct_body, ensure_ascii=False)
         )
 
+        auth_res = auth_checks(keys, run_id)
+        report["checks"].update(auth_res["checks"])
+        raw_refresh_tokens.extend(auth_res["raw_refresh_tokens"])
+        report["auth_tokens"] = {
+            "direct_key_status": direct_st,
+            **auth_res["auth_tokens"],
+        }
+
         tokens: dict[str, str] = {}
-        refreshes: dict[str, str] = {}
-        for scenario, raw_key in keys.items():
-            tk_st, _, tk_body = _http_json("POST", "http://localhost:8000/auth/token", api_key=raw_key)
+        for scenario in ("conversation", "ticket", "pii", "rate_limit", "operator"):
+            tk_st, _, tk_body = _http_json("POST", "http://localhost:8000/auth/token", api_key=keys[scenario])
             if tk_st == 200 and tk_body.get("access_token") and tk_body.get("refresh_token"):
                 tokens[scenario] = str(tk_body["access_token"])
-                refreshes[scenario] = str(tk_body["refresh_token"])
                 raw_refresh_tokens.append(str(tk_body["refresh_token"]))
 
         conv_tok = tokens.get("conversation", "")
@@ -580,62 +662,6 @@ def run_compose_evidence(run_id: str) -> int:
         tkt_tok = tokens.get("ticket", "")
         pii_tok = tokens.get("pii", "")
         rl_tok = tokens.get("rate_limit", "")
-
-        cross_st, _, _ = _http_json(
-            "GET",
-            f"http://localhost:8001/sessions/compose-probe-{run_id}/messages",
-            bearer_token=conv_tok,
-        )
-        report["checks"]["token_cross_replica"] = bool(conv_tok and cross_st == 200)
-
-        tampered_st, _, _ = _http_json(
-            "GET",
-            f"http://localhost:8001/sessions/compose-probe-{run_id}/messages",
-            bearer_token=_tamper_jwt(conv_tok),
-        )
-        report["checks"]["tampered_token_rejected"] = tampered_st == 401
-
-        rot_st, _, rot_body = _http_json(
-            "POST",
-            "http://localhost:8001/auth/refresh",
-            body={"refresh_token": refreshes.get("conversation", "")},
-        )
-        if rot_st == 200 and rot_body.get("access_token") and rot_body.get("refresh_token"):
-            conv_tok = str(rot_body["access_token"])
-            raw_refresh_tokens.append(str(rot_body["refresh_token"]))
-            rot_use_st, _, _ = _http_json(
-                "GET",
-                f"http://localhost:8000/sessions/compose-probe-{run_id}/messages",
-                bearer_token=conv_tok,
-            )
-            report["checks"]["refresh_rotation_cross_replica"] = rot_use_st == 200
-
-        # Dedicated family to test reuse detection across replicas
-        _, _, fam_init = _http_json("POST", "http://localhost:8000/auth/token", api_key=keys["conversation"])
-        fam_r1 = str(fam_init.get("refresh_token") or "")
-        if fam_r1:
-            raw_refresh_tokens.append(fam_r1)
-        fam_rot_st, _, fam_rot = _http_json(
-            "POST",
-            "http://localhost:8001/auth/refresh",
-            body={"refresh_token": fam_r1},
-        )
-        fam_r2 = str(fam_rot.get("refresh_token") or "")
-        if fam_r2:
-            raw_refresh_tokens.append(fam_r2)
-        reuse_st, _, _ = _http_json("POST", "http://localhost:8000/auth/refresh", body={"refresh_token": fam_r1})
-        sibling_st, _, _ = _http_json("POST", "http://localhost:8001/auth/refresh", body={"refresh_token": fam_r2})
-        report["checks"]["refresh_reuse_revokes_family"] = (
-            fam_rot_st == 200 and reuse_st == 401 and sibling_st == 401
-        )
-        report["auth_tokens"] = {
-            "direct_key_status": direct_st,
-            "cross_replica_status": cross_st,
-            "tampered_status": tampered_st,
-            "rotation_status": rot_st,
-            "reuse_status": reuse_st,
-            "sibling_after_reuse_status": sibling_st,
-        }
 
         # Step 4: Conversation across replicas (propose on app-a, confirm on app-b)
         conv_session = f"compose-conv-{run_id}-{uuid.uuid4().hex[:8]}"

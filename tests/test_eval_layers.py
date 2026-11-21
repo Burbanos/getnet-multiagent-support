@@ -267,3 +267,9 @@ def test_rejected_drafts_never_leak_to_chat_response_logs_or_spans(monkeypatch: 
 
     snap = orch.graph.get_state({"configurable": {"thread_id": "cliente1988:s-leak-check"}})
     assert (snap.values or {}).get("rejected_drafts") == [f"Rascunho {draft_marker} sem apoio."]
+
+
+@pytest.fixture(autouse=True)
+def _verifier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the verifier, which is off by default since the Phase 15 ablation."""
+    monkeypatch.setattr(settings, "VERIFIER_ENABLED", True)

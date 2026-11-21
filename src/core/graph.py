@@ -854,6 +854,8 @@ class OrchestrationGraph:
                 "escalation_request": None,
                 "action_confirmation": None,
                 "code_source": None,
+                "terminal_issue": None,
+                "delegate_rule": None,
                 "steps": None,
                 "error_type": None,
                 "latency_ms": None,

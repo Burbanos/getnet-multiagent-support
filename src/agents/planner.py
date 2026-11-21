@@ -35,6 +35,10 @@ CONFIG_EXCEPTIONS = (
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "planner.md"
 MAX_PREVIOUS_REPLY_CHARS = 2000
 MAX_PLAN_STEPS = 4
+SUPPORT_STEP_GOALS: dict[str, str] = {
+    "declined_sale": "Diagnose the merchant's declined card transaction using their account records",
+    "terminal_not_working": "Check the merchant's card machine status and diagnose why it is not working",
+}
 
 
 class PlanStep(BaseModel):
@@ -52,7 +56,38 @@ class TurnPlan(BaseModel):
     escalation_request: Literal["none", "asked_for_human", "formal_complaint", "accepted_offer"]
     action_confirmation: Literal["none", "confirmed", "declined"] = "none"
     code_source: Literal["none", "declined_sale", "terminal_screen", "app", "unknown"] = "none"
+    terminal_issue: Literal["none", "not_working"] = "none"
     steps: list[PlanStep]
+
+
+def apply_delegate_rule(plan: TurnPlan) -> tuple[TurnPlan, str | None]:
+    """Ensure declined_sale and terminal_not_working support turns include a support delegation."""
+    if plan.scope != "support" or plan.escalation_request != "none":
+        return plan, None
+    if any(step.delegate == "support" for step in plan.steps):
+        return plan, None
+
+    if plan.code_source == "declined_sale":
+        reason = "declined_sale"
+    elif plan.terminal_issue == "not_working":
+        reason = "terminal_not_working"
+    else:
+        return plan, None
+
+    knowledge_idx = next((i for i, step in enumerate(plan.steps) if step.delegate == "knowledge"), None)
+    if knowledge_idx is not None:
+        new_steps = [
+            step.model_copy(update={"delegate": "support"}) if i == knowledge_idx else step.model_copy()
+            for i, step in enumerate(plan.steps)
+        ]
+        return plan.model_copy(update={"steps": new_steps}), reason
+
+    if len(plan.steps) < MAX_PLAN_STEPS:
+        new_steps = [step.model_copy() for step in plan.steps]
+        new_steps.append(PlanStep(goal=SUPPORT_STEP_GOALS[reason], delegate="support"))
+        return plan.model_copy(update={"steps": new_steps}), reason
+
+    return plan, None
 
 
 @dataclass(frozen=True)
@@ -65,6 +100,7 @@ class PlannerResult:
     latency_ms: float
     usage: dict[str, int] | None
     model: str | None
+    delegate_rule: str | None = None
 
     def as_metadata(self) -> dict[str, Any]:
         """Return serializable metadata dictionary for graph state and turn records."""
@@ -75,6 +111,8 @@ class PlannerResult:
             "escalation_request": self.plan.escalation_request if self.plan else None,
             "action_confirmation": self.plan.action_confirmation if self.plan else None,
             "code_source": self.plan.code_source if self.plan else None,
+            "terminal_issue": self.plan.terminal_issue if self.plan else None,
+            "delegate_rule": self.delegate_rule,
             "steps": [{"goal": s.goal, "delegate": s.delegate} for s in self.plan.steps] if self.plan else None,
             "error_type": self.error_type,
             "latency_ms": self.latency_ms,
@@ -217,11 +255,13 @@ class Planner:
                 model=self._model_name,
             )
 
+        adjusted, delegate_rule = apply_delegate_rule(parsed)
         return PlannerResult(
             status="ok",
-            plan=parsed,
+            plan=adjusted,
             error_type=None,
             latency_ms=latency,
             usage=usage,
             model=self._model_name,
+            delegate_rule=delegate_rule,
         )

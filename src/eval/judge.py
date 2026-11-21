@@ -1,4 +1,5 @@
 """LLM-as-a-judge evaluation of groundedness, relevance, and abstention."""
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -12,16 +13,21 @@ from src.core.llm import extract_model_name, get_chat_model
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "judge.md"
 
 
-def load_judge_prompt() -> str:
-    """Read reviewer-owned judge prompt from src/prompts/judge.md."""
-    if not PROMPT_PATH.exists():
-        raise FileNotFoundError(f"Judge prompt not found: {PROMPT_PATH}")
-    return PROMPT_PATH.read_text(encoding="utf-8")
+def _prompt_sha256(prompt_text: str) -> str:
+    return hashlib.sha256(prompt_text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
-def get_judge_model() -> Any:
+def load_judge_prompt(path: str | Path | None = None) -> str:
+    """Read judge prompt from path (or default src/prompts/judge.md) with CRLF normalized to LF."""
+    target = Path(path) if path is not None else PROMPT_PATH
+    if not target.exists():
+        raise FileNotFoundError(f"Judge prompt not found: {target}")
+    return target.read_bytes().decode("utf-8").replace("\r\n", "\n")
+
+
+def get_judge_model(model_name: str | None = None) -> Any:
     """Build and return chat model instance configured for the judge."""
-    return get_chat_model(settings.EVAL_JUDGE_MODEL)
+    return get_chat_model(model_name or settings.EVAL_JUDGE_MODEL)
 
 
 def response_text(message: Any) -> str:
@@ -215,14 +221,23 @@ def parse_judgment(text: str) -> dict[str, Any]:
     return out
 
 
-def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict[str, Any]:
+def judge_case(
+    case: dict[str, Any],
+    result: dict[str, Any],
+    model: Any,
+    prompt_path: str | Path | None = None,
+    prompt_text: str | None = None,
+    prompt_sha: str | None = None,
+    judge_model_name: str | None = None,
+) -> dict[str, Any]:
     """
     Evaluate a single case result using the judge model.
-    Returns status: ok with ratings or status: error with specific error_type and error_code.
+    Returns status: ok with ratings (and acceptable when present) or status: error.
     Never leaks exception messages into judgment dictionary.
     """
     cid = case["id"]
-    system_prompt = load_judge_prompt()
+    system_prompt = prompt_text if prompt_text is not None else load_judge_prompt(prompt_path)
+    sha = prompt_sha if prompt_sha is not None else _prompt_sha256(system_prompt)
     user_content = build_judge_input(case, result)
     messages = [
         SystemMessage(content=system_prompt),
@@ -250,16 +265,20 @@ def judge_case(case: dict[str, Any], result: dict[str, Any], model: Any) -> dict
             "error_code": None,
         }
 
-    model_name = extract_model_name(model)
-    return {
+    model_name = judge_model_name or extract_model_name(model)
+    record: dict[str, Any] = {
         "id": cid,
         "status": "ok",
         "judge_model": model_name,
+        "prompt_sha256": sha,
         "grounded": parsed["grounded"],
         "answers_question": parsed["answers_question"],
         "abstained": parsed["abstained"],
         "rationale": parsed["rationale"],
     }
+    if "acceptable" in parsed:
+        record["acceptable"] = parsed["acceptable"]
+    return record
 
 
 def should_judge(case: dict[str, Any], result: dict[str, Any]) -> bool:
@@ -314,20 +333,55 @@ def run_judge(
     model: Any | None = None,
     sleep_s: float | None = None,
     max_consecutive_errors: int = 3,
+    prompt_path: str | Path | None = None,
+    judge_model_name: str | None = None,
 ) -> dict[str, Any]:
     """
-    Execute judge evaluation over eligible case results with resumption and error handling.
+    Execute judge evaluation over eligible case results with resumption, mismatch guards, and error handling.
     """
     jp = Path(judgments_path)
-    jp.parent.mkdir(parents=True, exist_ok=True)
 
     from src.eval.runner import load_results
 
-    results_by_id = load_results(results_path)
-    existing_judgments = load_judgments(jp)
+    active_prompt_text = load_judge_prompt(prompt_path)
+    active_prompt_sha = _prompt_sha256(active_prompt_text)
 
     delay = sleep_s if sleep_s is not None else settings.EVAL_SLEEP_S
-    judge_model = model or get_judge_model()
+    if model is not None:
+        judge_model = model
+    elif judge_model_name is not None:
+        judge_model = get_judge_model(judge_model_name)
+    else:
+        judge_model = get_judge_model()
+    active_model_name = judge_model_name or extract_model_name(judge_model)
+
+    existing_judgments = load_judgments(jp)
+    if jp.exists():
+        for raw_ln in jp.read_text(encoding="utf-8").splitlines():
+            raw_ln = raw_ln.strip()
+            if not raw_ln:
+                continue
+            try:
+                row = json.loads(raw_ln)
+            except json.JSONDecodeError:
+                continue
+            if row.get("status") != "ok":
+                continue
+            old_model = row.get("judge_model")
+            old_sha = row.get("prompt_sha256")
+            if old_model is not None and old_model != active_model_name:
+                raise ValueError(
+                    f"Cannot resume judgments at {jp}: existing ok record uses judge_model={old_model!r}, "
+                    f"expected {active_model_name!r}"
+                )
+            if old_sha is not None and old_sha != active_prompt_sha:
+                raise ValueError(
+                    f"Cannot resume judgments at {jp}: existing ok record uses prompt_sha256={old_sha!r}, "
+                    f"expected {active_prompt_sha!r}"
+                )
+
+    jp.parent.mkdir(parents=True, exist_ok=True)
+    results_by_id = load_results(results_path)
 
     attempted = 0
     ok = 0
@@ -347,7 +401,14 @@ def run_judge(
                 skipped += 1
                 continue
 
-            j = judge_case(case, res, judge_model)
+            j = judge_case(
+                case,
+                res,
+                judge_model,
+                prompt_text=active_prompt_text,
+                prompt_sha=active_prompt_sha,
+                judge_model_name=active_model_name,
+            )
             f.write(json.dumps(j, ensure_ascii=False) + "\n")
             f.flush()
 

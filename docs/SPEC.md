@@ -41,13 +41,13 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 ---
 
-## Current state (2026-11-20)
+## Current state (2026-11-21)
 
 Phase 14 closed (`8dcf972`, CI green: `test`, `integration`, `docker`). Real feedback v3: **9.2/10**, "Excelente / finalista",
 9th place. Its "Caminho para 9,5" is the scope of Phase 15. Decided by the author: no new labels from an annotator outside the
 project in Phase 15 (the README declares it as pending); judge calibration as in §3.5 (options a and c). 15A closed
-(`fba3306`, 44/44, CI green). 15B closed (`dd9e8d3`, 48/48 with promtool, CI green). 15C closed (`a1cfac9`, 21/21, CI green). **Next: 15C2**
-(one test made valid after the index rebuild, §3.6), then the round, then 15D.
+(`fba3306`, 44/44, CI green). 15B closed (`dd9e8d3`, 48/48 with promtool, CI green). 15C closed (`a1cfac9`, 21/21, CI green). 15C2 closed (`924836e`). Index rebuilt (`38ba91f`), `compose-3` (`876655c`, 16/17, harness defect),
+round 1 committed (`6492e8b`): criterion not met (§3.4, "Round 1"). **Next: 15D** (corrections, §3.7), then round 2, then 15E.
 
 ---
 
@@ -64,7 +64,7 @@ justification. A drop in a row of class **E** blocks the resubmission. A drop in
 README states it with its reason (for example, a layer removed by the ablation to cut cost). "Drop": a rate below the baseline
 as printed with one decimal; latency or cost above it; a presence item whose evidence or test no longer exists or passes. The
 comparison uses the configuration shipped as default after the ablation (§3.4); holdouts, actions and retrieval use the
-round's runs. The final verifier of each phase that resubmits (15D in Phase 15) recomputes every row from the committed
+round's runs. The final verifier of each phase that resubmits (15E in Phase 15) recomputes every row from the committed
 records and fails on an undeclared drop. Rows whose Phase 15 target is higher than the baseline say so in the last column.
 
 ### Challenge statement
@@ -189,7 +189,8 @@ Orchestrator (Neon) from 13D-2.
 Four sub-phases and one round of real runs, no fix sub-phase planned in advance. 15A changes the orchestration and the
 evaluation tooling; 15B the production surface (tokens, merchant notification, alerts) and the corpus; 15C (short, added after
 the 15B review) fixes what that review found and commits the reviewer's pre-round files; the author rebuilds the index, runs
-the Compose evidence and the round; 15D publishes it. Implementer: Antigravity, Orchestrator (Neon).
+the Compose evidence and the round; 15D corrects what round 1 showed; round 2 measures the shipped configuration; 15E
+publishes. Implementer: Antigravity, Orchestrator (Neon).
 
 ### 3.1 Diagnosis (reviewer, from the `8dcf972` records)
 
@@ -500,6 +501,57 @@ model call). The shipped default is one of the measured configurations; the matr
 - the matrix rule (§R).
 Holdout 4, holdouts 1 and 3, actions, latency and the judge metrics are reported, not criteria.
 
+**Round 1 (`6492e8b`, 2026-11-20, all steps completed, published as it came out).** Not met:
+- C1 not met: official scenarios 80.0% (`full`) / 73.3% (`no_verifier`); routing 96.4% / 95.4%; tools 97.1% / 96.2%;
+  escalation 100%; cost US$ 0.448 / 0.387. C2 met (`rh2-8` 100%). C3 not met by one query (`a16`). C4 met (20/20 and 0
+  false positives in `hybrid-4..6`; 10/10 and 0/10 in `author-2..4`). C5 not met (`compose-3` 16/17: the token checks added in
+  15B spend the conversation key's rate budget, so the last request of the conversation check gets 429; harness defect). C6
+  met: candidate (c), `gemini-3.8-flash` with `judge_acceptable.md`, κ 0.713 against the author on the second sample
+  ((a) 0.489, (b) 0.627), selected by the rule of §3.5.
+- Ablation rule applied: verifier ΔQ = 0.33, G(`full`) = 1, G(`no_verifier`) = 0 → `VERIFIER_ENABLED` defaults to false; the
+  language check stays (1 rewritten turn, 0.04% of cost); the planner stays.
+- Causes (reviewer, from the records): (1) routing: the planner of 15A delegates to "knowledge" steps that need the merchant's
+  records, even when it marks `code_source = declined_sale` (`r02`, `t25`, `w06`) or the merchant's card machine is not working
+  (`off05`, `s03`); `plan_coverage` then enforces the wrong delegate; (2) official pages that disagree: the Get Tap product page
+  says Android 12 or later, two help-center pages say Android 11 (`k13`, `m04`, retrieval `a16`); (3) `off10`, the risk
+  declared before the round: the answer is right but cites the help page on the discontinuation of WhatsApp Business payments
+  instead of the labelled page.
+
+**Exceptions (declared 2026-11-21, before any 15D code; closed list).** A case fails only because the system retrieved or cited
+another official page that also answers the question, instead of the labelled one: `off10` (v2, `sources_ok`) and `a16`
+(retrieval). Labels are not edited. Every comparison that involves them is printed with and without them; a drop that
+disappears without them is the declared exception, any other drop is a drop. The README shows, for each, the question, the
+answer, the pages cited and the labelled page. `k13` and `m04` are not exceptions (the 15D source-conflict rule must fix them).
+
+**Round 2 (after 15D; criterion declared now, before 15D code).** The shipped configuration (all flag defaults, verifier off).
+Met only if all hold:
+- R1 official scenarios other than `off10`: at most one failure in the 27 case-runs of `v2-23..25` (baseline: one of 30);
+- R2 routing (mean of `v2-23..25`) ≥ 97.4% (row E2, class E); every other v2 row of §R compared as stated there, with and
+  without `off10`;
+- R3 cost per run ≤ US$ 0.401, latency median ≤ 7.4 s and p95 ≤ 14.7 s;
+- R4 `rh2-9`: `n05` and `n06` pass;
+- R5 `compose-4`: 17/17; CI green on the round's commit;
+- R6 `k13` and `m04` pass in at least 2 of 3 runs;
+- the matrix rule (§R).
+Retrieval, guardrail and judge calibration keep their round 1 results (no code they depend on changes in 15D). Commands, in
+this order (one commit at the end, `compose-4` committed with it):
+```
+python -m src.eval run --run-id v2-23 --cases data/eval/cases_v2.jsonl          # and v2-24, v2-25
+python -m src.eval judge --run-id v2-23 --cases data/eval/cases_v2.jsonl        # current judge (EVAL_JUDGE_MODEL=gemini-3.6-flash)
+python -m src.eval judge --run-id v2-23 --cases data/eval/cases_v2.jsonl --judge-model gemini-3.8-flash \
+    --judge-prompt src/prompts/judge_acceptable.md --judge-dir reports/eval_runs/judge_c   # v2-16..18 and v2-23..25
+python -m src.eval run --run-id rh-12 --cases data/eval/cases_routing_holdout.jsonl       # rh2-9, h3-6, h4-2, act-6
+python scripts/compose_evidence.py run --run-id compose-4                                  # Codespaces
+python -m src.eval context --tier paid_tier_1 --run-ids v2-23,v2-24,v2-25,rh-12,rh2-9,h3-6,h4-2,act-6
+python -m src.eval compare --name v2_phase15r2 --cases data/eval/cases_v2.jsonl --group "14=v2-13,v2-14,v2-15" \
+    --group "r1=v2-19,v2-20,v2-21" --group "r2=v2-23,v2-24,v2-25"
+python -m src.eval compare --name v2_phase15_judge_c --cases data/eval/cases_v2.jsonl --judge-dir reports/eval_runs/judge_c \
+    --group "r1_full=v2-16,v2-17,v2-18" --group "r2=v2-23,v2-24,v2-25"
+python -m src.eval compare --name routing_holdout_phase15r2 --cases data/eval/cases_routing_holdout.jsonl --group "14=rh-10" --group "r2=rh-12"
+                                                     # likewise routing_holdout2 (rh2-7 / rh2-9), holdout3 (h3-4 / h3-6),
+                                                     # holdout4 (h4-1 / h4-2), actions (act-4 / act-6)
+```
+
 ### 3.5 Judge calibration (decided by the author on 2026-11-20: options a and c)
 
 Diagnosis 6 shows that κ ≥ 0.6 against both raters cannot be reached on the 30 existing annotations. Decision: (a) publish the
@@ -575,16 +627,72 @@ commit and of the round would fail, criterion C5). It must compare only the comm
 103 pairs, before and after the rebuild). Only that test function and `docs/STATUS.md` change; the verifier rebuilds the index
 with a fake embedder in a temporary git worktree and runs the test file there and in the repository.
 
-### 3.7 15D — Publication and the matrix check
+### 3.7 15D — Corrections from round 1
 
-Checked by `scripts/verify_phase15d.py` (written after the round): the README with the round, criterion by criterion, the
-ablation and its decision, the calibration, the new holdout and what is no longer clean; `docs/STATUS.md`; flag defaults set by
-the ablation rule (only those); the matrix recomputed from the records with every drop declared or failing; the README states
-that new labels from someone outside the project are pending.
+Checked by `scripts/verify_phase15d.py`; prompt `docs/phase-prompts/15D.md`. Reviewer files in 15D: this SPEC, the prompt, the
+verifier, `src/prompts/planner.md` (new field `terminal_issue`) and `src/prompts/knowledge_agent.md` (source-conflict rule). The
+15C2 prompt and verifier are retired; the 15D verifier re-runs the 15C verifier from `a1cfac9` (which re-runs 15B's) and lists
+as superseded only: 15C A1–A5 and S1 (files, retirement, scope, the index rebuilt in `38ba91f`, the test edits allowed below,
+the STATUS of 15C) and,
+inside 15B, `D4.corpus_committed` (index unchanged since 15A) and `H2.second_sample_committed` (answers absent); 15D checks the
+index against the corpus and the committed answers again. 15C2's checks are covered by the suite passing with the rebuilt index.
+
+**Delegation guarantee** (`src/agents/planner.py`, `src/core/graph.py`)
+- `TurnPlan.terminal_issue: Literal["none", "not_working"] = "none"` (the planner prompt defines it).
+- `apply_delegate_rule(plan: TurnPlan) -> tuple[TurnPlan, str | None]`, pure (the input is not modified). No change when
+  `scope != "support"`, when `escalation_request != "none"`, or when a step is already delegated to `"support"`. Otherwise the
+  reason is `"declined_sale"` when `code_source == "declined_sale"`, else `"terminal_not_working"` when
+  `terminal_issue == "not_working"`, else none (no change). With a reason: the first `"knowledge"` step becomes `"support"`
+  (same goal); if there is none and the plan has fewer than `MAX_PLAN_STEPS` steps, a step is appended with the fixed goal
+  `SUPPORT_STEP_GOALS[reason]` (English, no personal data); otherwise no change.
+- `Planner.plan` applies it to every valid plan; `PlannerResult.delegate_rule` holds the reason (or `None`);
+  `as_metadata()` adds `terminal_issue` and `delegate_rule`; the disabled-planner metadata in the graph has both as `None`. The
+  rule uses only fields chosen by the model through function calling (no text matching).
+
+**Verifier default** (`src/config.py`, `.env.example`): `VERIFIER_ENABLED` defaults to false (ablation rule of §3.4); code,
+flag and tests stay. Existing tests that exercise the verifier opt in explicitly: in `tests/test_eval_layers.py`,
+`tests/test_plan_coverage.py`, `tests/test_verifier_evidence.py`, `tests/test_verifier_node.py` and
+`tests/test_verifier_prior_evidence.py` the only change allowed is adding `import pytest` / `from src.config import settings`
+where missing and this fixture:
+```python
+@pytest.fixture(autouse=True)
+def _verifier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the verifier, which is off by default since the Phase 15 ablation."""
+    monkeypatch.setattr(settings, "VERIFIER_ENABLED", True)
+```
+
+**Selected judge** (`src/eval/judge.py`, `src/eval/__main__.py`, `src/eval/metrics.py`, `src/eval/compare.py`)
+- `judge` accepts `--judge-model`, `--judge-prompt` and `--judge-dir` (defaults: `EVAL_JUDGE_MODEL`, `src/prompts/judge.md`,
+  `--runs-dir`); results are read from `--runs-dir`, judgments written to `--judge-dir`.
+- Every new judgment records `prompt_sha256` (SHA-256 of the prompt text with CRLF normalized to LF) and, when the judge
+  returns it, `acceptable`. `run_judge(..., prompt_path=None, judge_model_name=None)`: when the judgments file has an `ok`
+  record whose `judge_model` or `prompt_sha256` is present and differs from the current judge, it raises `ValueError` before
+  writing anything (the CLI prints it and returns 2).
+- `compare` accepts `--judge-dir` (default `--runs-dir`). When every run of a group has at least one judgment with
+  `acceptable`, the group gets the metric `judge_acceptable_rate` and the Markdown table the row "Juiz: aceitável sem
+  correção"; otherwise output is unchanged (regenerating `eval_v2_phase15` from the committed records gives the committed
+  report, apart from `generated_at`).
+
+**Compose evidence** (`scripts/compose_evidence.py`): a sixth key `"auth"` (user `cliente_auth`, customer); the token checks
+(cross-replica token, tampered token, refresh rotation, reuse detection) move to `auth_checks(keys, run_id, http=None)` and use
+only that key, so no scenario key spends budget before its scenario. `run_compose_evidence` calls it; the report keeps the same
+check names. In `tests/test_compose_evidence.py` the only change allowed is in
+`test_make_api_keys_and_render_env_isolate_scenarios_without_gemini_key`: six keys including `"auth"`, six entries, one
+`:cliente_auth:customer`.
+
+**Agent prompts (reviewer):** planner (`terminal_issue`); knowledge agent: when official passages give different values for
+the same fact, give each value with its URL and date and say the official sources differ.
+
+### 3.8 15E — Publication and the matrix check
+
+Checked by `scripts/verify_phase15e.py` (written after round 2): the README with both rounds, criterion by criterion, the
+ablation and its decision, the calibration and the selected judge, the exceptions with their evidence, the new holdout and what
+is no longer clean; `docs/STATUS.md`; the matrix recomputed from the records with every drop declared or failing; the README
+states that new labels from someone outside the project are pending.
 
 ### Acceptance (Phase 15)
 
-- AC15.1 The matrix (§R) is in this SPEC before 15A code and is recomputed by the 15D verifier.
+- AC15.1 The matrix (§R) is in this SPEC before 15A code and is recomputed by the 15E verifier.
 - AC15.2 Ablation: each run records its layers; the ablation report applies the rule of §3.4; the shipped default is a measured
   configuration.
 - AC15.3 Every plan step assigned to a specialist is executed or corrected once; screen and app codes never reach the decline

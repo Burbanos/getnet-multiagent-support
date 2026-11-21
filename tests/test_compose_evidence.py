@@ -125,11 +125,12 @@ def test_scan_dump_decodes_pg_dump_bytea_hex_blobs_and_plain_text() -> None:
 
 def test_make_api_keys_and_render_env_isolate_scenarios_without_gemini_key() -> None:
     keys, spec = ce.make_api_keys()
-    assert set(keys) == {"conversation", "ticket", "pii", "rate_limit", "operator"}
-    assert len(set(keys.values())) == 5
+    assert set(keys) == {"auth", "conversation", "ticket", "pii", "rate_limit", "operator"}
+    assert len(set(keys.values())) == 6
     entries = spec.split(";")
-    assert len(entries) == 5
+    assert len(entries) == 6
     assert all(raw not in spec for raw in keys.values())
+    assert sum(e.endswith(":cliente_auth:customer") for e in entries) == 1
     assert sum(e.endswith(":cliente1988:customer") for e in entries) == 3
     assert sum(e.endswith(":cliente_rl:customer") for e in entries) == 1
     assert sum(e.endswith(":operador_evidencia:operator") for e in entries) == 1

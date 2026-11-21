@@ -256,6 +256,9 @@ def main() -> int:
     p_judge.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
     p_judge.add_argument("--cases", default=str(DEFAULT_CASES_PATH), help="Path to the evaluation cases JSONL")
     p_judge.add_argument("--sleep", type=float, default=None, help="Pause between cases in seconds")
+    p_judge.add_argument("--judge-model", default=None, help="Judge model name (default: EVAL_JUDGE_MODEL)")
+    p_judge.add_argument("--judge-prompt", default=None, help="Path to judge prompt Markdown (default: src/prompts/judge.md)")
+    p_judge.add_argument("--judge-dir", default=None, help="Directory for judgment JSONL files (default: --runs-dir)")
 
     # 4. report
     p_report = subparsers.add_parser("report", help="Generate evaluation JSON and Markdown report")
@@ -274,6 +277,7 @@ def main() -> int:
         help="Group definition in format LABEL=run1,run2,...",
     )
     p_compare.add_argument("--runs-dir", default="reports/eval_runs", help="Directory for raw run JSONL")
+    p_compare.add_argument("--judge-dir", default=None, help="Directory containing .judge.jsonl files (default: --runs-dir)")
     p_compare.add_argument("--out-dir", default="reports", help="Output directory for reports")
     p_compare.add_argument("--cases", default=str(DEFAULT_CASES_PATH), help="Path to the evaluation cases JSONL")
 
@@ -610,14 +614,22 @@ def main() -> int:
             return 2
 
         results_file = Path(args.runs_dir) / f"{args.run_id}.jsonl"
-        judge_file = Path(args.runs_dir) / f"{args.run_id}.judge.jsonl"
+        judge_dir = Path(args.judge_dir) if args.judge_dir else Path(args.runs_dir)
+        judge_file = judge_dir / f"{args.run_id}.judge.jsonl"
+        judge_model_name = args.judge_model or settings.EVAL_JUDGE_MODEL
 
-        summary = run_judge(
-            cases=cases,
-            results_path=results_file,
-            judgments_path=judge_file,
-            sleep_s=args.sleep,
-        )
+        try:
+            summary = run_judge(
+                cases=cases,
+                results_path=results_file,
+                judgments_path=judge_file,
+                sleep_s=args.sleep,
+                prompt_path=args.judge_prompt,
+                judge_model_name=judge_model_name,
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
         print(
             f"Judge '{args.run_id}': attempted={summary['attempted']}, ok={summary['ok']}, "
             f"errors={summary['errors']}, skipped={summary['skipped']}, stopped_early={summary['stopped_early']}"
@@ -659,6 +671,7 @@ def main() -> int:
 
     if args.subcommand == "compare":
         runs_dir = Path(args.runs_dir)
+        judge_dir = Path(args.judge_dir) if args.judge_dir else runs_dir
         groups = []
         for g_str in args.group:
             if "=" not in g_str:
@@ -672,7 +685,7 @@ def main() -> int:
                 if not res_file.exists():
                     print(f"Error: results file not found at {res_file}", file=sys.stderr)
                     return 1
-                judge_file = runs_dir / f"{rid}.judge.jsonl"
+                judge_file = judge_dir / f"{rid}.judge.jsonl"
                 results = list(load_results(res_file).values())
                 judgments = list(load_judgments(judge_file).values()) if judge_file.exists() else None
                 runs_data.append((rid, results, judgments))

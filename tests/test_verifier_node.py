@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import Field
 
 from src.agents.verifier import Verifier
+from src.config import settings
 from src.core.graph import VERIFIER_ABSTENTION_MESSAGE, OrchestrationGraph
 from src.core.tickets_db import _get_message_text
 from tests.fakes import ScriptedChatModel
@@ -294,3 +296,9 @@ def test_verifier_disabled_via_setting_marks_disabled(monkeypatch: Any) -> None:
     st = orch.run_sync(user_id="cliente1988", session_id="s-ver-off", message="Oi")
     assert (st.verification or {}).get("status") == "disabled"
     assert ver.received == []
+
+
+@pytest.fixture(autouse=True)
+def _verifier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the verifier, which is off by default since the Phase 15 ablation."""
+    monkeypatch.setattr(settings, "VERIFIER_ENABLED", True)

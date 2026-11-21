@@ -51,6 +51,14 @@ def compare_runs(
                     "min": min(vals),
                     "max": max(vals),
                 }
+        acc_vals = [(a.get("judge") or {}).get("acceptable_rate") for a in aggs]
+        if acc_vals and all(v is not None for v in acc_vals):
+            mets["judge_acceptable_rate"] = {
+                "values": acc_vals,
+                "mean": math.fsum(acc_vals) / len(acc_vals),
+                "min": min(acc_vals),
+                "max": max(acc_vals),
+            }
         failed = None
         for a in aggs:
             ids = {pc["id"] for pc in a["per_case"] if pc["status"] == "ok" and not pc["passed"]}
@@ -117,8 +125,19 @@ def build_markdown_table(groups: list[dict[str, Any]]) -> list[str]:
         "| Execuções | " + " | ".join(", ".join(g["runs"]) for g in groups) + " |",
         "| Modelo das respostas | " + " | ".join(", ".join(g["answer_models"]) or "n/d" for g in groups) + " |",
     ]
+    has_acceptable = any("judge_acceptable_rate" in (g.get("metrics") or {}) for g in groups)
+    empty_cell: dict[str, Any] = {"mean": None, "min": None, "max": None}
     for name, _, _, title, kind in COMPARE_METRICS:
         lines.append(f"| {title} | " + " | ".join(format_cell(kind, g["metrics"][name]) for g in groups) + " |")
+        if has_acceptable and name == "judge_abstention_recall":
+            lines.append(
+                "| Juiz: aceitável sem correção | "
+                + " | ".join(
+                    format_cell("pct", g["metrics"].get("judge_acceptable_rate", empty_cell))
+                    for g in groups
+                )
+                + " |"
+            )
     return lines
 
 

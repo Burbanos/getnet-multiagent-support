@@ -195,6 +195,9 @@ def aggregate(
                 {j.get("judge_model") for _, _, j in judged if j.get("judge_model")}
             ),
         }
+        acc_vals = [j["acceptable"] for _, _, j in judged if isinstance(j.get("acceptable"), bool)]
+        if acc_vals:
+            judge_section["acceptable_rate"] = rate(acc_vals)
 
     return {
         "n_cases": len(cases),

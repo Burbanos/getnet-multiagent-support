@@ -6,6 +6,7 @@ import re
 import uuid
 from typing import Any
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import MemorySaver
@@ -276,3 +277,9 @@ def test_prior_turn_evidence_persists_even_after_abstained_turn(monkeypatch: Any
 
     st2 = orch.run_sync("cliente1988", "Qual o código bruto?", session_id="s-prior-abstain")
     assert (st2.verification or {}).get("status") == "passed"
+
+
+@pytest.fixture(autouse=True)
+def _verifier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the verifier, which is off by default since the Phase 15 ablation."""
+    monkeypatch.setattr(settings, "VERIFIER_ENABLED", True)

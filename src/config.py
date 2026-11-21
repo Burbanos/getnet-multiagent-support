@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     GUARDRAIL_WEB_RESULTS_ENABLED: bool = True
     ANSWER_CHECK_ENABLED: bool = True
     PLANNER_ENABLED: bool = True
-    VERIFIER_ENABLED: bool = True
+    VERIFIER_ENABLED: bool = False
     LANGUAGE_ENFORCEMENT_ENABLED: bool = True
     PLAN_COVERAGE_ENABLED: bool = True
     API_KEYS: str = ""

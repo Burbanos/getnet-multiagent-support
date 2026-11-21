@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -244,3 +245,9 @@ def test_plan_coverage_disabled_and_metrics_and_span(monkeypatch: Any) -> None:
             assert set(s.attributes or {}) <= tracing.ALLOWED_ATTRIBUTES
     finally:
         tracing.shutdown_tracing()
+
+
+@pytest.fixture(autouse=True)
+def _verifier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the verifier, which is off by default since the Phase 15 ablation."""
+    monkeypatch.setattr(settings, "VERIFIER_ENABLED", True)

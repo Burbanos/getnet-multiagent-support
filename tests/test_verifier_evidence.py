@@ -6,6 +6,7 @@ import re
 import uuid
 from typing import Any
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import MemorySaver
@@ -320,3 +321,9 @@ def test_evidence_and_conversation_builders_enforce_limits_and_truncation_flag()
     assert "M11" in conv and "A11" not in conv and "assistant:" not in conv and "M00" not in conv and "CURR" not in conv
     segments = [seg.rstrip("\n") for seg in re.split(r"(?m)^(?=merchant:|operator:)", conv) if seg.strip()]
     assert all(len(seg) <= MAX_CONVERSATION_ITEM_CHARS + len("operator: ") for seg in segments)
+
+
+@pytest.fixture(autouse=True)
+def _verifier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the verifier, which is off by default since the Phase 15 ablation."""
+    monkeypatch.setattr(settings, "VERIFIER_ENABLED", True)
