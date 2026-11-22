@@ -41,13 +41,15 @@ on the reviewer's copy, CI is green on the sub-phase commit, and `docs/STATUS.md
 
 ---
 
-## Current state (2026-11-21)
+## Current state (2026-11-22)
 
 Phase 14 closed (`8dcf972`, CI green: `test`, `integration`, `docker`). Real feedback v3: **9.2/10**, "Excelente / finalista",
 9th place. Its "Caminho para 9,5" is the scope of Phase 15. Decided by the author: no new labels from an annotator outside the
 project in Phase 15 (the README declares it as pending); judge calibration as in §3.5 (options a and c). 15A closed
 (`fba3306`, 44/44, CI green). 15B closed (`dd9e8d3`, 48/48 with promtool, CI green). 15C closed (`a1cfac9`, 21/21, CI green). 15C2 closed (`924836e`). Index rebuilt (`38ba91f`), `compose-3` (`876655c`, 16/17, harness defect),
-round 1 committed (`6492e8b`): criterion not met (§3.4, "Round 1"). **Next: 15D** (corrections, §3.7), then round 2, then 15E.
+round 1 committed (`6492e8b`): criterion not met (§3.4, "Round 1"). 15D closed (`5ad0b92`, CI green); `compose-4`
+(`7101683`, 17/17); round 2 committed (`3426c78`, CI green): criterion met, with declared drops (§3.4, "Round 2 result").
+**Next: 15E** (§3.8), then the resubmission.
 
 ---
 
@@ -552,6 +554,31 @@ python -m src.eval compare --name routing_holdout_phase15r2 --cases data/eval/ca
                                                      # holdout4 (h4-1 / h4-2), actions (act-4 / act-6)
 ```
 
+**Round 2 result (`3426c78`, 2026-11-21, code of `5ad0b92`, all steps completed).** Met: R1 one failure in 27 (`off03`,
+`v2-24`); R2 routing 98.5%; R3 US$ 0.392, median 6.1 s, p95 12.2 s; R4 `rh2-9` 12/12; R5 `compose-4` 17/17 and CI green on
+`3426c78`; R6 `k13` and `m04` 3/3 each. The original target of routing and tools ≥ 99.5% (C1, V3.9) is not reached (98.5% /
+99.0%). Holdouts `rh-12`, `rh2-9`, `h3-6`, `h4-2` and `act-6` pass every case. Drops against `8dcf972` (all class F, declared
+in the README with these causes, read by the reviewer from the records):
+- V2.4: `s04` and `s06` fail in 3 of 6 case-runs (`s04` in `v2-24`; `s06` in `v2-24`, `v2-25`): the planner marked
+  `code_source = none` for a question about a decline code, so the delegate rule did not apply and the supervisor asked the
+  knowledge agent. These are the three routing failures of the round.
+- B3: judge abstention coverage 62.2% (88.9%). In 5 of the 15 abstention cases (`u01`, `u02`, `u04`, `u06`, `u07`) every
+  answer cites pages that entered the corpus in 15B; the judge counted them as answers in 13 of 15 case-runs. Reviewer error:
+  the v2 abstention labels were not re-audited against the new corpus in 15C, although `u02`, `u06`, `u07` match retrieval
+  queries already declared covered there. The labels stay (rule 6); the README prints the coverage without the case-runs whose
+  answer cites a page absent from the `8dcf972` index: 26/30 (86.7%), still a drop (`u03` ×2 answered with the terminal
+  diagnosis, which the verifier turned into an abstention in Phase 14; `d02` ×2 "city not found", counted as an answer).
+  Precision 96.7% (100%): `k14` in `v2-23` abstained.
+- V3.18: cases passed 94.4% (95.7% without `off10`), facts 95.7% (99.1%: `x01` ×2 and `off03` ×1 omit the net amount,
+  `s05` ×1 writes R$ 3.367,80 although the tool returned 3367.20, `k14` ×1), language 99.5% (`m06` in `v2-25`: the language
+  rewrite was rejected and the Portuguese answer went out). `x03` in `v2-24`: Open-Meteo answered `unavailable`.
+- V2.2 (round 1 retrieval, unchanged): hit@1 0.933 (0.966 without `a16`; `e03`, same Get Tap conflict, gold page at rank 3);
+  uncovered abstention 5/6 (0.833; `u01` answered from the Pix help pages).
+- V2.5: the verifier is off by default (ablation rule).
+Exceptions: `off10` fails `sources_ok` in all three runs (official scenarios 86.7%, 96.3% without it, as in `8dcf972` without
+it; it is the only case failing in every run); `a16` (hit@3 0.967, 1.000 without it). No change is made after round 2: it was
+the last pre-registered round, and fixing `s04`/`s06` now would tune the system on the cases that measure it.
+
 ### 3.5 Judge calibration (decided by the author on 2026-11-20: options a and c)
 
 Diagnosis 6 shows that κ ≥ 0.6 against both raters cannot be reached on the 30 existing annotations. Decision: (a) publish the
@@ -685,10 +712,26 @@ the same fact, give each value with its URL and date and say the official source
 
 ### 3.8 15E — Publication and the matrix check
 
-Checked by `scripts/verify_phase15e.py` (written after round 2): the README with both rounds, criterion by criterion, the
-ablation and its decision, the calibration and the selected judge, the exceptions with their evidence, the new holdout and what
-is no longer clean; `docs/STATUS.md`; the matrix recomputed from the records with every drop declared or failing; the README
-states that new labels from someone outside the project are pending.
+Checked by `scripts/verify_phase15e.py`; prompt `docs/phase-prompts/15E.md`. No code, test, data or report changes. Reviewer
+files in 15E: this SPEC, the prompt, the verifier and `docs/phase-prompts/15E_README.md` (the README text, written by the
+reviewer from the records and checked against them; Antigravity copies it to `README.md` byte for byte and removes the
+draft). The 15D prompt and verifier are retired.
+
+- **README** (pt-BR): architecture updated for Phases 15A–15D (delegate rule, plan coverage, verifier off by default, screen-code
+  gate, Bearer tokens and refresh rotation, merchant SSE, alerts and runbook, the larger corpus and the source-conflict rule);
+  how to run with tokens; both rounds criterion by criterion; the ablation and its decision; the v2 table (`8dcf972`, round 1
+  full and without the verifier, round 2); the numeric rows of §R with their `8dcf972` and round 2 values and status; every
+  drop with its cause; the exceptions with question, answer, cited pages and labelled page; holdouts, what is no longer clean;
+  retrieval; `compose-4`; guardrail; judge calibration and the selected judge; outside labels pending; limitations; authorship.
+- **Matrix check:** the verifier recomputes from the committed records every numeric row of §R for `8dcf972` and the shipped
+  configuration (round 2; retrieval, guardrail and calibration from round 1), with and without the exceptions, applies the
+  drop rule of §R and fails if a row's printed value is not in the README matrix, if a drop is not marked "queda declarada"
+  (or "exceção" when it disappears without the exceptions), if a non-drop is marked as a drop, or if a class E row drops.
+- **`docs/STATUS.md`:** at most 80 lines, the verifier's PASS/FAIL lines and summary (no JSON log lines), "Perguntas /
+  divergências".
+- **Previous verifiers:** the 15D verifier is re-run from `5ad0b92`; superseded: A1.reviewer_files, A2.retired_process_files,
+  A3.scope, A4.data_and_reports_unchanged (round 2 reports), S1.status; 15E checks files, scope and STATUS against `3426c78`.
+  Its other checks (code, tests, the 15C and 15B verifiers inside) must pass unchanged.
 
 ### Acceptance (Phase 15)
 
