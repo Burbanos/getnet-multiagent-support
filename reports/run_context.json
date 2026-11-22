@@ -286,6 +286,38 @@
     "act-5": {
       "date": "2026-11-21",
       "tier": "paid_tier_1"
+    },
+    "v2-23": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-24": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "v2-25": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "rh-12": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "rh2-9": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "h3-6": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "h4-2": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
+    },
+    "act-6": {
+      "date": "2026-11-21",
+      "tier": "paid_tier_1"
     }
   }
 }
